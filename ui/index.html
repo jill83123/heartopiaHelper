@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <title></title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <div class="container">
+      <ul class="tabs">
+        <li>
+          <button type="button" class="tab active" data-target="#cook-tab-pane">料理 🍳</button>
+        </li>
+        <li>
+          <button type="button" class="tab" data-target="#snow-tab-pane">雪雕 ⛄</button>
+        </li>
+      </ul>
+
+      <div class="cook tab-content">
+        <div class="pane show active" id="cook-tab-pane">
+          <h4 class="title">主要設定</h4>
+
+          <div class="row">
+            <div class="col">
+              <button class="btn" id="bubbleRegionBtn">泡泡區域範圍座標</button>
+              <p id="bubbleRegionCoord" class="coord fs-12 text-danger">尚未選取座標</p>
+            </div>
+            <div class="col">
+              <button class="btn" id="cookPointBtn">開始烹飪按鈕座標</button>
+              <p id="startCookCoord" class="coord fs-12 text-danger">尚未選取座標</p>
+            </div>
+          </div>
+
+          <div class="row mb-16">
+            <div class="col">
+              <label for="expectedCookQty" class="label">料理數量</label>
+              <input
+                type="number"
+                min="1"
+                class="setting input"
+                id="expectedCookQty"
+                placeholder="1 以上"
+                data-key="expectedCookQty"
+              />
+            </div>
+          </div>
+
+          <hr />
+
+          <h4 class="title">運行</h4>
+          <div class="flex mb-8">
+            <div>
+              <div class="check">
+                <input type="checkbox" id="safeModeToggle" />
+                <label for="safeModeToggle">
+                  安全模式<span class="muted fs-12">（都煮完才收料理）</span>
+                </label>
+              </div>
+            </div>
+            <div class="flex gap-8">
+              <button type="button" id="stopCookBtn" class="btn danger w-120">停止</button>
+              <button type="button" id="startCookBtn" class="btn primary w-120">開始</button>
+            </div>
+          </div>
+          <textarea id="logContainer" class="log input" readonly></textarea>
+
+          <hr />
+
+          <div class="m-0 mb-8">
+            <h4 class="title m-0">其他設定</h4>
+            <p class="muted m-0">閥值越接近 1 越嚴格</p>
+          </div>
+
+          <div class="row mb-0">
+            <div class="col">
+              <label for="startActionThreshold" class="label">鍋子閥值</label>
+              <input
+                type="number"
+                min="0.1"
+                max="1"
+                step="0.01"
+                class="setting input"
+                id="startActionThreshold"
+                placeholder="0.1-1.0"
+                data-key="startActionThreshold"
+              />
+            </div>
+            <div class="col">
+              <label for="fireThreshold" class="label">鏟子閥值</label>
+              <input
+                type="number"
+                min="0.1"
+                max="1"
+                step="0.01"
+                class="setting input"
+                id="fireThreshold"
+                placeholder="0.1-1.0"
+                data-key="fireThreshold"
+              />
+            </div>
+            <div class="col">
+              <label for="completedThreshold" class="label">手套閥值</label>
+              <input
+                type="number"
+                min="0.1"
+                max="1"
+                step="0.01"
+                class="setting input"
+                id="completedThreshold"
+                placeholder="0.1-1.0"
+                data-key="completedThreshold"
+              />
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col">
+              <label for="detectFrequency" class="label">偵測頻率(s)</label>
+              <input
+                type="number"
+                min="0.1"
+                step="0.01"
+                class="setting input"
+                id="detectFrequency"
+                placeholder="0.1 以上"
+                data-key="detectFrequency"
+              />
+            </div>
+            <div class="col">
+              <label for="clickFrequency" class="label">點擊頻率(s)</label>
+              <input
+                type="number"
+                min="0.1"
+                step="0.01"
+                class="setting input"
+                id="clickFrequency"
+                placeholder="0.1 以上"
+                data-key="clickFrequency"
+              />
+            </div>
+            <div class="col"></div>
+          </div>
+        </div>
+
+        <div class="pane" id="snow-tab-pane">
+          <h4 class="title">主要設定</h4>
+
+          <div class="row">
+            <div class="col">
+              <button class="btn" id="snowDetectRegionBtn">偵測範圍座標</button>
+              <p id="snowDetectRegionCoord" class="coord fs-12 text-danger">尚未選取座標</p>
+            </div>
+            <div class="col"></div>
+          </div>
+
+          <hr />
+
+          <h4 class="title">運行</h4>
+          <div class="flex mb-8">
+            <div></div>
+            <div class="flex gap-8">
+              <button type="button" id="stopSnowBtn" class="btn danger w-120">停止</button>
+              <button type="button" id="startSnowBtn" class="btn primary w-120">開始</button>
+            </div>
+          </div>
+          <textarea id="logContainerSnow" class="log input" readonly></textarea>
+
+          <hr />
+
+          <div class="m-0 mb-8">
+            <h4 class="title m-0">其他設定</h4>
+            <p class="muted m-0">閥值越接近 1 越嚴格</p>
+          </div>
+
+          <div class="row mb-0">
+            <div class="col">
+              <label for="snowPutThreshold" class="label">放雪按鈕閥值</label>
+              <input
+                type="number"
+                min="0.1"
+                max="1"
+                step="0.01"
+                class="setting input"
+                id="snowPutThreshold"
+                placeholder="0.1-1.0"
+                data-key="snowPutThreshold"
+              />
+            </div>
+            <div class="col">
+              <label for="snowStartBtnThreshold" class="label">開始按鈕閥值</label>
+              <input
+                type="number"
+                min="0.1"
+                max="1"
+                step="0.01"
+                class="setting input"
+                id="snowStartBtnThreshold"
+                placeholder="0.1-1.0"
+                data-key="snowStartBtnThreshold"
+              />
+            </div>
+            <div class="col">
+              <label for="snowflakeThreshold" class="label">雕刻按鈕閥值</label>
+              <input
+                type="number"
+                min="0.1"
+                max="1"
+                step="0.01"
+                class="setting input"
+                id="snowflakeThreshold"
+                placeholder="0.1-1.0"
+                data-key="snowflakeThreshold"
+              />
+            </div>
+            <div class="col">
+              <label for="snowCompletedThreshold" class="label">完成按鈕閥值</label>
+              <input
+                type="number"
+                min="0.1"
+                max="1"
+                step="0.01"
+                class="setting input"
+                id="snowCompletedThreshold"
+                placeholder="0.1-1.0"
+                data-key="snowCompletedThreshold"
+              />
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col">
+              <label for="snowDetectFrequency" class="label">偵測頻率(s)</label>
+              <input
+                type="number"
+                min="0.1"
+                step="0.01"
+                class="setting input"
+                id="snowDetectFrequency"
+                placeholder="0.1 以上"
+                data-key="snowDetectFrequency"
+              />
+            </div>
+            <div class="col"></div>
+            <div class="col"></div>
+          </div>
+        </div>
+      </div>
+
+      <hr />
+
+      <div class="row">
+        <div class="col">
+          <label for="screenResolution" class="label">遊戲解析度</label>
+          <select id="screenResolution" class="setting input" data-key="screenResolution">
+            <option value="1920x1080">1920x1080</option>
+            <option value="1600x900">1600x900</option>
+            <option value="1366x768">1366x768</option>
+            <option value="1280x1024">1280x1024</option>
+            <option value="1024x768">1024x768</option>
+            <option value="800x600">800x600</option>
+            <option value="640x480">640x480</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="stopKey" class="label">停止按鍵</label>
+          <input
+            type="text"
+            class="setting input"
+            id="stopKey"
+            placeholder="輸入按鍵名稱"
+            data-key="stopKey"
+          />
+        </div>
+        <div class="col"></div>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

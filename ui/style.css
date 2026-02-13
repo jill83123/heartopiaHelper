@@ -1,0 +1,232 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+TC:wght@100..900&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/twemoji-colr-font@15.0.3/twemoji.min.css');
+
+html {
+  font-size: 14px;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Noto Sans TC', 'twemoji Mozilla', sans-serif;
+}
+
+/* 字級、間距、通用輔助類 */
+.fs-12 {
+  font-size: 12px !important;
+}
+
+.m-0 {
+  margin: 0 !important;
+}
+.mb-8 {
+  margin-bottom: 8px !important;
+}
+.mb-16 {
+  margin-bottom: 16px !important;
+}
+
+.gap-8 {
+  gap: 8px !important;
+}
+
+.w-120 {
+  width: 120px !important;
+}
+
+.flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.muted {
+  color: #94a3b8;
+  font-size: 0.95em;
+}
+.text-danger {
+  color: #f44646 !important;
+}
+.bg-success {
+  background-color: #16a34a !important;
+}
+
+/* 版面結構 */
+.container {
+  max-width: 100%;
+  padding: 16px 28px;
+}
+.row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+/* tab 分頁 */
+.tabs {
+  list-style: none;
+  padding-left: 0;
+  display: flex;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 16px;
+}
+.tab {
+  border: none;
+  outline: none;
+  color: #64748b;
+  font-size: 1.1em;
+  font-weight: 500;
+  padding: 12px 32px;
+  background: none;
+  border-radius: 18px 18px 0 0;
+  cursor: pointer;
+}
+.tab.active {
+  color: #2563eb;
+  background: #f1f5f9;
+  border-bottom: 2px solid #2563eb;
+}
+.pane {
+  display: none;
+}
+.pane.show.active {
+  display: block;
+}
+
+/* 標題、輸入欄 */
+.title {
+  color: #334155;
+  font-size: 1.2em;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+.label {
+  color: #475569;
+  font-size: 1em;
+  margin-bottom: 6px;
+}
+.input {
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 1em;
+  padding: 8px 12px;
+  margin-bottom: 0;
+  transition: border-color 0.2s;
+}
+.input:focus {
+  border-color: #2563eb;
+  outline: none;
+}
+
+/* 按鈕 */
+.btn {
+  border: none;
+  border-radius: 999px;
+  background: #e0e7ef;
+  color: #334155;
+  font-size: 1em;
+  font-weight: 500;
+  padding: 8px 0;
+  margin-bottom: 0;
+  cursor: pointer;
+  width: 100%;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.btn:hover {
+  background: #cbd5e1;
+}
+.btn.primary {
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  margin-bottom: 0;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+}
+.btn.primary:hover {
+  background: #1d4ed8;
+}
+.btn.danger {
+  background: #dc2626;
+  color: #fff;
+  font-weight: 600;
+  margin-bottom: 0;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.1);
+}
+.btn.danger:hover {
+  background: #991b1b;
+}
+.btn[disabled] {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.btn[disabled]:hover {
+  background: #f1f5f9;
+}
+
+/* 日誌狀態 */
+.log {
+  font-family: monospace;
+  width: calc(100% - 24px);
+  height: 200px;
+  background: #f1f5f9;
+  padding: 8px 12px;
+  resize: none;
+}
+
+/* 其他元件 */
+.check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+}
+.input[disabled] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: #fff
+    url('data:image/svg+xml;utf8,<svg fill="gray" height="20" viewBox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>')
+    no-repeat right 0.75em center/1.2em;
+  padding-right: 2.5em;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  height: 36px;
+}
+/* 移除 IE 的預設箭頭 */
+select.input::-ms-expand {
+  display: none;
+}
+
+.coord {
+  color: #2563eb;
+  font-weight: 700;
+  text-align: center;
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+hr {
+  border: none;
+  margin: 24px 0;
+  border-top: 1px solid #e5e7eb;
+}
