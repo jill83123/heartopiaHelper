@@ -18,11 +18,17 @@ body {
 .m-0 {
   margin: 0 !important;
 }
+.ml-12 {
+  margin-left: 16px !important;
+}
 .mb-8 {
   margin-bottom: 8px !important;
 }
 .mb-16 {
   margin-bottom: 16px !important;
+}
+.mt-auto {
+  margin-top: auto !important;
 }
 
 .gap-8 {

@@ -109,8 +109,9 @@ def captureScreen(x, y, width, height):
         return img  # BGR Numpy Array
 
 
-def matchTemplate(screenImg, templatePath, threshold=0.8, scales=[1.0]):
+def matchTemplate(screenImg, templatePath, threshold=0.8, scales=[1.0], isDebugMode=False):
     templatePath = getResourcePath(templatePath)
+    templateName = os.path.basename(templatePath)
 
     screenGray = cv2.cvtColor(screenImg, cv2.COLOR_BGR2GRAY)
     templateOrig = cv2.imread(templatePath, cv2.IMREAD_COLOR)
@@ -125,6 +126,9 @@ def matchTemplate(screenImg, templatePath, threshold=0.8, scales=[1.0]):
         res = cv2.matchTemplate(screenGray, template_gray, cv2.TM_CCOEFF_NORMED)
         loc = np.where(res >= threshold)
         for x, y in zip(*loc[::-1]):
+            matchScore = res[y, x]
+            if isDebugMode:
+                print(f"找到 {templateName}，當前比對率: {matchScore:.2f}，閥值: {threshold}")
             rectangles.append([x, y, x + tw, y + th, scale])
             bestPoints.append((x + tw // 2, y + th // 2))
 

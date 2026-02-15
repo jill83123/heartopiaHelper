@@ -28,7 +28,8 @@ class SnowCarving:
         scale = getScaleWithResolution(width)
         templatePath = f"templates/snowCarving/{itemName}.png"
         threshold = float(self.config.get(f"{itemName}Threshold"))
-        coords = matchTemplate(mainImg, templatePath, threshold, scales=[scale])
+        isDebugMode = self.config.get("isDebugMode").lower() == "true"
+        coords = matchTemplate(mainImg, templatePath, threshold, scales=[scale], isDebugMode=isDebugMode)
         return coords
 
     def _getRelCords(self, baseCoords, relativeCoords):
@@ -89,7 +90,8 @@ class SnowCarving:
                 continue
 
             if not snowPutCords and not snowStartBtnCords and not snowflakeCords and not snowCompletedCords:
-                self.waitingSince = time.time()
+                if not self.waitingSince:
+                    self.waitingSince = time.time()
 
                 if time.time() - self.waitingSince > 20:
                     self.setLog("判斷超時 20s 按下 ESC")

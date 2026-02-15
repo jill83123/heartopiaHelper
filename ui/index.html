@@ -74,7 +74,9 @@
 
           <div class="row mb-0">
             <div class="col">
-              <label for="startActionThreshold" class="label">鍋子閥值</label>
+              <label for="startActionThreshold" class="label">
+                鍋子閥值 <span class="muted fs-12">(startAction)</span>
+              </label>
               <input
                 type="number"
                 min="0.1"
@@ -87,7 +89,9 @@
               />
             </div>
             <div class="col">
-              <label for="fireThreshold" class="label">鏟子閥值</label>
+              <label for="fireThreshold" class="label">
+                鏟子閥值 <span class="muted fs-12">(fire)</span>
+              </label>
               <input
                 type="number"
                 min="0.1"
@@ -100,7 +104,9 @@
               />
             </div>
             <div class="col">
-              <label for="completedThreshold" class="label">手套閥值</label>
+              <label for="completedThreshold" class="label">
+                手套閥值 <span class="muted fs-12">(completed)</span>
+              </label>
               <input
                 type="number"
                 min="0.1"
@@ -115,6 +121,21 @@
           </div>
 
           <div class="row">
+            <div class="col">
+              <label for="timerThreshold" class="label">
+                倒數計時器閥值 <span class="muted fs-12">(timer)</span>
+              </label>
+              <input
+                type="number"
+                min="0.1"
+                max="1"
+                step="0.01"
+                class="setting input"
+                id="timerThreshold"
+                placeholder="0.1-1.0"
+                data-key="timerThreshold"
+              />
+            </div>
             <div class="col">
               <label for="detectFrequency" class="label">偵測頻率(s)</label>
               <input
@@ -139,7 +160,6 @@
                 data-key="clickFrequency"
               />
             </div>
-            <div class="col"></div>
           </div>
         </div>
 
@@ -175,7 +195,9 @@
 
           <div class="row mb-0">
             <div class="col">
-              <label for="snowPutThreshold" class="label">放雪按鈕閥值</label>
+              <label for="snowPutThreshold" class="label">
+                放雪按鈕閥值 <span class="muted fs-12">(snowPut)</span>
+              </label>
               <input
                 type="number"
                 min="0.1"
@@ -188,7 +210,9 @@
               />
             </div>
             <div class="col">
-              <label for="snowStartBtnThreshold" class="label">開始按鈕閥值</label>
+              <label for="snowStartBtnThreshold" class="label">
+                開始按鈕閥值 <span class="muted fs-12">(snowStartBtn)</span>
+              </label>
               <input
                 type="number"
                 min="0.1"
@@ -201,7 +225,9 @@
               />
             </div>
             <div class="col">
-              <label for="snowflakeThreshold" class="label">雕刻按鈕閥值</label>
+              <label for="snowflakeThreshold" class="label">
+                雕刻按鈕閥值 <span class="muted fs-12">(snowflake)</span>
+              </label>
               <input
                 type="number"
                 min="0.1"
@@ -214,7 +240,9 @@
               />
             </div>
             <div class="col">
-              <label for="snowCompletedThreshold" class="label">完成按鈕閥值</label>
+              <label for="snowCompletedThreshold" class="label">
+                完成按鈕閥值 <span class="muted fs-12">(snowCompleted)</span>
+              </label>
               <input
                 type="number"
                 min="0.1"
@@ -241,6 +269,7 @@
                 data-key="snowDetectFrequency"
               />
             </div>
+            <div class="col"></div>
             <div class="col"></div>
             <div class="col"></div>
           </div>
@@ -272,7 +301,13 @@
             data-key="stopKey"
           />
         </div>
-        <div class="col"></div>
+        <div class="col">
+          <div class="check mt-auto">
+            <input type="checkbox" id="debugModeToggle" />
+            <label for="debugModeToggle">顯示圖片比對率</label>
+          </div>
+          <span class="muted fs-12 ml-12">（除錯用，當比對率大於閥值時，腳本才會進行動作）</span>
+        </div>
       </div>
     </div>
 

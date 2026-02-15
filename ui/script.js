@@ -2,6 +2,7 @@ const bubbleRegionBtn = document.querySelector('#bubbleRegionBtn');
 const cookPointBtn = document.querySelector('#cookPointBtn');
 const snowDetectRegionBtn = document.querySelector('#snowDetectRegionBtn');
 const safeModeToggle = document.querySelector('#safeModeToggle');
+const debugModeToggle = document.querySelector('#debugModeToggle');
 
 let hasBubbleRegion = false;
 let hasCookBtnPoint = false;
@@ -92,6 +93,11 @@ safeModeToggle.addEventListener('change', (e) => {
   getApi().apiWriteSetting('isSafeMode', e.target.checked);
 });
 
+// 除錯模式切換
+debugModeToggle.addEventListener('change', (e) => {
+  getApi().apiWriteSetting('isDebugMode', e.target.checked);
+});
+
 // 處理日誌訊息
 const handleCookingLogMessage = (log) => {
   currentCookingLogIndex = log.index;
@@ -130,6 +136,7 @@ const init = async () => {
       input.disabled = isAnyTaskRunning;
     });
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;
+    if (debugModeToggle) debugModeToggle.disabled = isAnyTaskRunning;
     if (bubbleRegionBtn) bubbleRegionBtn.disabled = isAnyTaskRunning;
     if (cookPointBtn) cookPointBtn.disabled = isAnyTaskRunning;
     if (snowDetectRegionBtn) snowDetectRegionBtn.disabled = isAnyTaskRunning;
@@ -144,6 +151,9 @@ const init = async () => {
   });
   if (String(settings.isSafeMode).toLowerCase() === 'true') {
     if (safeModeToggle) safeModeToggle.checked = true;
+  }
+  if (String(settings.isDebugMode).toLowerCase() === 'true') {
+    if (debugModeToggle) debugModeToggle.checked = true;
   }
 
   // 綁定設定變更監聽

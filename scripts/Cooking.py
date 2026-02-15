@@ -39,7 +39,8 @@ class Cooking:
         scale = getScaleWithResolution(width)
         templatePath = f"templates/cooking/{itemName}.png"
         threshold = float(self.config.get(f"{itemName}Threshold"))
-        coords = matchTemplate(mainImg, templatePath, threshold, scales=[scale])
+        isDebugMode = self.config.get("isDebugMode").lower() == "true"
+        coords = matchTemplate(mainImg, templatePath, threshold, scales=[scale], isDebugMode=isDebugMode)
         return coords
 
     def _getRelCords(self, baseCoords, relativeCoords):
@@ -131,7 +132,8 @@ class Cooking:
                     continue
 
             if not startActionCords and not fireCords and not completedCords and not timerCords:
-                self.waitingSince = time.time()
+                if not self.waitingSince:
+                    self.waitingSince = time.time()
 
                 if time.time() - self.waitingSince > 1.5:
                     self.setLog("判斷超時 1.5s 按下 ESC")
