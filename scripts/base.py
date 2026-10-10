@@ -33,6 +33,9 @@ class BaseTask:
         self._stopEvent = stopEvent
         self._threads = [threading.Thread(target=self._guard, args=(fn, stopEvent), daemon=True) for fn in self._threadTargets()]
         self.setLog("開始運行")
+        notice = getattr(self.backend, "resolutionNotice", lambda config: None)(self.config)
+        if notice:
+            self.setLog(notice)
         for t in self._threads:
             t.start()
 

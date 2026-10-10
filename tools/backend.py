@@ -25,6 +25,9 @@ from tools.tools import (
     MIN_REGION_SIZE,
 )
 
+BASE_WIDTH = 1600  # 模板的基準寬度
+SUPPORTED_RESOLUTIONS = ((1600, 900), (1366, 768), (1280, 720))  # 要和設定頁的解析度選項一致
+
 
 class ScreenBackend:
     """前景模式: 截取桌面畫面、以全域滑鼠鍵盤操作，遊戲須在最上層"""
@@ -126,8 +129,21 @@ class ScreenBackend:
             rect = self.getGameRect()
             if rect:
                 return rect[2]
-            return 1600  # 找不到遊戲視窗時用模板基準寬度(不縮放)
+            return BASE_WIDTH  # 找不到遊戲視窗時用模板基準寬度(不縮放)
         return int(resolution.split("x")[0])
+
+    def resolutionNotice(self, config):
+        """自動偵測解析度時，開始前顯示偵測結果；寬度偏離建議範圍或找不到視窗會加上警告。手動指定時不顯示"""
+        if config.get("screenResolution", "auto") != "auto":
+            return None
+        rect = self.getGameRect()
+        if not rect:
+            return "⚠️ 找不到遊戲視窗，請確認遊戲已開啟、視窗標題設定正確"
+        w, h = rect[2], rect[3]
+        if any(w == sw for sw, _ in SUPPORTED_RESOLUTIONS):
+            return f"偵測到遊戲解析度：{w}x{h}"
+        options = "、".join(f"{sw}x{sh}" for sw, sh in SUPPORTED_RESOLUTIONS)
+        return f"⚠️ 偵測到遊戲解析度 {w}x{h}，不在支援的解析度內（{options}），可能辨識不到，請調整遊戲解析度"
 
     def selectRegion(self, hint=""):
         # 先把遊戲拉到前景(蓋過本程式的視窗)再框選，選完把本程式拉回前面
