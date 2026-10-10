@@ -71,6 +71,19 @@ def getConfigPath():
     return path
 
 
+def getUserDataPath(name):
+    """本機使用者資料(菜品截圖、設定檔備份)放在設定檔旁的 userdata/ 資料夾，不納入版本控制。
+    舊版直接放在設定檔旁，第一次取用時順手搬進來"""
+    base = os.path.dirname(getConfigPath())
+    folder = os.path.join(base, "userdata")
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, name)
+    legacy = os.path.join(base, name)
+    if not os.path.exists(path) and os.path.exists(legacy):
+        shutil.move(legacy, path)
+    return path
+
+
 def selectRegion(hint=""):
     root = tk.Tk()
     root.attributes("-fullscreen", True)
@@ -357,8 +370,9 @@ CONFIG_DEFAULTS = {
     "gameWindowTitle": "Heartopia",
     "stopKey": "F8",
     "cookDishRecordedAt": "",
-    "expectedCookQty": "3",
+    "expectedCookQty": "50",
     "isSafeMode": "True",
+    "stopAtFiveStar": "False",
     "safeModeQty": "3",
     "detectFrequency": "0.05",
     "clickFrequency": "0.05",
@@ -367,6 +381,8 @@ CONFIG_DEFAULTS = {
     "floatLogEnabled": "True",
     "floatLogAutoClose": "True",
     "floatLogPosition": "screen",
+    "floatLogAutoTheme": "True",
+    "floatLogThemeSeconds": "3",
     "floatLogHeight": "132",
     "fishingDetectFrequency": "0.2",
     "fishingEnabled": "True",
@@ -593,7 +609,7 @@ def migrateConfig():
     """啟動時整理設定檔，原則是不動使用者原本的設定:
     1. 更新後新增的設定項目，補上預設值(附加在檔案最後)
     2. 只有「衝突」才改: 已存在的值型別不對(數字被留空、布林變成別的文字)，換回預設值
-    3. 動手前把原檔備份成 config.ini.bak，萬一有問題可以手動還原
+    3. 動手前把原檔備份成 userdata/config.ini.bak，萬一有問題可以手動還原
     回傳被修正的項目名稱"""
     path = getConfigPath()
     current = _readConfigFile()
@@ -601,7 +617,7 @@ def migrateConfig():
     fixed = {k: CONFIG_DEFAULTS[k] for k, v in current.items() if k in CONFIG_DEFAULTS and not _isValidLike(CONFIG_DEFAULTS[k], v)}
     if not added and not fixed and current.get("floatLogPosition") != "game":
         return []
-    shutil.copyfile(path, path + ".bak")
+    shutil.copyfile(path, getUserDataPath("config.ini.bak"))
     current.update(added)
     current.update(fixed)
     if current.get("floatLogPosition") == "game":  # 已移除的選項(遊戲左下角)，改回螢幕左下角

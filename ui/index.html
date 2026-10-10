@@ -52,7 +52,7 @@
                 <option value="screen">前景（遊戲須在最上層）</option>
                 <option value="adb">背景（模擬器 ADB，可疊視窗）</option>
               </select>
-              <span class="fs-12 text-warn adb-warn" data-mode-for="cookingControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</span>
+              <span class="fs-12 text-warn adb-warn" data-mode-for="cookingControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用。</span>
             </div>
           </div>
 
@@ -101,12 +101,19 @@
           </div>
 
           <div class="label">安全模式</div>
-          <div class="check">
+          <div class="check mb-16">
             <input type="checkbox" id="safeModeToggle" />
             <label for="safeModeToggle">啟用</label>
             <span class="muted fs-12">煮滿</span>
             <input type="number" min="1" class="setting input qty" id="safeModeQty" data-key="safeModeQty" />
             <span class="muted fs-12">份才收料理</span>
+          </div>
+
+          <div class="label">五星停止</div>
+          <div class="check">
+            <input type="checkbox" id="fiveStarToggle" />
+            <label for="fiveStarToggle">啟用</label>
+            <span class="muted fs-12">收到五星料理就停止（依畫面右上角的星星判斷）</span>
           </div>
 
           <hr />
@@ -137,7 +144,7 @@
                 <option value="screen">前景（遊戲須在最上層）</option>
                 <option value="adb">背景（模擬器 ADB，可疊視窗）</option>
               </select>
-              <span class="fs-12 text-warn adb-warn" data-mode-for="snowControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</span>
+              <span class="fs-12 text-warn adb-warn" data-mode-for="snowControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用。</span>
             </div>
           </div>
 
@@ -254,7 +261,7 @@
               <label for="fishingAltEnabled">啟用</label>
             </div>
           </div>
-          <p class="fs-12 text-warn mb-8 title-warn">模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</p>
+          <p class="fs-12 text-warn mb-8 title-warn">模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用。</p>
 
           <div class="alt-only">
             <details class="group">
@@ -358,6 +365,15 @@
                 <input type="checkbox" class="setting-check" id="floatLogAutoClose" data-key="floatLogAutoClose" />
                 <label for="floatLogAutoClose">運行結束後自動關閉浮動日誌</label>
               </div>
+              <div class="check">
+                <input type="checkbox" class="setting-check" id="floatLogAutoTheme" data-key="floatLogAutoTheme" />
+                <label for="floatLogAutoTheme">依背景亮度自動切換浮動日誌顏色</label>
+              </div>
+              <div class="check sub">
+                <label for="floatLogThemeSeconds">偵測間隔</label>
+                <input type="number" min="1" step="1" class="setting input qty" id="floatLogThemeSeconds" data-key="floatLogThemeSeconds" />
+                <span class="muted fs-12">秒</span>
+              </div>
               <label for="floatLogPosition" class="label">視窗位置</label>
               <select id="floatLogPosition" class="setting input" data-key="floatLogPosition">
                 <option value="screen">螢幕左下角</option>
@@ -383,29 +399,20 @@
             <div class="col">
               <label for="screenResolution" class="label">遊戲解析度</label>
               <select id="screenResolution" class="setting input" data-key="screenResolution">
-                <option value="1920x1080">1920x1080</option>
                 <option value="1600x900">1600x900</option>
                 <option value="1366x768">1366x768</option>
-                <option value="1280x1024">1280x1024</option>
-                <option value="1024x768">1024x768</option>
-                <option value="800x600">800x600</option>
-                <option value="640x480">640x480</option>
+                <option value="1280x720">1280x720</option>
               </select>
             </div>
             <div class="col">
               <label for="uiScale" class="label">介面縮放比例</label>
               <select id="uiScale" class="setting input" data-key="uiScale">
                 <option value="75">75%</option>
-                <option value="90">90%</option>
+                <option value="85">85%</option>
                 <option value="100">100%</option>
-                <option value="110">110%</option>
-                <option value="125">125%</option>
-                <option value="150">150%</option>
               </select>
             </div>
           </div>
-          <span id="resolutionWarn" class="fs-12 text-warn" hidden>建議將遊戲解析度設為 1600×900，這是目前測試最完整、也最穩定的解析度。<br />其他解析度尚未完整測試，圖片比對可能不夠準確，造成偵測失敗或誤判。</span>
-          <span id="uiScaleWarn" class="fs-12 text-warn" hidden>建議將介面縮放比例設為 100%。<br />使用其他比例時，圖示大小與預設不同，圖片比對可能不夠準確。</span>
             </div>
           </details>
 
@@ -418,7 +425,7 @@
             </summary>
             <div class="section-body">
           <p class="muted fs-12 title-note note-tight">ADB 預設僅限本機連線。</p>
-          <p class="fs-12 text-warn mb-16 title-note">模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</p>
+          <p class="fs-12 text-warn mb-16 title-note">模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用。</p>
           <div class="row">
             <div class="col">
               <label for="adbPath" class="label">ADB 路徑</label>

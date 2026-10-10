@@ -191,3 +191,6 @@ adb_check.png
 
 # 本機設定檔（程式會從 config.default.ini 複製出來），各人不同，不納入版本控制
 config.ini
+
+# 菜品記錄截圖與設定檔備份（本機資料，各人不同）
+userdata/

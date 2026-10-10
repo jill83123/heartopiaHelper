@@ -161,8 +161,11 @@ class GatherBase(Fishing):
             self.setLog("背包有維修盒，但讀不出數量，無法預估可執行的時間")
         else:
             minutes = self._interval("repair") / 60
-            end = datetime.datetime.now() + datetime.timedelta(minutes=minutes * count)
-            self.setLog(f"背包有 {count} 個維修盒，每 {minutes:g} 分鐘丟一個，預計可執行到 {self._formatEndTime(end)}")
+            if minutes * count > 24 * 60:
+                self.setLog(f"背包有 {count} 個維修盒，數量足夠")
+            else:
+                end = datetime.datetime.now() + datetime.timedelta(minutes=minutes * count)
+                self.setLog(f"背包有 {count} 個維修盒，每 {minutes:g} 分鐘丟一個，預計可執行到 {self._formatEndTime(end)}")
 
     @staticmethod
     def _formatEndTime(moment):

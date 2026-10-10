@@ -1,5 +1,6 @@
 const bubbleRegionBtn = document.querySelector('#bubbleRegionBtn');
 const safeModeToggle = document.querySelector('#safeModeToggle');
+const fiveStarToggle = document.querySelector('#fiveStarToggle');
 
 let hasBubbleRegion = false;
 let isSelectingRegion = false; // 框選視窗開啟中: 不能再框選，也不能開始任務
@@ -285,7 +286,7 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
           <option value="screen">前景（遊戲須在最上層）</option>
           <option value="adb">背景（模擬器 ADB，可疊視窗）</option>
         </select>
-        <span class="fs-12 text-warn adb-warn" data-mode-for="${p}ControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</span>
+        <span class="fs-12 text-warn adb-warn" data-mode-for="${p}ControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用。</span>
       </div>
     </div>
 
@@ -507,7 +508,7 @@ const formatSpan = (sec) => {
 const formatLastRun = (last) => {
   if (!last) return '';
   const d = new Date(last.start * 1000);
-  return `上次執行 ${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())} · 共 ${formatSpan(last.seconds)}${last.failed != null ? ` · 做失敗 ${last.failed} 份` : ''}`;
+  return `上次執行 ${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())} · 共 ${formatSpan(last.seconds)}`;
 };
 // 標題旁的狀態徽章(未運行 / 運行中與已執行多久)，與標題下方的「上次執行」
 const renderRunTimes = (runs) => {
@@ -698,14 +699,7 @@ const syncCookAdbHint = () => {
   document.querySelector('#dishAdbHint').hidden = document.querySelector('#cookingControlMode').value !== 'adb';
 };
 // 操作模式選了模擬器(ADB)，下拉選單下方顯示卡頓的提醒
-const syncResolutionWarn = () => {
-  document.querySelector('#resolutionWarn').hidden = document.querySelector('#screenResolution').value === '1600x900';
-  document.querySelector('#uiScaleWarn').hidden = document.querySelector('#uiScale').value === '100';
-};
-document.querySelector('#screenResolution').addEventListener('change', syncResolutionWarn);
-document.querySelector('#uiScale').addEventListener('change', syncResolutionWarn);
 const syncAdbWarns = () => {
-  syncResolutionWarn();
   document.querySelectorAll('.adb-warn').forEach((el) => {
     const select = document.querySelector(`#${el.dataset.modeFor}`);
     el.hidden = !select || select.value !== 'adb';
@@ -758,6 +752,11 @@ safeModeToggle.addEventListener('change', (e) => {
   getApi().apiWriteSetting('isSafeMode', e.target.checked);
 });
 
+// 五星停止切換
+fiveStarToggle.addEventListener('change', (e) => {
+  getApi().apiWriteSetting('stopAtFiveStar', e.target.checked);
+});
+
 // 處理日誌訊息
 const handleCookingLogMessage = (log) => {
   currentCookingLogIndex = log.index;
@@ -803,7 +802,22 @@ const syncBan5Visibility = () => {
 };
 document.addEventListener('change', (e) => {
   if (e.target.matches?.('select[id$="FoodStars"]')) syncBan5Visibility();
+  if (e.target.matches?.('input[id$="UseFood"]')) syncFoodOptionsDisabled();
 });
+
+// 沒勾「吃食物」時，底下的子選項(分鐘、飽食度、名稱、星級...)一律停用，包含它們的還原按鈕
+const syncFoodOptionsDisabled = () => {
+  document.querySelectorAll('input[id$="UseFood"]').forEach((useFood) => {
+    const prefix = useFood.id.slice(0, -'UseFood'.length);
+    document.querySelectorAll(`[id^="${prefix}Food"]`).forEach((el) => {
+      if (!el.matches('.setting, .setting-check')) return;
+      el.disabled = el.disabled || !useFood.checked;
+    });
+    document.querySelectorAll('.reset-default').forEach((btn) => {
+      if (btn.dataset.reset?.startsWith(`${prefix}Food`)) btn.disabled = btn.disabled || !useFood.checked;
+    });
+  });
+};
 
 // 初始化
 // 將設定值填入對應的輸入框
@@ -826,6 +840,7 @@ const fillSettings = (settings) => {
   syncFloatLogRow();
   syncRepairAuto();
   safeModeToggle.checked = String(settings.isSafeMode).toLowerCase() === 'true';
+  fiveStarToggle.checked = String(settings.stopAtFiveStar).toLowerCase() === 'true';
 
   updateResetButtons();
 };
@@ -1169,8 +1184,10 @@ const setup = async () => {
     });
     isAnyRunning = isAnyTaskRunning;
     updateResetButtons();
+    syncFoodOptionsDisabled();
     adbPresets.forEach((preset) => (preset.disabled = isAnyTaskRunning));
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;
+    if (fiveStarToggle) fiveStarToggle.disabled = isAnyTaskRunning;
     const resetBtn = document.querySelector('#resetSettingsBtn');
     if (resetBtn) resetBtn.disabled = isAnyTaskRunning;
     const resetThresholdsBtn = document.querySelector('#resetThresholdsBtn');

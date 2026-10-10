@@ -1,4 +1,6 @@
 import ctypes
+import mss
+import numpy as np
 import win32api
 import win32con
 import win32gui
@@ -41,6 +43,13 @@ def styleOverlay(hwnd):
         pass
 
 
+def clampToScreen(x, y, width, height):
+    """標題列留在最近那個螢幕的工作區內(上緣不能超出、下方至少露出標題列)，左右最多超出一半的視窗寬度，不然拖不回來"""
+    left, top, right, bottom = win32api.GetMonitorInfo(win32api.MonitorFromRect((x, y, x + width, y + height), win32con.MONITOR_DEFAULTTONEAREST))["Work"]
+    bar = COLLAPSED_HEIGHT * 2  # 下方至少要露出來的範圍(約一個標題列高)
+    return max(left - width // 2, min(int(x), right - width + width // 2)), max(top, min(int(y), bottom - bar))
+
+
 def targetPosition(hwnd, mode, config, collapsed=False):
     """浮動日誌視窗左上角要放的位置(螢幕座標)。mode: screen(螢幕左下角，舊設定沿用這個名稱)、topLeft、topRight、bottomRight(螢幕四個角)、custom(上次拖曳的位置)"""
     scale = dpiScale(hwnd)
@@ -48,7 +57,7 @@ def targetPosition(hwnd, mode, config, collapsed=False):
     margin = round(MARGIN * scale)
     if mode == "custom":
         try:
-            return int(config.get("floatLogX")), int(config.get("floatLogY"))
+            return clampToScreen(int(config.get("floatLogX")), int(config.get("floatLogY")), width, height)
         except (TypeError, ValueError):
             pass  # 還沒拖曳過，退回螢幕左下角
     left, top, right, bottom = win32api.GetMonitorInfo(win32api.MonitorFromPoint((0, 0), win32con.MONITOR_DEFAULTTOPRIMARY))["Work"]
@@ -79,5 +88,19 @@ def setHeight(hwnd, heightCss, anchor="bottom"):
     height = round(heightCss * scale)
     if anchor == "bottom":
         top = bottom - height
+    width = round(LOG_SIZE[0] * scale)
+    left, top = clampToScreen(left, top, width, height)
     win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, left, top, round(LOG_SIZE[0] * scale), height, win32con.SWP_NOACTIVATE)
     return left, top
+
+
+def backdropLuma(hwnd):
+    """視窗後面那塊畫面的平均亮度(0~255)。視窗已從截圖排除，所以抓到的是被它蓋住的內容；失敗回傳 None"""
+    try:
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        with mss.mss() as sct:
+            img = np.array(sct.grab({"left": left, "top": top, "width": right - left, "height": bottom - top}))[::4, ::4]
+        b, g, r = (float(img[..., i].mean()) for i in range(3))  # mss 是 BGRA
+        return 0.114 * b + 0.587 * g + 0.299 * r
+    except Exception:
+        return None
