@@ -10,6 +10,7 @@ import webview
 import win32con
 import win32gui
 from collections import deque
+from tools.adb_detect import detectAdbDevices
 from tools.backend import AdbBackend, createBackend
 from tools import floatlog
 from tools.updater import Updater, checkUpdate, isReleasePage
@@ -341,6 +342,13 @@ class Api:
         if getattr(backend, "isAdb", False):
             self.setLog("模擬器連線中...", source)
         backend.check()
+
+    def apiDetectAdb(self):
+        """自動偵測執行中的模擬器。回傳 status: success(附 devices: [{address, name}]) 或 failed(附 message)"""
+        try:
+            return {"status": "success", "devices": detectAdbDevices(self.config.get("adbPath", "adb"))}
+        except Exception as e:
+            return {"status": "failed", "message": str(e)}
 
     def backendFailure(self):
         """getBackend 失敗時附在回傳值裡的標記: 連線模擬器(ADB)失敗時前端會跳出排查提示窗"""
