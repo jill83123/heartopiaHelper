@@ -1,101 +1,75 @@
-import keyboard
-import os
-import threading
+import random
 import time
-from tools.tools import captureScreen, clickMouse, matchTemplate, getScaleWithResolution
+from scripts.base import BaseTask
+from tools.finder import clickBackButton
+
+CLICK_DELAY_RANGE = (0.02, 0.1)  # 點擊前隨機多等一小段時間(秒)，不要每次都一樣的節奏
+TIMEOUT_SECONDS = 20  # 畫面上找不到任何目標超過這個秒數，就點返回離開
 
 
-class SnowCarving:
-    def __init__(self, **kwargs):
-        self.setLog = kwargs.get("setLog")
-        self.config = kwargs.get("config")
-        self.snowDetectRegionCoord = kwargs.get("snowDetectRegionCoord")
+class SnowCarving(BaseTask):
+    templateDir = "templates/snowCarving"
 
-        # 主線程: 負責偵測
-        self.mainThread = None
+    def __init__(self, setLog, backend, config):
+        super().__init__(setLog, backend, config)
         self.waitingSince = None
 
-        # 副線程: 負責點擊
-        self.clickThread = None
+    def _threadTargets(self):
+        return [self._detectLoop]
 
-        # 共用
-        self.isStart = False
-        self.lock = threading.Lock()
-        self.clickCoords = None
+    def _detectLoop(self, stopEvent):
+        frequency = float(self.config.get("snowDetectFrequency"))
 
-    def _getMatchCords(self, mainImg, itemName):
-        width = int(self.config.get("screenResolution").split("x")[0])
-        scale = getScaleWithResolution(width)
-        templatePath = f"templates/snowCarving/{itemName}.png"
-        threshold = float(self.config.get(f"{itemName}Threshold"))
-        isDebugMode = self.config.get("isDebugMode").lower() == "true"
-        coords = matchTemplate(mainImg, templatePath, threshold, scales=[scale], isDebugMode=isDebugMode)
-        return coords
+        while not stopEvent.wait(frequency):
+            img, (bx, by) = self._shot()
 
-    def _getRelCords(self, baseCoords, relativeCoords):
-        baseX, baseY = baseCoords
-        relX, relY = relativeCoords
-        return (baseX + relX, baseY + relY)
-
-    def start(self):
-        self.isStart = True
-
-        if not self.mainThread:
-            self.mainThread = threading.Thread(target=self._handleMainThread, daemon=True)
-        if not self.mainThread.is_alive():
-            self.mainThread.start()
-            self.setLog("開始運行")
-
-    def stop(self):
-        if self.mainThread:
-            self.setLog("停止運行")
-            self.isStart = False
-            self.mainThread = None
-
-    def _handleMainThread(self):
-        while self.isStart:
-            time.sleep(float(self.config.get("snowDetectFrequency")))
-
-            bx, by, bw, bh = self.snowDetectRegionCoord
-            detectRegionImg = captureScreen(bx, by, bw, bh)
-
-            snowPutCords = self._getMatchCords(detectRegionImg, "snowPut")
-            snowStartBtnCords = self._getMatchCords(detectRegionImg, "snowStartBtn")
-            snowflakeCords = self._getMatchCords(detectRegionImg, "snowflake")
-            snowCompletedCords = self._getMatchCords(detectRegionImg, "snowCompleted")
-
+            snowflakeCords = self._getMatchCords(img, "snowflake")
             if snowflakeCords:
-                self.setLog("雪花數量: " + str(len(snowflakeCords)))
-                with self.lock:
-                    self.clickCoords = self._getRelCords((bx, by), (snowflakeCords[0]))
-                    clickMouse(*self.clickCoords)
+                self.setLog("雪花數量：" + str(len(snowflakeCords)))
+                self._clickFirst((bx, by), snowflakeCords, stopEvent)
                 continue
 
-            if snowPutCords:
-                with self.lock:
-                    self.clickCoords = self._getRelCords((bx, by), snowPutCords[0])
-                    clickMouse(*self.clickCoords)
-                    continue
+            # 優先順序: 雪花 > 放置 > 開始按鈕 > 完成
+            clicked = False
+            for name in ("snowPut", "snowStartBtn", "snowCompleted"):
+                cords = self._getMatchCords(img, name)
+                if cords:
+                    self._clickFirst((bx, by), cords, stopEvent)
+                    clicked = True
+                    break
 
-            if snowStartBtnCords:
-                with self.lock:
-                    self.clickCoords = self._getRelCords((bx, by), snowStartBtnCords[0])
-                    clickMouse(*self.clickCoords)
-                continue
-
-            if snowCompletedCords:
-                with self.lock:
-                    self.clickCoords = self._getRelCords((bx, by), (snowCompletedCords[0]))
-                    clickMouse(*self.clickCoords)
-                continue
-
-            if not snowPutCords and not snowStartBtnCords and not snowflakeCords and not snowCompletedCords:
-                if not self.waitingSince:
-                    self.waitingSince = time.time()
-
-                if time.time() - self.waitingSince > 20:
-                    self.setLog("判斷超時 20s 按下 ESC")
-                    keyboard.press_and_release("esc")
-                    self.waitingSince = None
-            else:
+            if clicked:
                 self.waitingSince = None
+                continue
+
+            self._handleTimeout()
+
+    def _shot(self):
+        """截取遊戲畫面。前景模式只取遊戲視窗的範圍(找不到視窗就取整個螢幕)，模擬器模式取整張截圖。
+        回傳 (影像, 影像左上角在螢幕上的座標)，點擊座標靠它換算"""
+        img, ox, oy = self.backend.captureFull()
+        rect = self.backend.getGameRect()
+        if rect:
+            x0, y0 = max(0, rect[0] - ox), max(0, rect[1] - oy)
+            x1, y1 = min(img.shape[1], rect[0] - ox + rect[2]), min(img.shape[0], rect[1] - oy + rect[3])
+            if x1 - x0 >= 100 and y1 - y0 >= 100:
+                return img[y0:y1, x0:x1], (ox + x0, oy + y0)
+        return img, (ox, oy)
+
+    def _clickFirst(self, base, cords, stopEvent):
+        if stopEvent.wait(random.uniform(*CLICK_DELAY_RANGE)):
+            return
+        self.backend.click(*self._getRelCords(base, cords[0]))
+        self.waitingSince = None
+
+    def _handleTimeout(self):
+        if not self.waitingSince:
+            self.waitingSince = time.time()
+            return
+
+        if time.time() - self.waitingSince > TIMEOUT_SECONDS:
+            if clickBackButton(self.backend, self.config):
+                self.setLog(f"判斷超時 {TIMEOUT_SECONDS}s，已點擊返回按鈕")
+            else:
+                self.setLog(f"判斷超時 {TIMEOUT_SECONDS}s，但找不到返回按鈕")
+            self.waitingSince = None

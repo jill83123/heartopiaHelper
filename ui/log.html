@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <title>浮動日誌</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: rgba(20, 28, 38, 0.92);
+        color: #eaf2fa;
+        font: 12px/1.45 'Microsoft JhengHei', 'Segoe UI', sans-serif;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .bar {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        height: 28px;
+        padding: 4px 6px 0 10px;
+        box-sizing: border-box;
+        color: #a9bdd2;
+        font-size: 11px;
+        cursor: move;
+      }
+      .bar-left {
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .bar-center {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+      }
+      .bar-right {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        justify-self: end;
+      }
+      .elapsed {
+        margin-left: 6px;
+        color: #8fa6bd;
+      }
+      .stop {
+        border: 1px solid #c0594f;
+        border-radius: 4px;
+        background: transparent;
+        color: #f0a9a2;
+        font: inherit;
+        font-size: 11px;
+        line-height: 1.2;
+        padding: 0 6px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .stop:hover {
+        background: #c0594f;
+        color: #fff;
+      }
+      .grip {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 8px;
+        cursor: ns-resize;
+        z-index: 2;
+      }
+      .grip.top {
+        top: 0;
+      }
+      .grip.bottom {
+        bottom: 0;
+      }
+      .grip::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        width: 28px;
+        height: 2px;
+        margin-left: -14px;
+        top: 3px;
+        border-radius: 1px;
+        background: rgba(169, 189, 210, 0.35);
+      }
+      .grip:hover::after {
+        background: rgba(169, 189, 210, 0.8);
+      }
+      body.collapsed .grip {
+        display: none;
+      }
+      .collapse svg {
+        display: block;
+      }
+      .collapse {
+        border: 0;
+        background: transparent;
+        color: #a9bdd2;
+        font-size: 14px;
+        line-height: 1;
+        padding: 2px 6px;
+        cursor: pointer;
+      }
+      .collapse:hover {
+        color: #fff;
+      }
+      body.collapsed #log {
+        display: none;
+      }
+      /* 縮小後只剩標題列: 拿掉上方的內距，內容才會在視窗內上下置中 */
+      body.collapsed .bar {
+        height: 100%;
+        padding-top: 0;
+      }
+      .close {
+        border: 0;
+        background: transparent;
+        color: #a9bdd2;
+        font-size: 14px;
+        line-height: 1;
+        padding: 2px 6px;
+        cursor: pointer;
+      }
+      .close:disabled,
+      .stop:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+      .close:disabled:hover {
+        color: #a9bdd2;
+      }
+      .stop:disabled:hover {
+        background: transparent;
+        color: #f0a9a2;
+      }
+      .close:hover {
+        color: #fff;
+      }
+      #log {
+        height: calc(100% - 28px);
+        box-sizing: border-box;
+        padding: 0 10px 6px;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      #log::-webkit-scrollbar {
+        width: 6px;
+      }
+      #log::-webkit-scrollbar-thumb {
+        background: rgba(169, 189, 210, 0.4);
+        border-radius: 3px;
+      }
+      #log div {
+        margin-top: 4px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar pywebview-drag-region"><div class="bar-left"><span id="title">運行日誌</span><span id="elapsed" class="elapsed"></span></div><div class="bar-center"><button type="button" class="stop" id="stopBtn">停止</button></div><div class="bar-right"><button type="button" class="collapse" id="collapseBtn" aria-label="縮小"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button><button type="button" class="close" id="closeBtn" aria-label="關閉">×</button></div></div>
+    <div id="log"></div>
+    <div class="grip top" title="拖拉調整高度"></div>
+    <div class="grip bottom" title="拖拉調整高度"></div>
+    <script>
+      const logEl = document.querySelector('#log');
+      const gripEls = document.querySelectorAll('.grip');
+      const elapsedEl = document.querySelector('#elapsed');
+      const stopBtn = document.querySelector('#stopBtn');
+      const closeBtn = document.querySelector('#closeBtn');
+      const MAX_LINES = 200;
+      const clock = (sec) => `${Math.floor(sec / 3600)}:${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+      let baseElapsed = null;
+      let baseAt = 0;
+      let isRunning = false;
+      // 執行時間在兩次輪詢之間也自己每秒往前跳，不用等後端回報
+      const renderElapsed = () => {
+        if (baseElapsed == null) return;
+        const sec = baseElapsed + (isRunning ? Math.floor((Date.now() - baseAt) / 1000) : 0);
+        elapsedEl.textContent = clock(sec);
+      };
+      setInterval(renderElapsed, 500);
+      let index = 0;
+      let run = -1;
+      let closing = false;
+      let wasRunning = false;
+      window.markClosing = () => {
+        closing = true;
+      };
+
+      const poll = async () => {
+        if (closing) return;
+        let res;
+        try {
+          res = await window.pywebview.api.apiFloatPoll(index, run);
+        } catch (e) {
+          return;
+        }
+        if (res.run !== run) {
+          // 新的一次運行: 清掉上一次的內容
+          run = res.run;
+          index = 0;
+          logEl.replaceChildren();
+        }
+        // 使用者往上捲去看舊的訊息時，新訊息進來不要把畫面拉回最底
+        const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 8;
+        res.logs.forEach((log) => {
+          index = log.index;
+          const line = document.createElement('div');
+          line.textContent = log.msg;
+          line.title = log.msg;
+          logEl.appendChild(line);
+        });
+        while (logEl.childElementCount > MAX_LINES) logEl.firstElementChild.remove();
+        if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+        // 任務結束就收起來
+        if (res.stopKey) stopBtn.textContent = `停止（${res.stopKey}）`;
+        if (res.elapsed != null) {
+          baseElapsed = res.elapsed;
+          baseAt = Date.now();
+          isRunning = res.running;
+          renderElapsed();
+        }
+        // 運行中不能關閉; 停止後視窗會自動關掉
+        closeBtn.disabled = res.running;
+        stopBtn.disabled = !res.running;
+        // 停止運行就把浮動視窗一併關掉(設定頁可關閉這個行為)
+        if (wasRunning && !res.running && res.autoClose) window.pywebview.api.apiHideFloatLog();
+        wasRunning = res.running;
+      };
+
+      window.addEventListener('pywebviewready', () => {
+        stopBtn.addEventListener('click', () => window.pywebview.api.stop());
+        // 拖拉把手調整高度(用 pointer capture，滑鼠移出視窗也能繼續拖)；放開後記住高度
+        let drag = null;
+        let pending = false;
+        gripEls.forEach((gripEl) => {
+        gripEl.addEventListener('pointerdown', (e) => {
+          gripEl.setPointerCapture(e.pointerId);
+          drag = { y: e.screenY, h: window.innerHeight, atTop: gripEl.classList.contains('top') };
+        });
+        gripEl.addEventListener('pointermove', (e) => {
+          if (!drag || pending) return;
+          const delta = e.screenY - drag.y;
+          const height = Math.round(drag.h + (drag.atTop ? -delta : delta));
+          pending = true;
+          window.pywebview.api.apiResizeFloat(height, drag.atTop ? 'bottom' : 'top').finally(() => (pending = false));
+        });
+        const endDrag = () => {
+          if (!drag) return;
+          drag = null;
+          window.pywebview.api.apiSaveFloatHeight();
+        };
+        gripEl.addEventListener('pointerup', endDrag);
+        gripEl.addEventListener('pointercancel', endDrag);
+        });
+        // 縮小成只剩標題列(視窗高度由後端調整)，再按一次還原
+        const collapseBtn = document.querySelector('#collapseBtn');
+        collapseBtn.addEventListener('click', () => {
+          const collapsed = document.body.classList.toggle('collapsed');
+          collapseBtn.innerHTML = collapsed ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+          collapseBtn.setAttribute('aria-label', collapsed ? '還原' : '縮小');
+          window.pywebview.api.apiSetFloatCollapsed(collapsed);
+        });
+        document.querySelector('#closeBtn').addEventListener('click', () => window.pywebview.api.apiHideFloatLog());
+        // 拖曳放開後記住位置
+        document.addEventListener('mouseup', () => setTimeout(() => window.pywebview.api.apiSaveFloatLogPos(), 150));
+        setInterval(poll, 300);
+        poll();
+      });
+    </script>
+  </body>
+</html>

@@ -7,15 +7,39 @@
   </head>
 
   <body>
+    <!-- Lucide icons (ISC License, https://lucide.dev) -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></symbol><symbol id="i-chef-hat" viewBox="0 0 24 24"><path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z" /><path d="M6 17h12" /></symbol><symbol id="i-snowflake" viewBox="0 0 24 24"><line x1="2" x2="22" y1="12" y2="12" /><line x1="12" x2="12" y1="2" y2="22" /><path d="m20 16-4-4 4-4" /><path d="m4 8 4 4-4 4" /><path d="m16 4-4 4-4-4" /><path d="m8 20 4-4 4 4" /></symbol><symbol id="i-fish" viewBox="0 0 24 24"><path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z" /><path d="M18 12v.5" /><path d="M16 17.93a9.77 9.77 0 0 1 0-11.86" /><path d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33" /><path d="M10.46 7.26C10.2 5.88 9.17 4.24 8 3h5.8a2 2 0 0 1 1.98 1.67l.23 1.4" /><path d="m16.01 17.93-.23 1.4A2 2 0 0 1 13.8 21H9.5a5.96 5.96 0 0 0 1.49-3.98" /></symbol><symbol id="i-sprout" viewBox="0 0 24 24"><path d="M7 20h10" /><path d="M10 20c5.5-2.5.8-6.4 3-10" /><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z" /><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z" /></symbol><symbol id="i-circle-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></symbol><symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></symbol><symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></symbol></svg>
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p class="muted">載入中...</p>
+    </div>
+
+    <header class="hero">
+      <i class="cloud a"></i>
+      <i class="cloud b"></i>
+      <div class="hero-inner">
+        <h1 class="hero-title">心動小鎮助手<small>HEARTOPIA HELPER</small></h1>
+          <ul class="tabs">
+            <li>
+              <button type="button" class="tab active" data-target="#cook-tab-pane">料理 <svg class="icon" aria-hidden="true"><use href="#i-chef-hat"/></svg></button>
+            </li>
+            <li>
+              <button type="button" class="tab" data-target="#fish-tab-pane">釣魚 <svg class="icon" aria-hidden="true"><use href="#i-fish"/></svg></button>
+            </li>
+            <li>
+              <button type="button" class="tab" data-target="#gather-tab-pane">採集 <svg class="icon" aria-hidden="true"><use href="#i-sprout"/></svg></button>
+            </li>
+            <li>
+              <button type="button" class="tab" data-target="#snow-tab-pane">雪雕 <svg class="icon" aria-hidden="true"><use href="#i-snowflake"/></svg></button>
+            </li>
+            <li>
+              <button type="button" class="tab" data-target="#settings-tab-pane">設定 <svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></button>
+            </li>
+          </ul>
+      </div>
+    </header>
+
     <div class="container">
-      <ul class="tabs">
-        <li>
-          <button type="button" class="tab active" data-target="#cook-tab-pane">料理 🍳</button>
-        </li>
-        <li>
-          <button type="button" class="tab" data-target="#snow-tab-pane">雪雕 ⛄</button>
-        </li>
-      </ul>
 
       <div class="cook tab-content">
         <div class="pane show active" id="cook-tab-pane">
@@ -23,12 +47,42 @@
 
           <div class="row">
             <div class="col">
-              <button class="btn" id="bubbleRegionBtn">泡泡區域範圍座標</button>
-              <p id="bubbleRegionCoord" class="coord fs-12 text-danger">尚未選取座標</p>
+              <label for="cookingControlMode" class="label">操作模式（料理、雪雕、採集共用該設定）</label>
+              <select id="cookingControlMode" class="setting input" data-key="controlMode">
+                <option value="screen">前景（遊戲須在最上層）</option>
+                <option value="adb">背景（模擬器 ADB，可疊視窗）</option>
+              </select>
+              <span class="fs-12 text-warn adb-warn" data-mode-for="cookingControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</span>
             </div>
+          </div>
+
+
+          <div class="row">
             <div class="col">
-              <button class="btn" id="cookPointBtn">開始烹飪按鈕座標</button>
-              <p id="startCookCoord" class="coord fs-12 text-danger">尚未選取座標</p>
+              <div class="region-box">
+                <div class="region-info">
+                  <b>泡泡區域範圍<button type="button" class="help-btn" data-help="bubble-example" aria-label="範例"><svg class="icon" aria-hidden="true"><use href="#i-circle-help"/></svg></button></b>
+                  <span id="bubbleRegionCoord" class="coord fs-12 text-danger">尚未選取座標</span>
+                </div>
+                <button class="btn" id="bubbleRegionBtn">選取範圍</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col">
+              <div class="region-box dish-box">
+                <div class="region-info">
+                  <b>目前菜品（選填）<button type="button" class="help-btn" data-help="dish-example" aria-label="範例"><svg class="icon" aria-hidden="true"><use href="#i-circle-help"/></svg></button></b>
+                  <span id="dishStatus" class="coord fs-12 text-danger">尚未記錄</span>
+                </div>
+                <div class="dish-actions">
+                  <button type="button" class="btn" id="dishClearBtn" hidden>清除</button>
+                  <button class="btn" id="dishRecordBtn">記錄菜名</button>
+                </div>
+                <img id="dishImage" class="dish-image" alt="" hidden />
+                <span id="dishAdbHint" class="fs-12 text-warn" hidden>使用模擬器時，建議設定「目前菜品」，避免卡頓造成煮錯菜。</span>
+              </div>
             </div>
           </div>
 
@@ -38,7 +92,7 @@
               <input
                 type="number"
                 min="1"
-                class="setting input"
+                class="setting input qty"
                 id="expectedCookQty"
                 placeholder="1 以上"
                 data-key="expectedCookQty"
@@ -46,121 +100,31 @@
             </div>
           </div>
 
+          <div class="label">安全模式</div>
+          <div class="check">
+            <input type="checkbox" id="safeModeToggle" />
+            <label for="safeModeToggle">啟用</label>
+            <span class="muted fs-12">煮滿</span>
+            <input type="number" min="1" class="setting input qty" id="safeModeQty" data-key="safeModeQty" />
+            <span class="muted fs-12">份才收料理</span>
+          </div>
+
           <hr />
 
-          <h4 class="title">運行</h4>
-          <div class="flex mb-8">
-            <div>
-              <div class="check">
-                <input type="checkbox" id="safeModeToggle" />
-                <label for="safeModeToggle">
-                  安全模式<span class="muted fs-12">（都煮完才收料理）</span>
-                </label>
-              </div>
+          <div class="run-head">
+            <div class="run-title">
+              <h4 class="title">運行</h4>
+              <span class="run-badge" data-run-badge="cooking"></span>
             </div>
-            <div class="flex gap-8">
-              <button type="button" id="stopCookBtn" class="btn danger w-120">停止</button>
-              <button type="button" id="startCookBtn" class="btn primary w-120">開始</button>
-            </div>
+            <button type="button" class="notice-btn" data-notice="cooking"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"/></svg> 注意事項</button>
           </div>
           <textarea id="logContainer" class="log input" readonly></textarea>
-
-          <hr />
-
-          <div class="m-0 mb-8">
-            <h4 class="title m-0">其他設定</h4>
-            <p class="muted m-0">閥值越接近 1 越嚴格</p>
+          <div class="run-actions">
+            <p class="run-last" data-run-last="cooking"></p>
+              <button type="button" id="stopCookBtn" class="btn danger w-120">停止</button>
+              <button type="button" id="startCookBtn" class="btn primary w-120">開始</button>
           </div>
 
-          <div class="row mb-0">
-            <div class="col">
-              <label for="startActionThreshold" class="label">
-                鍋子閥值 <span class="muted fs-12">(startAction)</span>
-              </label>
-              <input
-                type="number"
-                min="0.1"
-                max="1"
-                step="0.01"
-                class="setting input"
-                id="startActionThreshold"
-                placeholder="0.1-1.0"
-                data-key="startActionThreshold"
-              />
-            </div>
-            <div class="col">
-              <label for="fireThreshold" class="label">
-                鏟子閥值 <span class="muted fs-12">(fire)</span>
-              </label>
-              <input
-                type="number"
-                min="0.1"
-                max="1"
-                step="0.01"
-                class="setting input"
-                id="fireThreshold"
-                placeholder="0.1-1.0"
-                data-key="fireThreshold"
-              />
-            </div>
-            <div class="col">
-              <label for="completedThreshold" class="label">
-                手套閥值 <span class="muted fs-12">(completed)</span>
-              </label>
-              <input
-                type="number"
-                min="0.1"
-                max="1"
-                step="0.01"
-                class="setting input"
-                id="completedThreshold"
-                placeholder="0.1-1.0"
-                data-key="completedThreshold"
-              />
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="col">
-              <label for="timerThreshold" class="label">
-                倒數計時器閥值 <span class="muted fs-12">(timer)</span>
-              </label>
-              <input
-                type="number"
-                min="0.1"
-                max="1"
-                step="0.01"
-                class="setting input"
-                id="timerThreshold"
-                placeholder="0.1-1.0"
-                data-key="timerThreshold"
-              />
-            </div>
-            <div class="col">
-              <label for="detectFrequency" class="label">偵測頻率(s)</label>
-              <input
-                type="number"
-                min="0.1"
-                step="0.01"
-                class="setting input"
-                id="detectFrequency"
-                placeholder="0.1 以上"
-                data-key="detectFrequency"
-              />
-            </div>
-            <div class="col">
-              <label for="clickFrequency" class="label">點擊頻率(s)</label>
-              <input
-                type="number"
-                min="0.1"
-                step="0.01"
-                class="setting input"
-                id="clickFrequency"
-                placeholder="0.1 以上"
-                data-key="clickFrequency"
-              />
-            </div>
-          </div>
         </div>
 
         <div class="pane" id="snow-tab-pane">
@@ -168,145 +132,481 @@
 
           <div class="row">
             <div class="col">
-              <button class="btn" id="snowDetectRegionBtn">偵測範圍座標</button>
-              <p id="snowDetectRegionCoord" class="coord fs-12 text-danger">尚未選取座標</p>
+              <label for="snowControlMode" class="label">操作模式（料理、雪雕、採集共用該設定）</label>
+              <select id="snowControlMode" class="setting input" data-key="controlMode">
+                <option value="screen">前景（遊戲須在最上層）</option>
+                <option value="adb">背景（模擬器 ADB，可疊視窗）</option>
+              </select>
+              <span class="fs-12 text-warn adb-warn" data-mode-for="snowControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</span>
+            </div>
+          </div>
+
+          <hr />
+
+          <div class="run-head">
+            <div class="run-title">
+              <h4 class="title">運行</h4>
+              <span class="run-badge" data-run-badge="snowCarving"></span>
+            </div>
+            <button type="button" class="notice-btn" data-notice="snowCarving"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"/></svg> 注意事項</button>
+          </div>
+          <textarea id="logContainerSnow" class="log input" readonly></textarea>
+          <div class="run-actions">
+            <p class="run-last" data-run-last="snowCarving"></p>
+              <button type="button" id="stopSnowBtn" class="btn danger w-120">停止</button>
+              <button type="button" id="startSnowBtn" class="btn primary w-120">開始</button>
+          </div>
+
+        </div>
+
+        <div class="pane" id="fish-tab-pane">
+          <div class="title-row">
+            <h4 class="title">前景定時</h4>
+            <div class="check title-toggle">
+              <input type="checkbox" class="setting-check" id="fishingEnabled" data-key="fishingEnabled" />
+              <label for="fishingEnabled">啟用</label>
+            </div>
+          </div>
+
+          <div class="fg-only">
+          <div id="fishMainOptions" class="options">
+          <div class="check no-icon mb-8">
+            <input type="checkbox" class="setting-check" id="fishingAutoCast" data-key="fishingAutoCast" />
+            <label for="fishingAutoCast">自動拋竿釣魚（含噴香水）</label>
+            <span class="muted fs-12">＊ 目前只能搭配香水使用</span>
+          </div>
+          <div class="check sub no-icon mb-8">
+            <span class="item-icon"><img data-tpl="iconPerfume" alt="" hidden /></span>
+            <label for="fishingPerfumeSeconds">香水間隔</label>
+            <input type="number" min="30" step="1" class="setting input qty" id="fishingPerfumeSeconds" data-key="fishingPerfumeSeconds" />
+            <span class="muted fs-12">秒</span>
+            <button type="button" class="reset-default" data-reset="fishingPerfumeSeconds" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
+          </div>
+
+          <div class="check mb-8">
+            <input type="checkbox" class="setting-check" id="fishingUseBait" data-key="fishingUseBait" />
+            <span class="item-icon"><img data-tpl="iconBait" alt="" hidden /></span>
+            <label for="fishingUseBait">放誘魚器</label>
+            <span class="muted fs-12">每</span>
+            <input type="number" min="10" step="1" class="setting input qty" id="fishingBaitSeconds" data-key="fishingBaitSeconds" />
+            <span class="muted fs-12">秒</span>
+            <button type="button" class="reset-default" data-reset="fishingBaitSeconds" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
+          </div>
+
+          <div class="check mb-8">
+            <input type="checkbox" class="setting-check" id="fishingUseRepair" data-key="fishingUseRepair" />
+            <span class="item-icon"><img data-tpl="iconRepairBox" alt="" hidden /></span>
+            <label for="fishingUseRepair">丟維修盒</label>
+            <span class="muted fs-12">每</span>
+            <input type="number" min="0.5" step="0.5" class="setting input qty" id="fishingRepairMinutes" data-key="fishingRepairMinutes" />
+            <span class="muted fs-12">分鐘</span>
+            <button type="button" class="reset-default" data-reset="fishingRepairMinutes" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
+          </div>
+
+          <div class="check no-icon mb-8">
+            <input type="checkbox" class="setting-check" id="fishingUseFood" data-key="fishingUseFood" />
+            <label for="fishingUseFood">吃食物</label>
+            <span class="muted fs-12">每</span>
+            <input type="number" min="0.5" step="0.5" class="setting input qty" id="fishingFoodMinutes" data-key="fishingFoodMinutes" />
+            <span class="muted fs-12">分鐘</span>
+            <button type="button" class="reset-default" data-reset="fishingFoodMinutes" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
+            <span class="muted fs-12">，或飽食度低於</span>
+            <input type="number" min="1" max="99" step="1" class="setting input qty" id="fishingFoodBelow" data-key="fishingFoodBelow" />
+            <span class="muted fs-12">%</span>
+            <button type="button" class="reset-default" data-reset="fishingFoodBelow" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
+          </div>
+          <div class="check sub no-icon mb-8">
+            <input type="checkbox" class="setting-check" id="fishingFoodKeepLast" data-key="fishingFoodKeepLast" />
+            <label for="fishingFoodKeepLast">可使用多次的食物，保留最後一次不吃</label>
+          </div>
+          <div class="row mb-16">
+            <div class="col">
+              <label for="fishingFoodName" class="label">食物名稱（背包搜尋用）</label>
+              <input type="text" class="setting input" id="fishingFoodName" placeholder="例如 沙拉" data-key="fishingFoodName" />
+              <span class="fs-12 text-danger food-warning" hidden>請輸入要吃的食物名稱</span>
+            </div>
+            <div class="col">
+              <label for="fishingFoodStars" class="label" title="同名食物有不同星級，搜尋結果會分成多格">食物星級</label>
+              <select id="fishingFoodStars" class="setting input" data-key="fishingFoodStars">
+                <option value="0">不限（吃第一個）</option>
+                <option value="1">1 星</option>
+                <option value="2">2 星</option>
+                <option value="3">3 星</option>
+                <option value="4">4 星</option>
+              </select>
+              <div class="ban5-wrap" hidden>
+                <div class="check no-icon mt-8">
+                  <input type="checkbox" class="setting-check" id="fishingFoodBan5" data-key="fishingFoodBan5" />
+                  <label for="fishingFoodBan5" title="跳過 5 星的食物，改吃其他星級">不吃 5 星的食物</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+          </div>
+
+          <hr />
+
+          <div class="title-row">
+            <h4 class="title">背景定時（模擬器）</h4>
+            <div class="check title-toggle">
+              <input type="checkbox" class="setting-check" id="fishingAltEnabled" data-key="fishingAltEnabled" />
+              <label for="fishingAltEnabled">啟用</label>
+            </div>
+          </div>
+          <p class="fs-12 text-warn mb-8 title-warn">模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</p>
+
+          <div class="alt-only">
+            <details class="group">
+              <summary>模擬器連線設定（與設定頁共用）</summary>
+              <div class="row">
+                <div class="col">
+                  <label for="altPreset" class="label">模擬器</label>
+                  <select id="altPreset" class="input adb-preset" data-input="adbDeviceAlt">
+                    <option value="127.0.0.1:5555">BlueStacks / 雷電 LDPlayer（5555）</option>
+                    <option value="127.0.0.1:16384">MuMu 12（16384）</option>
+                    <option value="127.0.0.1:7555">MuMu 6（7555）</option>
+                    <option value="127.0.0.1:62001">夜神 Nox（62001）</option>
+                    <option value="">其他（自行填寫）</option>
+                  </select>
+              <span class="muted fs-12 adb-hint" data-for="altPreset" hidden>建議設定：請在模擬器設定中開啟 ADB。</span>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col">
+                  <label for="adbDeviceAlt" class="label">ADB 裝置位址</label>
+                  <input type="text" class="setting input" id="adbDeviceAlt" placeholder="127.0.0.1:5555" data-key="adbDevice" />
+                </div>
+              </div>
+              <div class="row">
+                <div class="col">
+                  <label for="adbPathAlt" class="label">ADB 路徑</label>
+                  <input type="text" class="setting input" id="adbPathAlt" placeholder="例如 C:\platform-tools\adb.exe" data-key="adbPath" />
+                </div>
+              </div>
+            </details>
+
+            <div id="altOptions"></div>
+          </div>
+
+          <hr />
+
+          <div class="run-head">
+            <div class="run-title">
+              <h4 class="title">運行</h4>
+              <span class="run-badge" data-run-badge="fishing"></span>
+            </div>
+          </div>
+          <div class="fg-only">
+            <label for="logContainerFish" class="label log-title">前景日誌</label>
+            <textarea id="logContainerFish" class="log input" readonly></textarea>
+          </div>
+          <div class="alt-only">
+            <label for="logContainerFishAlt" class="label log-title mt-16">背景日誌</label>
+            <textarea id="logContainerFishAlt" class="log input" readonly></textarea>
+          </div>
+          <div class="run-actions">
+            <p class="run-last" data-run-last="fishing"></p>
+            <button type="button" id="stopFishBtn" class="btn danger w-120">停止</button>
+            <button type="button" id="startFishBtn" class="btn primary w-120">開始</button>
+          </div>
+        </div>
+
+        <div class="pane" id="gather-tab-pane">
+          <h4 class="title">主要設定</h4>
+          <div class="row">
+            <div class="col">
+              <label for="gatherKind" class="label">功能</label>
+              <select id="gatherKind" class="setting input" data-key="gatherKind">
+                <option value="plant">無工具（藍莓、海葡萄...等）</option>
+                <option value="wood">斧頭（木頭、礦石...等）</option>
+              </select>
+            </div>
+            <div class="col gather-count" id="gatherPlantCount" data-gather="plant"></div>
+            <div class="col gather-count" id="gatherWoodCount" data-gather="wood" hidden></div>
+          </div>
+
+          <!-- 採集植物、砍木頭的設定區塊由 script.js 產生，兩者的設定、日誌與按鈕完全獨立 -->
+          <div id="gatherPlant" data-gather="plant"></div>
+          <div id="gatherWood" data-gather="wood" hidden></div>
+        </div>
+
+        <div class="pane" id="settings-tab-pane">
+          <details class="section">
+            <summary>
+              <span class="section-text">
+                <span class="section-name">一般設定</span>
+                <span class="section-hint">停止按鍵、浮動日誌</span>
+              </span>
+            </summary>
+            <div class="section-body">
+          <div class="row">
+            <div class="col">
+              <label for="stopKey" class="label">停止按鍵</label>
+              <input type="text" class="setting input" id="stopKey" placeholder="例如 F8 或 ctrl+shift+q" data-key="stopKey" />
             </div>
             <div class="col"></div>
           </div>
 
-          <hr />
-
-          <h4 class="title">運行</h4>
-          <div class="flex mb-8">
-            <div></div>
-            <div class="flex gap-8">
-              <button type="button" id="stopSnowBtn" class="btn danger w-120">停止</button>
-              <button type="button" id="startSnowBtn" class="btn primary w-120">開始</button>
+          <div class="float-log">
+            <div class="float-log-head">
+              <input type="checkbox" class="setting-check" id="floatLogEnabled" data-key="floatLogEnabled" />
+              <label for="floatLogEnabled" class="action-name">浮動日誌</label>
+            </div>
+            <div id="floatLogPositionRow">
+              <div class="check">
+                <input type="checkbox" class="setting-check" id="floatLogAutoClose" data-key="floatLogAutoClose" />
+                <label for="floatLogAutoClose">運行結束後自動關閉浮動日誌</label>
+              </div>
+              <label for="floatLogPosition" class="label">視窗位置</label>
+              <select id="floatLogPosition" class="setting input" data-key="floatLogPosition">
+                <option value="screen">螢幕左下角</option>
+                <option value="bottomRight">螢幕右下角</option>
+                <option value="topLeft">螢幕左上角</option>
+                <option value="topRight">螢幕右上角</option>
+                <option value="custom">自訂位置（拖曳日誌視窗即可調整）</option>
+              </select>
             </div>
           </div>
-          <textarea id="logContainerSnow" class="log input" readonly></textarea>
+            </div>
+          </details>
 
-          <hr />
+          <details class="section">
+            <summary>
+              <span class="section-text">
+                <span class="section-name">前景設定<span class="section-tag important">重要</span></span>
+                <span class="section-hint">遊戲解析度、介面縮放</span>
+              </span>
+            </summary>
+            <div class="section-body">
+          <div class="row">
+            <div class="col">
+              <label for="screenResolution" class="label">遊戲解析度</label>
+              <select id="screenResolution" class="setting input" data-key="screenResolution">
+                <option value="1920x1080">1920x1080</option>
+                <option value="1600x900">1600x900</option>
+                <option value="1366x768">1366x768</option>
+                <option value="1280x1024">1280x1024</option>
+                <option value="1024x768">1024x768</option>
+                <option value="800x600">800x600</option>
+                <option value="640x480">640x480</option>
+              </select>
+            </div>
+            <div class="col">
+              <label for="uiScale" class="label">介面縮放比例</label>
+              <select id="uiScale" class="setting input" data-key="uiScale">
+                <option value="75">75%</option>
+                <option value="90">90%</option>
+                <option value="100">100%</option>
+                <option value="110">110%</option>
+                <option value="125">125%</option>
+                <option value="150">150%</option>
+              </select>
+            </div>
+          </div>
+          <span id="resolutionWarn" class="fs-12 text-warn" hidden>建議將遊戲解析度設為 1600×900，這是目前測試最完整、也最穩定的解析度。<br />其他解析度尚未完整測試，圖片比對可能不夠準確，造成偵測失敗或誤判。</span>
+          <span id="uiScaleWarn" class="fs-12 text-warn" hidden>建議將介面縮放比例設為 100%。<br />使用其他比例時，圖示大小與預設不同，圖片比對可能不夠準確。</span>
+            </div>
+          </details>
 
-          <div class="m-0 mb-8">
-            <h4 class="title m-0">其他設定</h4>
-            <p class="muted m-0">閥值越接近 1 越嚴格</p>
+          <details class="section">
+            <summary>
+              <span class="section-text">
+                <span class="section-name">背景設定（模擬器）<span class="section-tag important">重要</span></span>
+                <span class="section-hint">ADB 路徑、模擬器位址</span>
+              </span>
+            </summary>
+            <div class="section-body">
+          <p class="muted fs-12 title-note note-tight">ADB 預設僅限本機連線。</p>
+          <p class="fs-12 text-warn mb-16 title-note">模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</p>
+          <div class="row">
+            <div class="col">
+              <label for="adbPath" class="label">ADB 路徑</label>
+              <input type="text" class="setting input" id="adbPath" placeholder="例如 C:\platform-tools\adb.exe" data-key="adbPath" />
+            </div>
           </div>
 
-          <div class="row mb-0">
+          <details class="group howto-group">
+            <summary>如何安裝 ADB？</summary>
+            <ol class="muted howto">
+              <li>
+                下載「Android SDK Platform-Tools」(Windows 版)：<br />
+                developer.android.com/tools/releases/platform-tools
+              </li>
+              <li>解壓縮到固定的資料夾，例如 <code>C:\platform-tools</code>。</li>
+              <li>在上方「ADB 路徑」填入 <code>adb.exe</code> 的完整路徑，例如 <code>C:\platform-tools\adb.exe</code>。</li>
+            </ol>
+          </details>
+
+          <div class="row">
             <div class="col">
-              <label for="snowPutThreshold" class="label">
-                放雪按鈕閥值 <span class="muted fs-12">(snowPut)</span>
-              </label>
-              <input
-                type="number"
-                min="0.1"
-                max="1"
-                step="0.01"
-                class="setting input"
-                id="snowPutThreshold"
-                placeholder="0.1-1.0"
-                data-key="snowPutThreshold"
-              />
-            </div>
-            <div class="col">
-              <label for="snowStartBtnThreshold" class="label">
-                開始按鈕閥值 <span class="muted fs-12">(snowStartBtn)</span>
-              </label>
-              <input
-                type="number"
-                min="0.1"
-                max="1"
-                step="0.01"
-                class="setting input"
-                id="snowStartBtnThreshold"
-                placeholder="0.1-1.0"
-                data-key="snowStartBtnThreshold"
-              />
-            </div>
-            <div class="col">
-              <label for="snowflakeThreshold" class="label">
-                雕刻按鈕閥值 <span class="muted fs-12">(snowflake)</span>
-              </label>
-              <input
-                type="number"
-                min="0.1"
-                max="1"
-                step="0.01"
-                class="setting input"
-                id="snowflakeThreshold"
-                placeholder="0.1-1.0"
-                data-key="snowflakeThreshold"
-              />
-            </div>
-            <div class="col">
-              <label for="snowCompletedThreshold" class="label">
-                完成按鈕閥值 <span class="muted fs-12">(snowCompleted)</span>
-              </label>
-              <input
-                type="number"
-                min="0.1"
-                max="1"
-                step="0.01"
-                class="setting input"
-                id="snowCompletedThreshold"
-                placeholder="0.1-1.0"
-                data-key="snowCompletedThreshold"
-              />
+              <label for="adbPreset" class="label">模擬器</label>
+              <select id="adbPreset" class="input adb-preset" data-input="adbDevice">
+                <option value="127.0.0.1:5555">BlueStacks / 雷電 LDPlayer（5555）</option>
+                <option value="127.0.0.1:16384">MuMu 12（16384）</option>
+                <option value="127.0.0.1:7555">MuMu 6（7555）</option>
+                <option value="127.0.0.1:62001">夜神 Nox（62001）</option>
+                <option value="">其他（自行填寫）</option>
+              </select>
+              <span class="muted fs-12 adb-hint" data-for="adbPreset" hidden>建議設定：請在模擬器設定中開啟 ADB。</span>
             </div>
           </div>
 
           <div class="row">
             <div class="col">
-              <label for="snowDetectFrequency" class="label">偵測頻率(s)</label>
-              <input
-                type="number"
-                min="0.1"
-                step="0.01"
-                class="setting input"
-                id="snowDetectFrequency"
-                placeholder="0.1 以上"
-                data-key="snowDetectFrequency"
-              />
+              <label for="adbDevice" class="label">ADB 裝置位址</label>
+              <input type="text" class="setting input" id="adbDevice" placeholder="127.0.0.1:5555" data-key="adbDevice" />
+              <span class="muted fs-12">選上方的模擬器會自動填入常見的連接埠；若連不上，請到模擬器的 ADB 設定或多開器確認實際的位址。</span>
+            </div>
+          </div>
+            </div>
+          </details>
+
+          <details class="section">
+            <summary>
+              <span class="section-text">
+                <span class="section-name">偵測頻率<span class="section-tag">進階</span></span>
+                <span class="section-hint">通常不需要調整，預設值即可</span>
+              </span>
+            </summary>
+            <div class="section-body">
+          <details class="group">
+            <summary>料理偵測</summary>
+            <div class="row">
+              <div class="col">
+                <label for="detectFrequency" class="label">偵測頻率(s)</label>
+                <input type="number" min="0.05" step="0.01" class="setting input" id="detectFrequency" placeholder="0.05 以上" data-key="detectFrequency" />
+              </div>
+              <div class="col">
+                <label for="clickFrequency" class="label">點擊頻率(s)</label>
+                <input type="number" min="0.05" step="0.01" class="setting input" id="clickFrequency" placeholder="0.05 以上" data-key="clickFrequency" />
+              </div>
+              <div class="col"></div>
+            </div>
+          </details>
+
+          <details class="group">
+            <summary>釣魚偵測</summary>
+            <div class="row">
+              <div class="col">
+                <label for="fishingDetectFrequency" class="label">偵測頻率(s)</label>
+                <input type="number" min="0.1" step="0.1" class="setting input" id="fishingDetectFrequency" placeholder="0.1 以上" data-key="fishingDetectFrequency" />
+              </div>
+              <div class="col"></div>
+              <div class="col"></div>
+            </div>
+          </details>
+
+          <details class="group">
+            <summary>雪雕偵測</summary>
+            <div class="row">
+              <div class="col">
+                <label for="snowDetectFrequency" class="label">偵測頻率(s)</label>
+                <input type="number" min="0.05" step="0.01" class="setting input" id="snowDetectFrequency" placeholder="0.05 以上" data-key="snowDetectFrequency" />
+              </div>
+              <div class="col"></div>
+              <div class="col"></div>
+            </div>
+          </details>
+            </div>
+          </details>
+
+          <details class="section">
+            <summary>
+              <span class="section-text">
+                <span class="section-name">比對設定<span class="section-tag">進階</span></span>
+                <span class="section-hint">通常不需要調整，預設值即可</span>
+              </span>
+            </summary>
+            <div class="section-body">
+          <div class="row">
+            <div class="col">
+              <label for="matchStrictness" class="label" title="抓不到圖示選寬鬆，誤判太多選嚴格">比對嚴格度</label>
+              <select id="matchStrictness" class="setting input" data-key="matchStrictness">
+                <option value="loose">寬鬆</option>
+                <option value="normal">標準</option>
+                <option value="strict">嚴格</option>
+              </select>
             </div>
             <div class="col"></div>
             <div class="col"></div>
-            <div class="col"></div>
           </div>
+
+          <details class="advanced">
+            <summary>進階</summary>
+            <div class="advanced-head">
+              <p class="muted fs-12 m-0">數值越接近 1 越嚴格。<br />通常只需調整上方的「比對嚴格度」。</p>
+              <button type="button" id="resetThresholdsBtn" class="btn">全部重設為預設值</button>
+            </div>
+            <details class="group">
+              <summary>料理</summary>
+              <div class="row threshold-grid" data-group="cooking"></div>
+            </details>
+            <details class="group">
+              <summary>雪雕</summary>
+              <div class="row threshold-grid" data-group="snowCarving"></div>
+            </details>
+            <details class="group">
+              <summary>採集</summary>
+              <div class="row threshold-grid" data-group="gathering"></div>
+            </details>
+            <details class="group">
+              <summary>釣魚</summary>
+              <div class="row threshold-grid" data-group="fishing"></div>
+            </details>
+          </details>
+            </div>
+          </details>
+
+          <details class="section" open>
+            <summary>
+              <span class="section-text">
+                <span class="section-name">其他</span>
+                <span class="section-hint">檢查更新、還原設定值</span>
+              </span>
+            </summary>
+            <div class="section-body">
+          <div class="action-list">
+            <div class="action-row">
+              <div>
+                <div class="action-name">檢查更新</div>
+                <div class="action-desc">目前版本 <span id="appVersion"></span><span id="updateResult" class="ml-12"></span></div>
+              </div>
+              <button type="button" id="checkUpdateBtn" class="btn">檢查更新</button>
+            </div>
+            <div class="action-row">
+              <div>
+                <div class="action-name">還原設定值</div>
+                <div class="action-desc">所有設定都會重置，回到最初始狀態</div>
+              </div>
+              <button type="button" id="resetSettingsBtn" class="btn danger">還原</button>
+            </div>
+          </div>
+            </div>
+          </details>
         </div>
       </div>
+    </div>
 
-      <hr />
+    <div id="updateDialog" class="dialog" hidden>
+      <div class="dialog-box update-box" role="alertdialog" aria-modal="true" aria-labelledby="updateTitle">
+        <h4 id="updateTitle" class="dialog-title"></h4>
+        <div id="updateNotes" class="update-notes md"></div>
+        <div class="dialog-actions">
+          <button type="button" id="updateLaterBtn" class="btn">暫時不更新</button>
+          <button type="button" id="updateNowBtn" class="btn primary">確認更新</button>
+        </div>
+      </div>
+    </div>
 
-      <div class="row">
-        <div class="col">
-          <label for="screenResolution" class="label">遊戲解析度</label>
-          <select id="screenResolution" class="setting input" data-key="screenResolution">
-            <option value="1920x1080">1920x1080</option>
-            <option value="1600x900">1600x900</option>
-            <option value="1366x768">1366x768</option>
-            <option value="1280x1024">1280x1024</option>
-            <option value="1024x768">1024x768</option>
-            <option value="800x600">800x600</option>
-            <option value="640x480">640x480</option>
-          </select>
-        </div>
-        <div class="col">
-          <label for="stopKey" class="label">停止按鍵</label>
-          <input
-            type="text"
-            class="setting input"
-            id="stopKey"
-            placeholder="輸入按鍵名稱"
-            data-key="stopKey"
-          />
-        </div>
-        <div class="col">
-          <div class="check mt-auto">
-            <input type="checkbox" id="debugModeToggle" />
-            <label for="debugModeToggle">顯示圖片比對率</label>
-          </div>
-          <span class="muted fs-12 ml-12">（除錯用，當比對率大於閥值時，腳本才會進行動作）</span>
+    <div id="dialog" class="dialog" hidden>
+      <div class="dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogMsg">
+        <h4 id="dialogTitle" class="dialog-title"></h4>
+        <div id="dialogMsg" class="dialog-msg"></div>
+        <img id="dialogImage" class="dialog-image" alt="" hidden />
+        <div class="dialog-actions">
+          <button type="button" id="dialogCancel" class="btn" hidden>取消</button>
+          <button type="button" id="dialogOk" class="btn primary">確認</button>
         </div>
       </div>
     </div>

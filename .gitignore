@@ -186,3 +186,8 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# 模擬器連線測試產生的截圖
+adb_check.png
+
+# 本機設定檔（程式會從 config.default.ini 複製出來），各人不同，不納入版本控制
+config.ini
