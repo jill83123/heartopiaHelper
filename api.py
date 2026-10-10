@@ -350,6 +350,13 @@ class Api:
         except Exception as e:
             return {"status": "failed", "message": str(e)}
 
+    def _resolutionBlock(self, backend, confirmed):
+        """前景模式偵測到的解析度不在支援範圍時，回傳「先不要開始」的結果，前端會問使用者要不要繼續(確認後以 confirmed=True 再呼叫一次)"""
+        warning = getattr(backend, "resolutionWarning", lambda config: None)(self.config) if backend else None
+        if warning and not confirmed:
+            return {"ok": False, "code": "resolutionWarning", "warning": warning}
+        return None
+
     def backendFailure(self):
         """getBackend 失敗時附在回傳值裡的標記: 連線模擬器(ADB)失敗時前端會跳出排查提示窗"""
         return {"code": "adbFailed"} if self.backendIsAdb else {}
@@ -535,7 +542,7 @@ class Api:
         self.apiReadSettings()
         return True
 
-    def startCooking(self):
+    def startCooking(self, confirmed=False):
         if self.selectLock.locked():
             return {"ok": False, "error": "正在選取範圍，請先完成選取"}
         def cookingLog(msg):
@@ -548,13 +555,16 @@ class Api:
         backend = self.getBackend("cooking")
         if not backend:
             return {"ok": False, "error": self.backendErrorText(), **self.backendFailure()}
+        blocked = self._resolutionBlock(backend, confirmed)
+        if blocked:
+            return blocked
 
         self._beginRun(["cooking"])
         self.cookingTask = Cooking(cookingLog, backend, config, self.bubbleRegionCoord)
         self.cookingTask.start()
         return {"ok": True}
 
-    def startSnowCarving(self):
+    def startSnowCarving(self, confirmed=False):
         if self.selectLock.locked():
             return {"ok": False, "error": "正在選取範圍，請先完成選取"}
         def snowLog(msg):
@@ -567,6 +577,9 @@ class Api:
         backend = self.getBackend("snowCarving")
         if not backend:
             return {"ok": False, "error": self.backendErrorText(), **self.backendFailure()}
+        blocked = self._resolutionBlock(backend, confirmed)
+        if blocked:
+            return blocked
 
         self._beginRun(["snowCarving"])
         self.snowCarvingTask = SnowCarving(snowLog, backend, config)
@@ -580,7 +593,7 @@ class Api:
             config[f"fishing{key}"] = self.config.get(f"fishingAlt{key}", "")
         return config
 
-    def startFishing(self):
+    def startFishing(self, confirmed=False):
         if self.selectLock.locked():
             return {"ok": False, "error": "正在選取範圍，請先完成選取"}
         def fishingLog(msg):
@@ -605,6 +618,9 @@ class Api:
             backend = self.getBackend("fishing")
             if not backend:
                 return {"ok": False, "error": self.backendErrorText(), **self.backendFailure()}
+            blocked = self._resolutionBlock(backend, confirmed)
+            if blocked:
+                return blocked
         altBackend = None
         if useAlt:
             try:
@@ -640,7 +656,7 @@ class Api:
             config[f"fishing{key}"] = "False"
         return config
 
-    def startGathering(self, kind):
+    def startGathering(self, kind, confirmed=False):
         """kind: "plant"(採集植物) 或 "wood"(砍木頭)。兩個功能互相獨立，同時只能跑一個"""
         if kind not in GATHER_TASKS:
             return {"ok": False, "error": "不明的採集類型"}
@@ -659,6 +675,9 @@ class Api:
         backend = self.getBackend(kind)
         if not backend:
             return {"ok": False, "error": self.backendErrorText(), **self.backendFailure()}
+        blocked = self._resolutionBlock(backend, confirmed)
+        if blocked:
+            return blocked
 
         self._beginRun([kind])
         if kind == "plant":

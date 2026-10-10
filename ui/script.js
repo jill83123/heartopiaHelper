@@ -194,6 +194,17 @@ const alertAdbFailed = (detail) =>
 // 開始任務失敗: ADB 連線問題用排查提示窗，其他錯誤直接顯示原因
 const alertStartError = (res) => (res.code === 'adbFailed' ? alertAdbFailed(res.error) : showDialog('無法開始', res.error));
 
+// 開始任務: 偵測到的解析度不在支援範圍時，後端先不啟動，這裡問使用者要不要繼續；確認才帶 confirmed=true 再送一次，取消就不執行
+const startTask = async (start) => {
+  let res = await start(false);
+  if (res.code === 'resolutionWarning') {
+    const ok = await showDialog('解析度不在支援範圍', `${res.warning}\n\n要繼續執行嗎？`, { confirm: true, okText: '繼續執行' });
+    if (!ok) return;
+    res = await start(true);
+  }
+  if (!res.ok) alertStartError(res);
+};
+
 // 處理區域選取
 // 取消或失敗時維持原本已選好的範圍(後端也不會動它)；一般失敗的原因短暫顯示在座標標籤上，ADB 連線失敗則跳提示窗
 const selectRegionHandler = async ({ apiMethod, param, selector, format, onSuccess }) => {
@@ -1286,8 +1297,7 @@ document.querySelector('#startCookBtn').addEventListener('click', async () => {
     const ok = await showDialog('確認菜品', '上次記錄的菜品如下，這次要煮的是這道嗎？\n若不是，請取消後清除或按「記錄菜名」更新。', { confirm: true, image: image || '' });
     if (!ok) return;
   }
-  const res = await getApi().startCooking();
-  if (!res.ok) alertStartError(res);
+  await startTask((confirmed) => getApi().startCooking(confirmed));
 });
 
 // 停止料理
@@ -1298,8 +1308,7 @@ document.querySelector('#stopCookBtn').addEventListener('click', async () => {
 // 開始雪雕
 document.querySelector('#startSnowBtn').addEventListener('click', async () => {
   if (alertBlockers(getSnowBlockers())) return;
-  const res = await getApi().startSnowCarving();
-  if (!res.ok) alertStartError(res);
+  await startTask((confirmed) => getApi().startSnowCarving(confirmed));
 });
 
 // 停止雪雕
@@ -1310,8 +1319,7 @@ document.querySelector('#stopSnowBtn').addEventListener('click', async (e) => {
 // 開始釣魚
 document.querySelector('#startFishBtn').addEventListener('click', async () => {
   if (alertBlockers(getFishBlockers())) return;
-  const res = await getApi().startFishing();
-  if (!res.ok) alertStartError(res);
+  await startTask((confirmed) => getApi().startFishing(confirmed));
 });
 
 // 停止釣魚
@@ -1324,8 +1332,7 @@ GATHER_KINDS.forEach(({ prefix }) => {
   const P = capitalize(prefix);
   document.querySelector(`#start${P}Btn`).addEventListener('click', async () => {
     if (alertBlockers(getGatherBlockers(prefix))) return;
-    const res = await getApi().startGathering(prefix);
-    if (!res.ok) alertStartError(res);
+    await startTask((confirmed) => getApi().startGathering(prefix, confirmed));
   });
   document.querySelector(`#stop${P}Btn`).addEventListener('click', async () => {
     await getApi().stop();
