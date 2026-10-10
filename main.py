@@ -33,6 +33,38 @@ def resourcePath(relativePath):
     return os.path.join(os.path.dirname(__file__), relativePath)
 
 
+def setDevIcon():
+    """直接用 python main.py 執行時，視窗和工作列會顯示 python.exe 的圖示；這裡改成 icon.ico。
+    打包後的 exe 本身就帶有圖示，不需要做這件事"""
+    if isFrozen() or sys.platform != "win32":
+        return
+    import ctypes
+    iconPath = resourcePath("icon.ico")
+    if not os.path.exists(iconPath):
+        return
+    user32 = ctypes.windll.user32
+    user32.FindWindowW.restype = ctypes.c_void_p
+    user32.LoadImageW.restype = ctypes.c_void_p
+    hwnd = None
+    for _ in range(50):  # 視窗建好需要一點時間
+        hwnd = user32.FindWindowW(None, APP_TITLE)
+        if hwnd:
+            break
+        time.sleep(0.1)
+    if not hwnd:
+        return
+    # LR_LOADFROMFILE(0x10)；WM_SETICON(0x80)，wParam 1=大圖示(工作列)、0=小圖示(標題列)
+    for wParam, size in ((1, 32), (0, 16)):
+        icon = user32.LoadImageW(None, iconPath, 1, size, size, 0x10)
+        if icon:
+            user32.SendMessageW(ctypes.c_void_p(hwnd), 0x80, wParam, ctypes.c_void_p(icon))
+
+
+def onStarted():
+    threading.Thread(target=setDevIcon, daemon=True).start()
+    api._prepareFloatLog()
+
+
 def listenStopKey():
     """全域監聽停止鍵(設定檔的 stopKey，可以是單一按鍵如 F8，或組合鍵如 ctrl+shift+q)。
     設定頁改了按鍵會自動換成新的，不用重開程式；按鍵設定有誤時記錄後繼續等下一次修改，不影響主程式"""
@@ -85,6 +117,10 @@ def onClosing():
 
 
 def main():
+    if not isFrozen() and sys.platform == "win32":
+        # 換掉 python.exe 的應用程式識別，工作列才不會把視窗歸到 Python 底下、沿用 Python 的圖示
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("heartopiaHelper")
     winWidth = 600
     winHeight = 900
     html_path = resourcePath("ui/index.html")
@@ -108,7 +144,7 @@ def main():
     )
     mainWindow.events.closing += onClosing
     try:
-        webview.start(api._prepareFloatLog)
+        webview.start(onStarted)
     except KeyboardInterrupt:
         # 在終端機按 Ctrl+C 結束: 安靜地收尾，不要印出一長串錯誤
         api.stop()
