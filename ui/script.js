@@ -1027,7 +1027,10 @@ const todayString = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+let notifiedVersion = null; // 這次開啟程式已經跳出提示的版本，定時檢查不再重複提醒同一版
+
 const showUpdate = (info) => {
+  notifiedVersion = info.latest;
   updateTitle.textContent = `有新版本 ${info.latest}（目前 ${info.current}）`;
   // 沒有更新說明時，給一個連到 Release 頁面的連結
   renderMarkdown(updateNotes, info.notes || (info.pageUrl ? `[查看更新內容](${info.pageUrl})` : ''));
@@ -1056,6 +1059,28 @@ const checkForUpdate = async (isManual) => {
     result.textContent = info.checkFailed ? '無法連線到 GitHub，請確認網路連線' : '已是最新版本';
   }
 };
+
+// 定時檢查更新(程式開著不關也能發現新版本): 每 6 小時向 GitHub 查一次。
+// 任務運行中不跳視窗，只在設定頁「檢查更新」旁顯示；等任務結束後才提醒。同一版只提醒一次，按過「暫時不更新」的當天不再提醒
+const UPDATE_CHECK_MS = 6 * 60 * 60 * 1000;
+let lastUpdateFetch = Date.now(); // 啟動時剛檢查過
+let pendingUpdate = null;
+const updateTick = async () => {
+  try {
+    if (Date.now() - lastUpdateFetch >= UPDATE_CHECK_MS) {
+      lastUpdateFetch = Date.now();
+      const info = await getApi().apiCheckUpdate();
+      pendingUpdate = info.hasUpdate ? info : null;
+      if (pendingUpdate) document.querySelector('#updateResult').textContent = `有新版本 ${pendingUpdate.latest}`;
+    }
+    if (!pendingUpdate || isAnyRunning || notifiedVersion === pendingUpdate.latest) return;
+    if (!updateDialog.hidden || !document.querySelector('#dialog').hidden) return; // 已有視窗開著就等下一輪
+    const settings = await getApi().apiReadSettings();
+    if (settings.updateRemindDate === todayString()) return;
+    showUpdate(pendingUpdate);
+  } catch (e) {}
+};
+setInterval(updateTick, 60 * 1000);
 
 updateLaterBtn.addEventListener('click', async () => {
   updateDialog.hidden = true;
