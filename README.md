@@ -38,7 +38,7 @@ python main.py
 
 ### 前景模式
 
-- 「遊戲解析度」與「介面縮放比例」須和遊戲內設定一致。建議使用 1600×900、100%，這是最穩定的組合；其他解析度尚未完整測試。
+- 「遊戲解析度」與「介面縮放比例」須和遊戲內設定一致。
 - 運行中請讓遊戲保持在最上層。
 - 按範圍按鈕框選時，程式會自動把遊戲切到最前面，選完再切回本程式。
 
@@ -54,7 +54,7 @@ python main.py
 
    會連線並把畫面存成 `adb_check.png`，不會點擊任何東西。若 `adb` 不在 PATH，請在設定分頁填入「ADB 路徑」。
 4. 釣魚的「吃食物」需要輸入中文，程式內附 [ADBKeyBoard](https://github.com/senzhk/ADBKeyBoard)（GPL-2.0，未修改，檔案為 `tools/ADBKeyboard.apk`），第一次吃食物時會自動裝進模擬器，並在輸入前後自動切換輸入法，不需要手動安裝。
-5. 模擬器請把解析度設成 1600×900（模板以此為基準，也是最穩定的解析度）。其他解析度會自動縮放，但尚未完整測試，可能不夠準確。
+5. 模擬器請把解析度設成 1600×900（模板以此為基準）。其他解析度會自動縮放。
 
 ### 釣魚
 
@@ -122,7 +122,7 @@ python main.py
 | `gameWindowTitle` | 前景模式框選範圍時，用來尋找遊戲視窗的標題文字（預設 `Heartopia`） |
 | `screenResolution` / `uiScale` | 前景模式的遊戲解析度與介面縮放 (%) |
 | `stopKey` | 停止按鍵，單鍵（`F8`）或組合鍵（`ctrl+shift+q`，用 `+` 連接）皆可；在設定頁修改後立即生效 |
-| `cookDishRecordedAt` | 菜品記錄時間（菜名截圖存在 `config.ini` 旁的 `dish.png`，運行日誌會註明） |
+| `cookDishRecordedAt` | 菜品記錄時間（菜名截圖存在 `config.ini` 旁 `userdata/` 資料夾裡的 `dish.png`，運行日誌會註明） |
 | `expectedCookQty` | 料理份數 |
 | `isSafeMode` / `safeModeQty` | 安全模式：煮滿指定份數才收料理（預設 3） |
 | `detectFrequency` / `clickFrequency` / `snowDetectFrequency` / `fishingDetectFrequency` | 偵測與點擊間隔（秒） |
@@ -189,6 +189,6 @@ main.py            程式進入點、視窗與停止鍵
 api.py             前端呼叫的後端介面
 scripts/           料理、雪雕、釣魚、採集植物、砍木頭流程 (base.py 為共用基底，Gathering.py 為採集共用骨架)
 tools/             畫面截取、模板比對、ADB 與設定檔
-templates/         比對用的圖片 (以 1600 寬為基準，其他解析度會自動縮放，但尚未完整測試)
+templates/         比對用的圖片 (以 1600 寬為基準，其他解析度會自動縮放)
 ui/                介面 (HTML / JS / CSS)
 ```

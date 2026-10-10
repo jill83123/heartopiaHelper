@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>心動小鎮助手 設計系統</title>
+<style>
+@font-face{font-family:'Inter';src:url('../ui/fonts/Inter-Variable.ttf') format('truetype');font-weight:100 900}
+@font-face{font-family:'Noto Sans TC';src:url('../ui/fonts/NotoSansTC-Variable.ttf') format('truetype');font-weight:100 900}
+
+/* ============ Design Tokens ============ */
+:root{
+  /* 色彩：取自官網——蜜桃奶油底、天空藍、黃橘 CTA、屋頂鮭粉 */
+  --bg:#eaf5fd;            /* 淡天藍 */
+  --surface:#ffffff;
+  --surface-2:#f3f8fc;
+  --border:#d9e8f3;
+  --border-strong:#bcd3e5;
+  --text:#2b3a4b;
+  --text-2:#5f7288;
+  --text-3:#97a9bb;
+
+  --brand:#ffc233;         /* 主色：官網「立即下載」黃橘 */
+  --brand-hover:#f5a30a;
+  --brand-soft:#fff3cf;
+  --on-brand:#5b3600;
+  --sky:#7cc4f0; --sky-soft:#e4f3fd; --sky-deep:#2f8fd0;   /* 輔色：天空藍 */
+  --salmon:#ea7f6b;
+
+  --success:#34a56f; --success-soft:#e0f5e9;
+  --danger:#dd5647;  --danger-soft:#fde8e4;
+  --warn:#b7791f;    --warn-soft:#fff4d6; --warn-border:#f2d38b;
+  --info:#2f8fd0;    --info-soft:#e4f3fd;
+
+  /* 字體 */
+  --font:'Quicksand','Inter','Noto Sans TC','Microsoft JhengHei','Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif;
+  --mono:'Cascadia Mono',Consolas,'Noto Sans TC',monospace;
+  --fs-xs:12px; --fs-sm:13px; --fs-md:14px; --fs-lg:16px; --fs-xl:20px;
+
+  /* 間距 (4px 基準) */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+  /* 圓角 */
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-pill:999px;
+  /* 陰影 */
+  --shadow-1:0 1px 2px rgba(40,90,140,.08),0 6px 18px rgba(40,90,140,.07);
+  --shadow-brand:0 3px 0 #e8a410,0 8px 16px rgba(255,194,51,.35);
+  --ring:0 0 0 3px rgba(124,196,240,.45);
+}
+:root[data-theme="dark"]{
+  --bg:#172233; --surface:#1f2d42; --surface-2:#192639;
+  --border:#2c3f58; --border-strong:#3e5676;
+  --text:#eaf2fa; --text-2:#a9bdd2; --text-3:#6e849c;
+  --brand:#ffc040; --brand-hover:#ffcf6b; --brand-soft:#3d3420; --on-brand:#4a2a03;
+  --sky:#7cc4f0; --sky-soft:#1f3347; --sky-deep:#7cc4f0; --salmon:#f08e7b;
+  --success:#4cc38a; --success-soft:#1d3329;
+  --danger:#f0746a;  --danger-soft:#3c2325;
+  --warn:#e5b04f;    --warn-soft:#352c19; --warn-border:#5a4720;
+  --info:#7cc4f0;    --info-soft:#1f3347;
+  --shadow-1:0 2px 0 rgba(0,0,0,.25);
+  --shadow-brand:0 3px 0 #b8841a;
+  --ring:0 0 0 3px rgba(124,196,240,.4);
+}
+
+/* ============ Base ============ */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:400 var(--fs-md)/1.6 var(--font);transition:background .2s,color .2s}
+h1,h2,h3,h4,p{margin:0}
+
+/* ============ Components ============ */
+/* 分頁：膠囊式切換 */
+.tabs{display:flex;gap:var(--s1);padding:var(--s1);background:rgba(255,255,255,.65);backdrop-filter:blur(6px);border-radius:var(--r-pill);border:1px solid rgba(255,255,255,.9)}
+.tab{flex:1;border:0;background:none;color:var(--text-2);font:500 var(--fs-md) var(--font);padding:9px 12px;border-radius:var(--r-pill);cursor:pointer;transition:.15s;white-space:nowrap}
+.tab:hover{color:var(--text);background:rgba(255,255,255,.6)}
+.tab.active{background:var(--surface);color:var(--sky-deep);font-weight:600;box-shadow:var(--shadow-1)}
+
+/* 卡片 */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s4) var(--s5);box-shadow:var(--shadow-1)}
+.card-title{font-size:var(--fs-lg);font-weight:700;margin-bottom:var(--s3);display:flex;align-items:center;gap:var(--s2)}
+
+
+/* 按鈕 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font:600 var(--fs-md) var(--font);height:38px;padding:0 var(--s5);border-radius:var(--r-pill);cursor:pointer;transition:.15s}
+.btn:hover{background:var(--surface-2)}
+.btn:focus-visible{outline:none;box-shadow:var(--ring)}
+.btn.primary{background:var(--brand);border:2px solid #fff;color:var(--on-brand);box-shadow:var(--shadow-brand)}
+.btn.primary:hover{background:var(--brand-hover)}
+.btn.primary:active{transform:translateY(2px);box-shadow:none}
+.btn.danger{background:var(--danger-soft);border-color:transparent;color:var(--danger)}
+.btn.danger:hover{background:var(--danger);color:#fff}
+.btn.ghost{border-color:transparent;background:none;color:var(--text-2)}
+.btn.ghost:hover{background:var(--surface-2);color:var(--text)}
+.btn.block{width:100%}
+.btn[disabled]{opacity:.45;cursor:not-allowed;box-shadow:none;pointer-events:none}
+
+/* 輸入 */
+.field{display:flex;flex-direction:column;gap:6px}
+.label{font-size:var(--fs-sm);font-weight:600;color:var(--text-2)}
+.input,.select{height:38px;padding:0 var(--s3);background:var(--surface);border:1.5px solid var(--border-strong);border-radius:var(--r-sm);color:var(--text);font:400 var(--fs-md) var(--font);transition:.15s;width:100%}
+.input:focus,.select:focus{outline:none;border-color:var(--sky);box-shadow:var(--ring);background:var(--surface)}
+.input.invalid{border-color:var(--danger)}
+.select{appearance:none;padding-right:34px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23a89a95' stroke-width='2' stroke-linecap='round'><path d='M1 1l5 5 5-5'/></svg>");background-repeat:no-repeat;background-position:right 12px center}
+.hint{font-size:var(--fs-xs);color:var(--text-3)}
+
+/* 開關 */
+.switch{display:flex;align-items:center;gap:var(--s3);cursor:pointer}
+.switch input{appearance:none;width:38px;height:22px;border-radius:var(--r-pill);background:var(--border-strong);position:relative;cursor:pointer;transition:.2s;flex:none;margin:0}
+.switch input::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.switch input:checked{background:var(--sky-deep)}
+.switch input:checked::after{transform:translateX(16px)}
+
+/* 狀態標籤 (取代紅字「尚未選取座標」) */
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:600;padding:3px 10px;border-radius:var(--r-pill)}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip.ok{background:var(--success-soft);color:var(--success)}
+.chip.warn{background:var(--danger-soft);color:var(--danger)}
+.chip.run{background:var(--info-soft);color:var(--info)}
+.chip.run::before{animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.25}}
+
+/* 範圍選取列：按鈕 + 狀態 */
+.region{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);padding:var(--s3) var(--s4);background:var(--sky-soft);border:1.5px dashed var(--sky);border-radius:var(--r-md)}
+.region b{display:block;font-weight:600}
+
+/* 日誌 */
+.log{background:var(--surface-2);color:var(--text);font:400 var(--fs-sm)/1.7 var(--mono);border-radius:var(--r-md);padding:var(--s3) var(--s4);height:150px;overflow:auto;border:1px solid var(--border)}
+.log .t{color:var(--text-3)}.log .ok{color:var(--success)}.log .err{color:var(--danger)}
+
+/* 提示 */
+.notice{display:flex;gap:var(--s3);background:var(--warn-soft);border:1px solid var(--warn-border);border-radius:var(--r-md);padding:var(--s3) var(--s4);color:var(--text)}
+.notice .ic{color:var(--warn);font-size:18px;line-height:1.4}
+.notice b{display:block;font-size:var(--fs-sm)}
+
+/* 更新橫幅 */
+.banner{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);padding:var(--s3) var(--s4);background:var(--brand-soft);border-radius:var(--r-md)}
+.banner a{font-size:var(--fs-xs);color:var(--sky-deep);text-decoration:none;font-weight:600}
+.banner .btn{height:32px;padding:0 var(--s4)}
+
+/* 設定清單列 */
+.list{border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface)}
+.item{display:flex;align-items:center;justify-content:space-between;gap:var(--s4);padding:var(--s3) var(--s4)}
+.item+.item{border-top:1px solid var(--border)}
+.item b{font-weight:600;display:block}
+.item .btn{height:32px;padding:0 var(--s4)}
+
+/* ============ 預覽頁自己的版面 ============ */
+.page{max-width:920px;margin:0 auto;padding:var(--s5) var(--s4) 80px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s5)}
+.top h1{font-size:var(--fs-xl)}
+.top p{color:var(--text-2);font-size:var(--fs-sm)}
+section{margin-bottom:var(--s6)}
+section>h2{font-size:var(--fs-sm);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:var(--s3)}
+.grid{display:grid;gap:var(--s3)}
+.swatches{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+.sw{border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface);font-size:var(--fs-xs)}
+.sw i{display:block;height:48px}
+.sw span{display:block;padding:6px 10px;color:var(--text-2)}.sw span b{color:var(--text);display:block;font-size:var(--fs-sm)}
+.stack{display:flex;flex-direction:column;gap:var(--s3)}
+.hstack{display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+.spacer{display:flex;align-items:flex-end;gap:var(--s4);flex-wrap:wrap}
+.spacer div{background:var(--brand-soft);border:1px solid var(--brand);border-radius:3px}
+.spacer span{display:block;font-size:var(--fs-xs);color:var(--text-2);margin-top:4px;text-align:center}
+/* 模擬視窗 */
+.window{width:100%;max-width:520px;margin:0 auto;border:1px solid var(--border-strong);border-radius:var(--r-lg);background:var(--bg);padding:0 0 var(--s4);overflow:hidden;box-shadow:0 12px 40px rgba(80,50,40,.15)}
+.themebtn{cursor:pointer}
+.hero{position:relative;padding:var(--s5) var(--s4) var(--s4);background:linear-gradient(180deg,#6cbdee 0%,#a9dcf7 70%,var(--bg) 100%);overflow:hidden}
+.hero h3{position:relative;color:#fff;font-size:22px;font-weight:700;text-shadow:0 2px 0 rgba(47,143,208,.55);margin-bottom:var(--s3)}
+.hero h3 small{display:block;font-size:var(--fs-xs);font-weight:600;opacity:.9;text-shadow:none;letter-spacing:.05em}
+.hero .tabs{position:relative}
+.cloud{position:absolute;background:#fff;border-radius:99px;opacity:.85;filter:blur(.5px)}
+.cloud::before,.cloud::after{content:"";position:absolute;background:#fff;border-radius:50%}
+.cloud.a{width:90px;height:24px;right:24px;top:14px}.cloud.a::before{width:36px;height:36px;left:14px;top:-18px}.cloud.a::after{width:28px;height:28px;left:42px;top:-12px}
+.cloud.b{width:60px;height:16px;right:130px;top:46px;opacity:.6}.cloud.b::before{width:24px;height:24px;left:10px;top:-12px}.cloud.b::after{width:18px;height:18px;left:28px;top:-8px}
+.body{padding:0 var(--s4);display:flex;flex-direction:column;gap:var(--s4)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="top">
+    <div>
+      <h1>心動小鎮助手 · 設計系統 v0.1</h1>
+      <p>參考官網：蜜桃奶油底 × 黃橘主色 × 天空藍輔色，圓潤、白邊卡片。右邊可切換深色模式。</p>
+    </div>
+    <button class="btn themebtn" id="themeBtn">🌙 深色</button>
+  </div>
+
+  <section>
+    <h2>1 · 色彩</h2>
+    <div class="grid swatches" id="swatches"></div>
+  </section>
+
+  <section>
+    <h2>2 · 字體 · 間距 · 圓角</h2>
+    <div class="card stack">
+      <div class="stack" style="gap:2px">
+        <div style="font-size:20px;font-weight:700">標題 20 / Bold　料理 Cooking</div>
+        <div style="font-size:16px;font-weight:700">區塊標題 16 / Bold</div>
+        <div style="font-size:14px">內文 14 / Regular　Quicksand(官網同款圓體，英數) + 思源黑體(中文)；Quicksand 需新增打包</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-2)">欄位標籤 13 / Semibold</div>
+        <div class="hint">說明文字 12 / 次要色</div>
+      </div>
+      <div class="spacer">
+        <div style="width:4px;height:4px"></div><div style="width:8px;height:8px"></div><div style="width:12px;height:12px"></div>
+        <div style="width:16px;height:16px"></div><div style="width:24px;height:24px"></div><div style="width:32px;height:32px"></div>
+      </div>
+      <div class="hint">間距刻度 4 · 8 · 12 · 16 · 24 · 32　｜　圓角 8（輸入框）· 12（區塊）· 16（卡片）· 999（按鈕/分頁）</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · 元件</h2>
+    <div class="stack" style="gap:var(--s4)">
+
+      <div class="card stack">
+        <div class="card-title">按鈕</div>
+        <div class="hstack">
+          <button class="btn primary">▶ 開始</button>
+          <button class="btn danger">■ 停止</button>
+          <button class="btn">次要按鈕</button>
+          <button class="btn ghost">稍後</button>
+          <button class="btn primary" disabled>停用</button>
+        </div>
+      </div>
+
+      <div class="card stack">
+        <div class="card-title">表單</div>
+        <div class="cols">
+          <div class="field"><label class="label">料理數量</label><input class="input" value="10" /></div>
+          <div class="field"><label class="label">模擬器</label><select class="select"><option>BlueStacks</option></select><span class="hint">一鍵填入 ADB 連接埠</span></div>
+          <div class="field"><label class="label">錯誤狀態</label><input class="input invalid" value="abc" /><span class="hint" style="color:var(--danger)">請輸入 1 以上的數字</span></div>
+        </div>
+        <label class="switch"><input type="checkbox" checked /><span>安全模式<span class="hint">　煮滿指定份數才收料理</span></span></label>
+        <label class="switch"><input type="checkbox" /><span>吃食物</span></label>
+      </div>
+
+      <div class="card stack">
+        <div class="card-title">狀態標籤 · 範圍選取 · 日誌</div>
+        <div class="hstack"><span class="chip ok">已選取</span><span class="chip warn">尚未選取</span><span class="chip run">運行中</span></div>
+        <div class="region"><div><b>泡泡區域範圍</b><span class="chip warn" style="margin-top:4px">尚未選取座標</span></div><button class="btn">選取範圍</button></div>
+        <div class="log"><div><span class="t">12:01:03</span> 開始料理</div><div><span class="t">12:01:05</span> <span class="ok">找到鍋子，點擊</span></div><div><span class="t">12:01:09</span> <span class="err">找不到計時器，重試 (1/3)</span></div></div>
+      </div>
+
+      <div class="stack">
+        <div class="banner"><div><b>發現新版本 v1.3.3</b><br><a href="#">查看更新內容</a></div><div class="hstack" style="gap:8px"><button class="btn ghost">稍後</button><button class="btn primary">立即更新</button></div></div>
+        <div class="notice"><div><b>注意事項</b>煮料理時請務必關閉遊戲內「玩法設定 &gt; 開始烹飪鏡頭自動轉動」。</div></div>
+        <div class="list">
+          <div class="item"><div><b>檢查更新</b><span class="hint">目前版本 v1.3.2</span></div><button class="btn">檢查</button></div>
+          <div class="item"><div><b>開啟設定檔</b><span class="hint">config.ini</span></div><button class="btn">開啟</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · 組合預覽：料理頁（600 寬視窗）</h2>
+    <div class="window">
+     <div class="hero"><i class="cloud a"></i><i class="cloud b"></i><h3>心動小鎮助手<small>HEARTOPIA HELPER</small></h3>
+      <div class="tabs"><button class="tab active">🍳 料理</button><button class="tab">⛄ 雪雕</button><button class="tab">🎣 釣魚</button><button class="tab">⚙️ 設定</button></div></div>
+     <div class="body">
+      <div class="card stack">
+        <div class="card-title">主要設定</div>
+        <div class="region"><div><b>泡泡區域範圍</b><span class="chip warn" style="margin-top:4px">尚未選取</span></div><button class="btn">選取範圍</button></div>
+        <div class="field"><label class="label">料理數量</label><input class="input" placeholder="1 以上" /></div>
+      </div>
+      <div class="card stack">
+        <div class="card-title">運行</div>
+        <label class="switch"><input type="checkbox" /><span>安全模式<span class="hint">　煮滿 <b>5</b> 份才收料理</span></span></label>
+        <div class="hstack"><button class="btn danger" style="flex:1">■ 停止</button><button class="btn primary" style="flex:2">▶ 開始</button></div>
+        <div class="log"><div><span class="t">--:--:--</span> 等待開始…</div></div>
+      </div>
+      <div class="notice"><div><b>注意事項</b>煮料理時請務必關閉遊戲內「開始烹飪鏡頭自動轉動」。</div></div>
+    </div></div>
+  </section>
+</div>
+
+<script>
+const sw=[['背景','--bg'],['卡片','--surface'],['凹陷區','--surface-2'],['邊框','--border'],['文字','--text'],['次要文字','--text-2'],
+['主色 黃橘','--brand'],['主色 Hover','--brand-hover'],['主色淡底','--brand-soft'],['輔色 天空藍','--sky'],['成功','--success'],['危險','--danger'],['警告','--warn'],['資訊','--info']];
+const box=document.getElementById('swatches');
+function render(){box.innerHTML=sw.map(([n,v])=>`<div class="sw"><i style="background:var(${v});${v==='--border'||v==='--bg'?'border-bottom:1px solid var(--border)':''}"></i><span><b>${n}</b>${v} · ${getComputedStyle(document.documentElement).getPropertyValue(v).trim()}</span></div>`).join('')}
+render();
+const b=document.getElementById('themeBtn');
+b.onclick=()=>{const d=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=d?'light':'dark';b.textContent=d?'🌙 深色':'☀️ 淺色';render()};
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active')});
+</script>
+</body>
+</html>

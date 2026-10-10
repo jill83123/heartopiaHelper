@@ -6,7 +6,7 @@ import numpy as np
 from scripts.base import BaseTask
 from tools.notify import notify
 from tools.finder import clickBackButton, getBaseScale, matchBestAuto
-from tools.tools import getThreshold, loadTemplate, matchBest
+from tools.tools import getResourcePath, getThreshold, loadTemplate, matchBest
 
 UI_WAIT_SECONDS = 4  # 等待某個畫面/按鈕出現的上限(秒)
 CAST_SETTLE_SECONDS = 3  # 按下拋竿(或收竿)後，等 UI 隱藏/顯示的時間
@@ -225,7 +225,7 @@ class Fishing(BaseTask):
         """模擬器模式優先用手機版的圖，沒有的才用共用的"""
         if self.isAdb:
             path = f"{self.adbTemplateDir}/{name}.png"
-            if os.path.exists(path):
+            if os.path.exists(getResourcePath(path)):
                 return path
         return f"{self.templateDir}/{name}.png"
 

@@ -4,25 +4,48 @@
     <meta charset="UTF-8" />
     <title>浮動日誌</title>
     <style>
+      /* 預設深色底; 後端量測視窗後面畫面的亮度，背景很暗時 JS 會切成 data-theme=light(淺色底)，才看得清楚 */
+      :root {
+        --bg: rgba(20, 28, 38, 0.92);
+        --text: #eaf2fa;
+        --text-2: #a9bdd2;
+        --text-3: #8fa6bd;
+        --hover: #fff;
+        --grip: rgba(169, 189, 210, 0.35);
+        --grip-hover: rgba(169, 189, 210, 0.8);
+        --danger: #c0594f;
+        --danger-text: #f0a9a2;
+      }
+      :root[data-theme='light'] {
+        --bg: rgba(255, 255, 255, 0.96);
+        --text: #2b3a4b;
+        --text-2: #5f7288;
+        --text-3: #6f8296;
+        --hover: #000;
+        --grip: rgba(95, 114, 136, 0.35);
+        --grip-hover: rgba(95, 114, 136, 0.8);
+        --danger: #dd5647;
+        --danger-text: #c0392b;
+      }
       html,
       body {
         margin: 0;
         height: 100%;
         overflow: hidden;
-        background: rgba(20, 28, 38, 0.92);
-        color: #eaf2fa;
+        background: var(--bg);
+        color: var(--text);
         font: 12px/1.45 'Microsoft JhengHei', 'Segoe UI', sans-serif;
         user-select: none;
         -webkit-user-select: none;
       }
       .bar {
         display: grid;
-        grid-template-columns: 1fr auto 1fr;
+        grid-template-columns: 1fr auto;
         align-items: center;
         height: 28px;
         padding: 4px 6px 0 10px;
         box-sizing: border-box;
-        color: #a9bdd2;
+        color: var(--text-2);
         font-size: 11px;
         cursor: move;
       }
@@ -32,27 +55,24 @@
         white-space: nowrap;
         text-overflow: ellipsis;
       }
-      .bar-center {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 2px;
-      }
       .bar-right {
         display: flex;
         align-items: center;
         gap: 2px;
         justify-self: end;
       }
+      .stop {
+        margin-right: 4px;
+      }
       .elapsed {
         margin-left: 6px;
-        color: #8fa6bd;
+        color: var(--text-3);
       }
       .stop {
-        border: 1px solid #c0594f;
+        border: 1px solid var(--danger);
         border-radius: 4px;
         background: transparent;
-        color: #f0a9a2;
+        color: var(--danger-text);
         font: inherit;
         font-size: 11px;
         line-height: 1.2;
@@ -61,7 +81,7 @@
         white-space: nowrap;
       }
       .stop:hover {
-        background: #c0594f;
+        background: var(--danger);
         color: #fff;
       }
       .grip {
@@ -87,10 +107,10 @@
         margin-left: -14px;
         top: 3px;
         border-radius: 1px;
-        background: rgba(169, 189, 210, 0.35);
+        background: var(--grip);
       }
       .grip:hover::after {
-        background: rgba(169, 189, 210, 0.8);
+        background: var(--grip-hover);
       }
       body.collapsed .grip {
         display: none;
@@ -101,14 +121,14 @@
       .collapse {
         border: 0;
         background: transparent;
-        color: #a9bdd2;
+        color: var(--text-2);
         font-size: 14px;
         line-height: 1;
         padding: 2px 6px;
         cursor: pointer;
       }
       .collapse:hover {
-        color: #fff;
+        color: var(--hover);
       }
       body.collapsed #log {
         display: none;
@@ -121,7 +141,7 @@
       .close {
         border: 0;
         background: transparent;
-        color: #a9bdd2;
+        color: var(--text-2);
         font-size: 14px;
         line-height: 1;
         padding: 2px 6px;
@@ -133,14 +153,14 @@
         cursor: default;
       }
       .close:disabled:hover {
-        color: #a9bdd2;
+        color: var(--text-2);
       }
       .stop:disabled:hover {
         background: transparent;
-        color: #f0a9a2;
+        color: var(--danger-text);
       }
       .close:hover {
-        color: #fff;
+        color: var(--hover);
       }
       #log {
         height: calc(100% - 28px);
@@ -153,7 +173,7 @@
         width: 6px;
       }
       #log::-webkit-scrollbar-thumb {
-        background: rgba(169, 189, 210, 0.4);
+        background: var(--grip);
         border-radius: 3px;
       }
       #log div {
@@ -164,7 +184,7 @@
     </style>
   </head>
   <body>
-    <div class="bar pywebview-drag-region"><div class="bar-left"><span id="title">運行日誌</span><span id="elapsed" class="elapsed"></span></div><div class="bar-center"><button type="button" class="stop" id="stopBtn">停止</button></div><div class="bar-right"><button type="button" class="collapse" id="collapseBtn" aria-label="縮小"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button><button type="button" class="close" id="closeBtn" aria-label="關閉">×</button></div></div>
+    <div class="bar pywebview-drag-region"><div class="bar-left"><span id="title">運行日誌</span><span id="elapsed" class="elapsed"></span></div><div class="bar-right"><button type="button" class="stop" id="stopBtn">停止</button><button type="button" class="collapse" id="collapseBtn" aria-label="縮小"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button><button type="button" class="close" id="closeBtn" aria-label="關閉">×</button></div></div>
     <div id="log"></div>
     <div class="grip top" title="拖拉調整高度"></div>
     <div class="grip bottom" title="拖拉調整高度"></div>
@@ -219,6 +239,11 @@
         });
         while (logEl.childElementCount > MAX_LINES) logEl.firstElementChild.remove();
         if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+        // 背景亮度加上遲滯，避免在臨界值附近來回閃爍
+        if (res.luma != null) {
+          if (res.luma < 110) document.documentElement.dataset.theme = 'light';
+          else if (res.luma > 140) delete document.documentElement.dataset.theme;
+        }
         // 任務結束就收起來
         if (res.stopKey) stopBtn.textContent = `停止（${res.stopKey}）`;
         if (res.elapsed != null) {

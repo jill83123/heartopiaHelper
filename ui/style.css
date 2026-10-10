@@ -1341,6 +1341,9 @@ details.section[open] > summary {
 #floatLogPositionRow > .check {
   margin-bottom: 12px;
 }
+#floatLogPositionRow > .check.sub {
+  margin-top: -4px;
+}
 .float-log-head .action-name {
   cursor: pointer;
 }

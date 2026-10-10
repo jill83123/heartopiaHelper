@@ -7,13 +7,14 @@ import threading
 import time
 import webbrowser
 import webview
+import win32con
 import win32gui
 from collections import deque
 from tools.backend import AdbBackend, createBackend
 from tools import floatlog
 from tools.updater import Updater, checkUpdate, isReleasePage
 from version import VERSION
-from tools.tools import autoRepairMinutes, getConfigPath, getResourcePath, writeConfigMany, CONFIG_DEFAULTS, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
+from tools.tools import autoRepairMinutes, getConfigPath, getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
 from scripts.Cooking import Cooking
 from scripts.Fishing import Fishing
 from scripts.PlantGathering import PlantGathering
@@ -233,9 +234,6 @@ class Api:
         if info["start"] and info["end"] is None and not running and (info.get("seen") or now - info["start"] > 5):
             info["end"] = now  # 任務結束了(按停止、或發生錯誤自己停掉)，記下這次的紀錄
             record = f"{int(info['start'])},{int(info['end'] - info['start'])}"
-            failed = getattr(self._tasksOf(key)[0], "failedCount", None)  # 料理: 這次做失敗幾份，一起記在「上次執行」
-            if failed is not None:
-                record += f",{failed}"
             writeConfigMany({settingKey: record})
             self.config = readConfig()
         elapsed = None
@@ -245,11 +243,23 @@ class Api:
         try:
             parts = str(self.config.get(settingKey, "")).split(",")
             last = {"start": int(parts[0]), "seconds": int(parts[1])}
-            if len(parts) > 2:
-                last["failed"] = int(parts[2])
         except (ValueError, IndexError):
             pass
         return {"running": running, "elapsed": elapsed, "last": last}
+
+    def _floatLuma(self):
+        """浮動日誌後面畫面的亮度，依設定的間隔秒數量測；關閉「依背景切換顏色」時不量(回傳 None)"""
+        if str(self.config.get("floatLogAutoTheme", "True")).lower() != "true":
+            return None
+        try:
+            interval = max(1.0, float(self.config.get("floatLogThemeSeconds", "3")))
+        except ValueError:
+            interval = 3.0
+        now = time.time()
+        if now - getattr(self, "_lumaAt", 0) >= interval and self._logHwnd and win32gui.IsWindow(self._logHwnd) and win32gui.IsWindowVisible(self._logHwnd):
+            self._lumaAt = now
+            self._luma = floatlog.backdropLuma(self._logHwnd)
+        return getattr(self, "_luma", None)
 
     def apiFloatPoll(self, index, runId):
         snapshot = self._runSnapshot(self._floatKey) if self._floatKey else {"running": self.isRunning(), "elapsed": None}
@@ -257,7 +267,7 @@ class Api:
             if runId != self.floatRun:
                 index = 0  # 新的一次運行，從頭給
             logs = [log for log in self.logs["float"] if log["index"] > index]
-            return {"run": self.floatRun, "logs": logs, "running": snapshot["running"], "elapsed": snapshot["elapsed"], "stopKey": str(self.config.get("stopKey", "")), "position": str(self.config.get("floatLogPosition", "screen")), "autoClose": str(self.config.get("floatLogAutoClose", "True")).lower() == "true"}
+            return {"run": self.floatRun, "logs": logs, "running": snapshot["running"], "elapsed": snapshot["elapsed"], "stopKey": str(self.config.get("stopKey", "")), "position": str(self.config.get("floatLogPosition", "screen")), "autoClose": str(self.config.get("floatLogAutoClose", "True")).lower() == "true", "luma": self._floatLuma()}
 
     def apiHideFloatLog(self):
         if self._logHwnd and win32gui.IsWindow(self._logHwnd):
@@ -291,7 +301,11 @@ class Api:
         """使用者拖曳浮動日誌後，記住新位置並切到「自訂」位置"""
         if not (self._logHwnd and win32gui.IsWindow(self._logHwnd)):
             return False
-        left, top, _, _ = win32gui.GetWindowRect(self._logHwnd)
+        left, top, right, bottom = win32gui.GetWindowRect(self._logHwnd)
+        x, y = floatlog.clampToScreen(left, top, right - left, bottom - top)  # 拖到畫面外就彈回可視範圍
+        if (x, y) != (left, top):
+            win32gui.SetWindowPos(self._logHwnd, win32con.HWND_TOPMOST, x, y, 0, 0, win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
+            left, top = x, y
         if self._floatPlaced and (left, top) == tuple(self._floatPlaced):
             return False
         self._floatPlaced = (left, top)
@@ -365,8 +379,8 @@ class Api:
         }
 
     def _dishImagePath(self):
-        """菜品記錄圖放在設定檔旁邊(更新程式不會動到)"""
-        return os.path.join(os.path.dirname(getConfigPath()), "dish.png")
+        """菜品記錄圖放在設定檔旁的 userdata/(更新程式不會動到)"""
+        return getUserDataPath("dish.png")
 
     def apiGetDishImage(self):
         """已記錄的菜名截圖(data URL)，還沒記錄回傳 None"""
