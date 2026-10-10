@@ -36,13 +36,20 @@ APP_TITLE = "心動小鎮助手"
 def findWindow(titlePart):
     """找標題含指定文字的可見視窗，回傳 hwnd；找不到回傳 None"""
     hits = []
+    exact = []
+    key = titlePart.lower()
 
     def collect(hwnd, _):
-        if win32gui.IsWindowVisible(hwnd) and titlePart.lower() in win32gui.GetWindowText(hwnd).lower():
-            hits.append(hwnd)
+        if not win32gui.IsWindowVisible(hwnd):
+            return
+        title = win32gui.GetWindowText(hwnd).lower()
+        if key not in title or win32gui.GetClassName(hwnd) == "CabinetWClass":  # 檔案總管的資料夾名稱可能含關鍵字
+            return
+        (exact if title == key else hits).append(hwnd)
 
     win32gui.EnumWindows(collect, None)
-    return hits[0] if hits else None
+    found = exact or hits
+    return found[0] if found else None
 
 
 def focusWindow(hwnd):
