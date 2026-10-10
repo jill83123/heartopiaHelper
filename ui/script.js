@@ -1,5 +1,6 @@
 const bubbleRegionBtn = document.querySelector('#bubbleRegionBtn');
 const safeModeToggle = document.querySelector('#safeModeToggle');
+const fiveStarToggle = document.querySelector('#fiveStarToggle');
 
 let hasBubbleRegion = false;
 let isSelectingRegion = false; // 框選視窗開啟中: 不能再框選，也不能開始任務
@@ -507,7 +508,7 @@ const formatSpan = (sec) => {
 const formatLastRun = (last) => {
   if (!last) return '';
   const d = new Date(last.start * 1000);
-  return `上次執行 ${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())} · 共 ${formatSpan(last.seconds)}${last.failed != null ? ` · 做失敗 ${last.failed} 份` : ''}`;
+  return `上次執行 ${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())} · 共 ${formatSpan(last.seconds)}`;
 };
 // 標題旁的狀態徽章(未運行 / 運行中與已執行多久)，與標題下方的「上次執行」
 const renderRunTimes = (runs) => {
@@ -758,6 +759,11 @@ safeModeToggle.addEventListener('change', (e) => {
   getApi().apiWriteSetting('isSafeMode', e.target.checked);
 });
 
+// 五星停止切換
+fiveStarToggle.addEventListener('change', (e) => {
+  getApi().apiWriteSetting('stopAtFiveStar', e.target.checked);
+});
+
 // 處理日誌訊息
 const handleCookingLogMessage = (log) => {
   currentCookingLogIndex = log.index;
@@ -841,6 +847,7 @@ const fillSettings = (settings) => {
   syncFloatLogRow();
   syncRepairAuto();
   safeModeToggle.checked = String(settings.isSafeMode).toLowerCase() === 'true';
+  fiveStarToggle.checked = String(settings.stopAtFiveStar).toLowerCase() === 'true';
 
   updateResetButtons();
 };
@@ -1187,6 +1194,7 @@ const setup = async () => {
     syncFoodOptionsDisabled();
     adbPresets.forEach((preset) => (preset.disabled = isAnyTaskRunning));
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;
+    if (fiveStarToggle) fiveStarToggle.disabled = isAnyTaskRunning;
     const resetBtn = document.querySelector('#resetSettingsBtn');
     if (resetBtn) resetBtn.disabled = isAnyTaskRunning;
     const resetThresholdsBtn = document.querySelector('#resetThresholdsBtn');

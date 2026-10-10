@@ -234,9 +234,6 @@ class Api:
         if info["start"] and info["end"] is None and not running and (info.get("seen") or now - info["start"] > 5):
             info["end"] = now  # 任務結束了(按停止、或發生錯誤自己停掉)，記下這次的紀錄
             record = f"{int(info['start'])},{int(info['end'] - info['start'])}"
-            failed = getattr(self._tasksOf(key)[0], "failedCount", None)  # 料理: 這次做失敗幾份，一起記在「上次執行」
-            if failed is not None:
-                record += f",{failed}"
             writeConfigMany({settingKey: record})
             self.config = readConfig()
         elapsed = None
@@ -246,8 +243,6 @@ class Api:
         try:
             parts = str(self.config.get(settingKey, "")).split(",")
             last = {"start": int(parts[0]), "seconds": int(parts[1])}
-            if len(parts) > 2:
-                last["failed"] = int(parts[2])
         except (ValueError, IndexError):
             pass
         return {"running": running, "elapsed": elapsed, "last": last}

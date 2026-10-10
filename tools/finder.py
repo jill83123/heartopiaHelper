@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 from tools.tools import bestMatchScore, getScaleWithResolution, getThreshold, loadTemplate, matchBest, matchTemplate
 
 BACK_BTN_TEMPLATE = "templates/common/backBtn.png"
@@ -55,6 +56,38 @@ def _findInFullScreen(backend, config, templatePath, threshold, colorTolerance=N
     if not coords:
         return None, img, ox, oy, scale
     return [(ox + x, oy + y) for x, y in coords], img, ox, oy, scale
+
+
+STAR_HSV_LOW = (15, 120, 200)  # 實心星星的金黃色範圍
+STAR_HSV_HIGH = (35, 255, 255)
+
+
+def countStarRow(backend):
+    """數遊戲畫面右上角料理完成提示卡上，同一排金黃色實心星星的數量(空心的灰星不算)，沒看到回傳 0。
+    不靠模板，直接找大小相近、排成一排的金色小方塊，不受解析度影響"""
+    img, ox, oy = backend.captureFull()
+    rect = backend.getGameRect()  # 前景模式截的是整個螢幕，只看遊戲視窗的範圍
+    if rect:
+        gx, gy, gw, gh = rect[0] - ox, rect[1] - oy, rect[2], rect[3]
+        img = img[max(0, gy) : gy + gh, max(0, gx) : gx + gw]
+    if img.size == 0:
+        return 0
+    if backend.channelsSwapped:
+        img = img[:, :, ::-1]
+    h, w = img.shape[:2]
+    x0, y0 = int(w * 0.6), int(h * 0.12)
+    roi = img[y0 : int(h * 0.4), x0:, :3]
+    mask = cv2.inRange(cv2.cvtColor(np.ascontiguousarray(roi), cv2.COLOR_BGR2HSV), STAR_HSV_LOW, STAR_HSV_HIGH)
+    n, _, stats, _ = cv2.connectedComponentsWithStats(mask)
+    stars = []
+    for i in range(1, n):
+        sx, sy, sw, sh, area = stats[i]
+        if h * 0.012 <= sw <= h * 0.05 and h * 0.012 <= sh <= h * 0.05 and 0.7 <= sw / sh <= 1.4 and area >= sw * sh * 0.4:
+            stars.append((sy + sh / 2, sh))
+    best = 0
+    for cy, sh in stars:
+        best = max(best, sum(1 for y, s in stars if abs(y - cy) <= sh * 0.3 and 0.7 <= s / sh <= 1.4))
+    return best
 
 
 def clickBackButton(backend, config, topLeftOnly=False):
