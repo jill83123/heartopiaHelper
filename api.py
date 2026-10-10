@@ -329,12 +329,18 @@ class Api:
             config = self.taskConfig(task or source)
             self.backendIsAdb = config.get("controlMode") == "adb"
             backend = createBackend(config)
-            backend.check()
+            self._checkBackend(backend, source)
             return backend
         except Exception as e:
             self.backendError = (str(e).strip().splitlines() or [type(e).__name__])[0]
             self.setLog(f"❌ 無法初始化操作模式：{e}", source)
             return None
+
+    def _checkBackend(self, backend, source):
+        """連線模擬器可能要等幾秒，先寫一行日誌讓使用者知道有反應"""
+        if getattr(backend, "isAdb", False):
+            self.setLog("模擬器連線中...", source)
+        backend.check()
 
     def backendFailure(self):
         """getBackend 失敗時附在回傳值裡的標記: 連線模擬器(ADB)失敗時前端會跳出排查提示窗"""
@@ -595,7 +601,7 @@ class Api:
         if useAlt:
             try:
                 altBackend = AdbBackend(self.config.get("adbPath", "adb"), self.config.get("adbDevice", ""))
-                altBackend.check()
+                self._checkBackend(altBackend, "fishingAlt")
             except Exception as e:
                 self.setLog(f"❌ 背景定時無法連線模擬器：{e}", "fishingAlt")
                 return {"ok": False, "error": f"背景定時無法連線模擬器: {e}", "code": "adbFailed"}
