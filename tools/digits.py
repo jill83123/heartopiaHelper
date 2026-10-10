@@ -9,7 +9,7 @@ from tools.tools import getResourcePath, readImage
 DIGIT_PITCH = 10  # 一個數字大約多寬(像素，1600 寬為基準)，用來判斷黏在一起的字有幾個
 MIN_DIGIT_HEIGHT = 10  # 比這個矮的像素塊是雜點
 OUT_SIZE = (14, 20)  # 比對前每個字的 寬、高
-MIN_SCORE = 0.8
+MIN_SCORE = 0.75
 
 
 def countMask(region):
@@ -39,7 +39,28 @@ def digitSlots(region, scale=1.0):
     用整塊的暗度而不是單純有字/沒字，邊緣的深淺也算進去，6、8、3 這類相像的字才分得開"""
     mask = countMask(region)
     count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-    parts = [(i, stats[i]) for i in range(1, count) if stats[i][3] >= MIN_DIGIT_HEIGHT * scale]
+    # 縮小後一個字的筆畫常斷成幾塊(5 的上下、0 的左右)，水平範圍重疊或緊貼的碎塊併成同一個字，併完再用高度濾掉雜點。
+    # 更小的點(面積 2~3，例如 7 的斜筆畫斷掉的部分)只有緊貼著某個字才併進去，不然是背景的雜點
+    big = sorted((i for i in range(1, count) if stats[i][4] >= 4), key=lambda i: stats[i][0])
+    groups = []  # [左, 右(不含), 上, 下(不含), [label...]]
+    for i in big:
+        x, y, w, h = (int(v) for v in stats[i][:4])
+        if groups and x <= groups[-1][1]:
+            g = groups[-1]
+            g[1], g[2], g[3] = max(g[1], x + w), min(g[2], y), max(g[3], y + h)
+            g[4].append(i)
+        else:
+            groups.append([x, x + w, y, y + h, [i]])
+    for i in range(1, count):
+        if stats[i][4] >= 4 or stats[i][4] < 2:
+            continue
+        x, y, w, h = (int(v) for v in stats[i][:4])
+        for g in groups:
+            if x < g[1] and x + w > g[0] and y >= g[2] - 3 and y + h <= g[3] + 3:
+                g[2], g[3] = min(g[2], y), max(g[3], y + h)
+                g[4].append(i)
+                break
+    parts = [(g[4], np.array([g[0], g[2], g[1] - g[0], g[3] - g[2]])) for g in groups if g[3] - g[2] >= MIN_DIGIT_HEIGHT * scale]
     if not parts:
         return []
     top = min(int(st[1]) for _, st in parts)
@@ -49,7 +70,7 @@ def digitSlots(region, scale=1.0):
     slots = []
     for i, st in sorted(parts, key=lambda item: item[1][0]):
         x, w = int(st[0]), int(st[2])
-        component = (labels == i).astype(np.uint8)
+        component = np.isin(labels, i).astype(np.uint8)
         grown = cv2.dilate(component, np.ones((3, 3), np.uint8))  # 多含一圈邊緣的深淺
         left = max(0, x - 1)
         block = (dark * grown)[top:bottom, left : x + w + 1]
