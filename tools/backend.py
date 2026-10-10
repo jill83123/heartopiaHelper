@@ -25,6 +25,9 @@ from tools.tools import (
     MIN_REGION_SIZE,
 )
 
+# 找遊戲視窗時要排除的視窗類別: 瀏覽器(Chrome、Edge 與 Electron 程式、Firefox)的分頁標題可能剛好含遊戲名稱
+BROWSER_CLASSES = ("Chrome_WidgetWin_1", "MozillaWindowClass")
+
 BASE_WIDTH = 1600  # 模板的基準寬度
 SUPPORTED_RESOLUTIONS = ((1600, 900), (1366, 768), (1280, 720))  # 要和設定頁的解析度選項一致
 
@@ -40,8 +43,14 @@ class ScreenBackend:
         self.scaleResolver = ScaleResolver()
         self.gameWindowTitle = gameWindowTitle
 
+    def _findGame(self):
+        """遊戲視窗的 hwnd；沒設定標題或找不到回傳 None"""
+        return findWindow(self.gameWindowTitle, BROWSER_CLASSES) if self.gameWindowTitle else None
+
     def check(self):
-        pass
+        # 遊戲沒開就拒絕開始，否則點擊會落在最上層的其他視窗(例如瀏覽器)
+        if self.gameWindowTitle and not self._findGame():
+            raise RuntimeError(f"找不到遊戲視窗「{self.gameWindowTitle}」，請先開啟遊戲")
 
     def capture(self, x, y, w, h):
         return captureScreen(x, y, w, h)
@@ -55,7 +64,7 @@ class ScreenBackend:
 
     def getGameRect(self):
         """遊戲畫面(客戶區)在螢幕上的範圍 (x, y, w, h)；找不到視窗或已最小化回傳 None"""
-        hwnd = findWindow(self.gameWindowTitle) if self.gameWindowTitle else None
+        hwnd = self._findGame()
         if not hwnd or win32gui.IsIconic(hwnd):
             return None
         _, _, w, h = win32gui.GetClientRect(hwnd)
@@ -64,7 +73,7 @@ class ScreenBackend:
 
     def focusGame(self):
         """把遊戲視窗拉到最前面。視窗剛切到前景時，第一下點擊只會用來啟用視窗，所以開始前要先做"""
-        hwnd = findWindow(self.gameWindowTitle) if self.gameWindowTitle else None
+        hwnd = self._findGame()
         if hwnd and win32gui.GetForegroundWindow() != hwnd:
             focusWindow(hwnd)
             time.sleep(0.5)
@@ -79,10 +88,16 @@ class ScreenBackend:
             clickRightMouse(int(x), int(y))
             time.sleep(0.15)
 
-    def isGameCovered(self):
-        """遊戲視窗存在，但被別的視窗蓋住(不在最上層)"""
-        hwnd = findWindow(self.gameWindowTitle) if self.gameWindowTitle else None
-        return bool(hwnd) and win32gui.GetForegroundWindow() != hwnd
+    def gameBlocker(self):
+        """前景模式下，遊戲收不到操作的原因(視窗不見了、被別的視窗蓋住)；沒問題回傳 None。沒設定視窗標題時不檢查"""
+        if not self.gameWindowTitle:
+            return None
+        hwnd = self._findGame()
+        if not hwnd:
+            return f"找不到遊戲視窗「{self.gameWindowTitle}」，請確認遊戲已開啟"
+        if win32gui.GetForegroundWindow() != hwnd:
+            return "遊戲視窗被其他視窗蓋住，前景模式需要讓遊戲保持在最上層"
+        return None
 
     def moveTo(self, x, y):
         """先把滑鼠移過去。遊戲的按鈕要先偵測到滑鼠懸停，第一下點擊才有效"""
@@ -147,7 +162,7 @@ class ScreenBackend:
 
     def selectRegion(self, hint=""):
         # 先把遊戲拉到前景(蓋過本程式的視窗)再框選，選完把本程式拉回前面
-        gameHwnd = findWindow(self.gameWindowTitle) if self.gameWindowTitle else None
+        gameHwnd = self._findGame()
         if gameHwnd:
             focusWindow(gameHwnd)
             time.sleep(0.3)
@@ -235,8 +250,8 @@ class AdbBackend:
     def wakeMouse(self, x, y):
         pass  # 手機版沒有滑鼠視角問題
 
-    def isGameCovered(self):
-        return False
+    def gameBlocker(self):
+        return None
 
     def moveTo(self, x, y):
         pass

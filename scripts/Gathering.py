@@ -407,10 +407,11 @@ class GatherBase(Fishing):
             if not gatherDue:
                 continue
 
-            if self.backend.isGameCovered():
-                # 前景模式的按鍵會送到最上層的視窗，遊戲被蓋住時不能按
+            blocker = self.backend.gameBlocker()
+            if blocker:
+                # 前景模式的按鍵會送到最上層的視窗，遊戲被蓋住或不見時不能按
                 if not self._coveredLogged:
-                    self.setLog("⚠️ 遊戲視窗被其他視窗蓋住，前景模式需要讓遊戲保持在最上層")
+                    self.setLog(f"⚠️ {blocker}")
                     self._coveredLogged = True
                 if stopEvent.wait(GAME_COVERED_RETRY):
                     return
