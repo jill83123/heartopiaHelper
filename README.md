@@ -122,7 +122,7 @@ python main.py
 | `gameWindowTitle` | 前景模式框選範圍時，用來尋找遊戲視窗的標題文字（預設 `Heartopia`） |
 | `screenResolution` / `uiScale` | 前景模式的遊戲解析度與介面縮放 (%) |
 | `stopKey` | 停止按鍵，單鍵（`F8`）或組合鍵（`ctrl+shift+q`，用 `+` 連接）皆可；在設定頁修改後立即生效 |
-| `cookDishRecordedAt` | 菜品記錄時間（菜名截圖存在 `config.ini` 旁的 `dish.png`，運行日誌會註明） |
+| `cookDishRecordedAt` | 菜品記錄時間（菜名截圖存在 `config.ini` 旁 `userdata/` 資料夾裡的 `dish.png`，運行日誌會註明） |
 | `expectedCookQty` | 料理份數 |
 | `isSafeMode` / `safeModeQty` | 安全模式：煮滿指定份數才收料理（預設 3） |
 | `detectFrequency` / `clickFrequency` / `snowDetectFrequency` / `fishingDetectFrequency` | 偵測與點擊間隔（秒） |

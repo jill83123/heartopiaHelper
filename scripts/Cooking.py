@@ -5,7 +5,7 @@ import threading
 import time
 from scripts.base import BaseTask
 from tools.finder import clickBackButton, countStarRow, findStartCookBtn, _findInFullScreen
-from tools.tools import getConfigPath, getThreshold
+from tools.tools import getThreshold, getUserDataPath
 
 IDLE_TIMEOUT = 1.5  # 泡泡區域內沒有任何圖示超過這個秒數，就點返回離開
 START_BTN_TIMEOUT = 5  # 點了鍋子後，這麼久還沒看到「開始烹飪」按鈕，就點返回
@@ -96,7 +96,7 @@ class Cooking(BaseTask):
 
     def _loadDishImage(self):
         """讀取記錄的菜名截圖(灰階)，沒有記錄回傳 None。路徑可能含中文，用 numpy 解碼"""
-        path = os.path.join(os.path.dirname(getConfigPath()), "dish.png")
+        path = getUserDataPath("dish.png")
         if not (self.config.get("cookDishRecordedAt") or "").strip() or not os.path.exists(path):
             return None
         try:
