@@ -911,8 +911,9 @@ class Fishing(BaseTask):
                     continue
                 unknownSince = unknownSince or time.time()
                 if time.time() - unknownSince > UNKNOWN_SECONDS:
-                    if self.backend.isGameCovered():
-                        self.setLog("⚠️ 遊戲視窗被其他視窗蓋住，前景模式需要讓遊戲保持在最上層")
+                    blocker = self.backend.gameBlocker()
+                    if blocker:
+                        self.setLog(f"⚠️ {blocker}")
                     elif clickBackButton(self.backend, self.config):
                         self.setLog("畫面無法辨識，已點擊返回按鈕")
                     else:
