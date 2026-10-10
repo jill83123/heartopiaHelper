@@ -281,7 +281,10 @@
               </div>
               <div class="row">
                 <div class="col">
-                  <label for="adbDeviceAlt" class="label">ADB 裝置位址</label>
+                  <div class="label-row">
+                    <label for="adbDeviceAlt" class="label">ADB 裝置位址</label>
+                    <button type="button" class="text-btn adb-detect" data-input="adbDeviceAlt">自動偵測</button>
+                  </div>
                   <input type="text" class="setting input" id="adbDeviceAlt" placeholder="127.0.0.1:5555" data-key="adbDevice" />
                 </div>
               </div>
@@ -462,9 +465,12 @@
 
           <div class="row">
             <div class="col">
-              <label for="adbDevice" class="label">ADB 裝置位址</label>
+              <div class="label-row">
+                <label for="adbDevice" class="label">ADB 裝置位址</label>
+                <button type="button" class="text-btn adb-detect" data-input="adbDevice">自動偵測</button>
+              </div>
               <input type="text" class="setting input" id="adbDevice" placeholder="127.0.0.1:5555" data-key="adbDevice" />
-              <span class="muted fs-12">選上方的模擬器會自動填入常見的連接埠；若連不上，請到模擬器的 ADB 設定或多開器確認實際的位址。</span>
+              <span class="muted fs-12">選上方的模擬器會自動填入常見的連接埠；若連不上，請先開啟模擬器再按「自動偵測」。</span>
             </div>
           </div>
             </div>

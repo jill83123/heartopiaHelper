@@ -1497,6 +1497,34 @@ details.section[open] .section-hint {
 .field-reset > .reset-default {
   flex: none;
 }
+/* 標籤列: 左邊是欄位名稱，右邊放一個小的文字按鈕 */
+.label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.label-row > .label {
+  margin-bottom: 0;
+}
+.text-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.86em;
+  font-weight: 600;
+  color: var(--sky-deep);
+  cursor: pointer;
+}
+.text-btn:hover {
+  text-decoration: underline;
+}
+.text-btn:disabled {
+  color: var(--text-3);
+  cursor: default;
+  text-decoration: none;
+}
 
 .dialog-title.danger {
   color: var(--danger);

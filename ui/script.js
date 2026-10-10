@@ -194,6 +194,17 @@ const alertAdbFailed = (detail) =>
 // 開始任務失敗: ADB 連線問題用排查提示窗，其他錯誤直接顯示原因
 const alertStartError = (res) => (res.code === 'adbFailed' ? alertAdbFailed(res.error) : showDialog('無法開始', res.error));
 
+// 開始任務: 偵測到的解析度不在支援範圍時，後端先不啟動，這裡問使用者要不要繼續；確認才帶 confirmed=true 再送一次，取消就不執行
+const startTask = async (start) => {
+  let res = await start(false);
+  if (res.code === 'resolutionWarning') {
+    const ok = await showDialog('解析度不在支援範圍', `${res.warning}\n\n要繼續執行嗎？`, { confirm: true, okText: '繼續執行' });
+    if (!ok) return;
+    res = await start(true);
+  }
+  if (!res.ok) alertStartError(res);
+};
+
 // 處理區域選取
 // 取消或失敗時維持原本已選好的範圍(後端也不會動它)；一般失敗的原因短暫顯示在座標標籤上，ADB 連線失敗則跳提示窗
 const selectRegionHandler = async ({ apiMethod, param, selector, format, onSuccess }) => {
@@ -651,6 +662,45 @@ adbPresets.forEach((preset) => {
   });
 });
 
+// 自動偵測模擬器的 ADB 位址: 找到就填進位址欄；找到多個時填第一個，並列出全部讓使用者確認
+const adbDetectButtons = [...document.querySelectorAll('.adb-detect')];
+adbDetectButtons.forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const input = document.querySelector(`#${btn.dataset.input}`);
+    const label = btn.textContent;
+    adbDetectButtons.forEach((b) => (b.disabled = true));
+    btn.textContent = '偵測中...';
+    try {
+      const res = await getApi().apiDetectAdb();
+      if (res.status !== 'success') {
+        await showDialog('自動偵測失敗', res.message);
+        return;
+      }
+      if (!res.devices.length) {
+        await showDialog(
+          '找不到模擬器',
+          ['請確認：', '．模擬器已經開啟', '．模擬器設定中已開啟 ADB（Android 偵錯橋）', '．「ADB 路徑」正確'].join('\n'),
+        );
+        return;
+      }
+      const [first, ...others] = res.devices;
+      document.querySelectorAll(`.adb-preset[data-input="${btn.dataset.input}"]`).forEach((p) => delete p.dataset.custom);
+      input.value = first.address;
+      input.dispatchEvent(new Event('change'));
+      syncAdbPresets();
+      if (others.length) {
+        const list = res.devices.map((d) => `．${d.address}${d.name ? `（${d.name}）` : ''}`).join('\n');
+        await showDialog('找到多個模擬器', `已填入第一個：${first.address}\n\n全部找到的位址：\n${list}\n\n如果不是你要用的，請在下拉選單選「其他」，再自行填寫。`);
+      }
+    } catch (e) {
+      await showDialog('自動偵測失敗', String(e));
+    } finally {
+      btn.textContent = label;
+      adbDetectButtons.forEach((b) => (b.disabled = isAnyRunning));
+    }
+  });
+});
+
 // 背景定時的設定只有勾選「啟用」時才顯示
 const syncAltVisibility = () => {
   const enabled = document.querySelector('#fishingAltEnabled').checked;
@@ -977,7 +1027,10 @@ const todayString = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+let notifiedVersion = null; // 這次開啟程式已經跳出提示的版本，定時檢查不再重複提醒同一版
+
 const showUpdate = (info) => {
+  notifiedVersion = info.latest;
   updateTitle.textContent = `有新版本 ${info.latest}（目前 ${info.current}）`;
   // 沒有更新說明時，給一個連到 Release 頁面的連結
   renderMarkdown(updateNotes, info.notes || (info.pageUrl ? `[查看更新內容](${info.pageUrl})` : ''));
@@ -1006,6 +1059,28 @@ const checkForUpdate = async (isManual) => {
     result.textContent = info.checkFailed ? '無法連線到 GitHub，請確認網路連線' : '已是最新版本';
   }
 };
+
+// 定時檢查更新(程式開著不關也能發現新版本): 每 6 小時向 GitHub 查一次。
+// 任務運行中不跳視窗，只在設定頁「檢查更新」旁顯示；等任務結束後才提醒。同一版只提醒一次，按過「暫時不更新」的當天不再提醒
+const UPDATE_CHECK_MS = 6 * 60 * 60 * 1000;
+let lastUpdateFetch = Date.now(); // 啟動時剛檢查過
+let pendingUpdate = null;
+const updateTick = async () => {
+  try {
+    if (Date.now() - lastUpdateFetch >= UPDATE_CHECK_MS) {
+      lastUpdateFetch = Date.now();
+      const info = await getApi().apiCheckUpdate();
+      pendingUpdate = info.hasUpdate ? info : null;
+      if (pendingUpdate) document.querySelector('#updateResult').textContent = `有新版本 ${pendingUpdate.latest}`;
+    }
+    if (!pendingUpdate || isAnyRunning || notifiedVersion === pendingUpdate.latest) return;
+    if (!updateDialog.hidden || !document.querySelector('#dialog').hidden) return; // 已有視窗開著就等下一輪
+    const settings = await getApi().apiReadSettings();
+    if (settings.updateRemindDate === todayString()) return;
+    showUpdate(pendingUpdate);
+  } catch (e) {}
+};
+setInterval(updateTick, 60 * 1000);
 
 updateLaterBtn.addEventListener('click', async () => {
   updateDialog.hidden = true;
@@ -1186,6 +1261,7 @@ const setup = async () => {
     updateResetButtons();
     syncFoodOptionsDisabled();
     adbPresets.forEach((preset) => (preset.disabled = isAnyTaskRunning));
+    adbDetectButtons.forEach((btn) => (btn.disabled = isAnyTaskRunning));
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;
     if (fiveStarToggle) fiveStarToggle.disabled = isAnyTaskRunning;
     const resetBtn = document.querySelector('#resetSettingsBtn');
@@ -1246,8 +1322,7 @@ document.querySelector('#startCookBtn').addEventListener('click', async () => {
     const ok = await showDialog('確認菜品', '上次記錄的菜品如下，這次要煮的是這道嗎？\n若不是，請取消後清除或按「記錄菜名」更新。', { confirm: true, image: image || '' });
     if (!ok) return;
   }
-  const res = await getApi().startCooking();
-  if (!res.ok) alertStartError(res);
+  await startTask((confirmed) => getApi().startCooking(confirmed));
 });
 
 // 停止料理
@@ -1258,8 +1333,7 @@ document.querySelector('#stopCookBtn').addEventListener('click', async () => {
 // 開始雪雕
 document.querySelector('#startSnowBtn').addEventListener('click', async () => {
   if (alertBlockers(getSnowBlockers())) return;
-  const res = await getApi().startSnowCarving();
-  if (!res.ok) alertStartError(res);
+  await startTask((confirmed) => getApi().startSnowCarving(confirmed));
 });
 
 // 停止雪雕
@@ -1270,8 +1344,7 @@ document.querySelector('#stopSnowBtn').addEventListener('click', async (e) => {
 // 開始釣魚
 document.querySelector('#startFishBtn').addEventListener('click', async () => {
   if (alertBlockers(getFishBlockers())) return;
-  const res = await getApi().startFishing();
-  if (!res.ok) alertStartError(res);
+  await startTask((confirmed) => getApi().startFishing(confirmed));
 });
 
 // 停止釣魚
@@ -1284,8 +1357,7 @@ GATHER_KINDS.forEach(({ prefix }) => {
   const P = capitalize(prefix);
   document.querySelector(`#start${P}Btn`).addEventListener('click', async () => {
     if (alertBlockers(getGatherBlockers(prefix))) return;
-    const res = await getApi().startGathering(prefix);
-    if (!res.ok) alertStartError(res);
+    await startTask((confirmed) => getApi().startGathering(prefix, confirmed));
   });
   document.querySelector(`#stop${P}Btn`).addEventListener('click', async () => {
     await getApi().stop();

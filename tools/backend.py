@@ -25,6 +25,17 @@ from tools.tools import (
     MIN_REGION_SIZE,
 )
 
+# 找遊戲視窗時要排除的視窗類別: 瀏覽器(Chrome、Edge 與 Electron 程式、Firefox)的分頁標題可能剛好含遊戲名稱
+BROWSER_CLASSES = ("Chrome_WidgetWin_1", "MozillaWindowClass")
+
+
+class GameWindowLostError(Exception):
+    """前景模式運行中遊戲視窗不見了。刻意不繼承 RuntimeError，各功能裡針對單一步驟失敗的 except RuntimeError 才不會把它吞掉，讓整個任務停下來"""
+
+
+BASE_WIDTH = 1600  # 模板的基準寬度
+SUPPORTED_RESOLUTIONS = ((1600, 900), (1366, 768), (1280, 720))  # 要和設定頁的解析度選項一致
+
 
 class ScreenBackend:
     """前景模式: 截取桌面畫面、以全域滑鼠鍵盤操作，遊戲須在最上層"""
@@ -37,8 +48,14 @@ class ScreenBackend:
         self.scaleResolver = ScaleResolver()
         self.gameWindowTitle = gameWindowTitle
 
+    def _findGame(self):
+        """遊戲視窗的 hwnd；沒設定標題或找不到回傳 None"""
+        return findWindow(self.gameWindowTitle, BROWSER_CLASSES) if self.gameWindowTitle else None
+
     def check(self):
-        pass
+        # 遊戲沒開就拒絕開始，否則點擊會落在最上層的其他視窗(例如瀏覽器)
+        if self.gameWindowTitle and not self._findGame():
+            raise RuntimeError(f"找不到遊戲視窗「{self.gameWindowTitle}」，請先開啟遊戲")
 
     def capture(self, x, y, w, h):
         return captureScreen(x, y, w, h)
@@ -47,12 +64,18 @@ class ScreenBackend:
         """整個畫面，回傳 (影像, 左上角 x, 左上角 y)"""
         return captureFullScreen()
 
+    def _requireGame(self):
+        """送出滑鼠、鍵盤操作前確認遊戲視窗還在，不在就停止任務，否則操作會落在最上層的其他視窗(例如瀏覽器)"""
+        if self.gameWindowTitle and not self._findGame():
+            raise GameWindowLostError(f"找不到遊戲視窗「{self.gameWindowTitle}」，遊戲可能已關閉")
+
     def click(self, x, y):
+        self._requireGame()
         clickMouse(x, y)
 
     def getGameRect(self):
         """遊戲畫面(客戶區)在螢幕上的範圍 (x, y, w, h)；找不到視窗或已最小化回傳 None"""
-        hwnd = findWindow(self.gameWindowTitle) if self.gameWindowTitle else None
+        hwnd = self._findGame()
         if not hwnd or win32gui.IsIconic(hwnd):
             return None
         _, _, w, h = win32gui.GetClientRect(hwnd)
@@ -61,13 +84,14 @@ class ScreenBackend:
 
     def focusGame(self):
         """把遊戲視窗拉到最前面。視窗剛切到前景時，第一下點擊只會用來啟用視窗，所以開始前要先做"""
-        hwnd = findWindow(self.gameWindowTitle) if self.gameWindowTitle else None
+        hwnd = self._findGame()
         if hwnd and win32gui.GetForegroundWindow() != hwnd:
             focusWindow(hwnd)
             time.sleep(0.5)
 
     def wakeMouse(self, x, y):
         """遊戲有時會卡住滑鼠、讓畫面跟著滑鼠轉視角，操作前先左右鍵各點兩下解除"""
+        self._requireGame()
         self.moveTo(x, y)
         time.sleep(0.2)
         for _ in range(2):
@@ -76,10 +100,16 @@ class ScreenBackend:
             clickRightMouse(int(x), int(y))
             time.sleep(0.15)
 
-    def isGameCovered(self):
-        """遊戲視窗存在，但被別的視窗蓋住(不在最上層)"""
-        hwnd = findWindow(self.gameWindowTitle) if self.gameWindowTitle else None
-        return bool(hwnd) and win32gui.GetForegroundWindow() != hwnd
+    def gameBlocker(self):
+        """前景模式下，遊戲收不到操作的原因(視窗不見了、被別的視窗蓋住)；沒問題回傳 None。沒設定視窗標題時不檢查"""
+        if not self.gameWindowTitle:
+            return None
+        hwnd = self._findGame()
+        if not hwnd:
+            return f"找不到遊戲視窗「{self.gameWindowTitle}」，請確認遊戲已開啟"
+        if win32gui.GetForegroundWindow() != hwnd:
+            return "遊戲視窗被其他視窗蓋住，前景模式需要讓遊戲保持在最上層"
+        return None
 
     def moveTo(self, x, y):
         """先把滑鼠移過去。遊戲的按鈕要先偵測到滑鼠懸停，第一下點擊才有效"""
@@ -105,16 +135,19 @@ class ScreenBackend:
         keyboard.send("ctrl+v")
 
     def rightClick(self, x, y):
+        self._requireGame()
         clickRightMouse(x, y)
 
     def pressKey(self, key):
         """按一下鍵盤按鍵(按住一小段隨機時間再放開)"""
+        self._requireGame()
         keyboard.press(key)
         time.sleep(random.uniform(0.05, 0.14))
         keyboard.release(key)
 
     def holdDown(self, x, y):
         """按住拋竿鍵(F)不放，直到 holdUp"""
+        self._requireGame()
         keyboard.press("f")
 
     def holdUp(self):
@@ -126,12 +159,32 @@ class ScreenBackend:
             rect = self.getGameRect()
             if rect:
                 return rect[2]
-            return 1600  # 找不到遊戲視窗時用模板基準寬度(不縮放)
+            return BASE_WIDTH  # 找不到遊戲視窗時用模板基準寬度(不縮放)
         return int(resolution.split("x")[0])
+
+    def resolutionWarning(self, config):
+        """自動偵測到的解析度不在支援的三種內時回傳警告說明，否則回傳 None。手動指定、找不到視窗時不警告"""
+        if config.get("screenResolution", "auto") != "auto":
+            return None
+        rect = self.getGameRect()
+        if not rect or any(rect[2] == sw for sw, _ in SUPPORTED_RESOLUTIONS):
+            return None
+        options = "、".join(f"{sw}x{sh}" for sw, sh in SUPPORTED_RESOLUTIONS)
+        return f"偵測到遊戲解析度 {rect[2]}x{rect[3]}，不在支援的解析度內（{options}），可能辨識不到，請調整遊戲解析度"
+
+    def resolutionNotice(self, config):
+        """自動偵測解析度時，開始前在日誌顯示偵測結果(不支援時附上警告)。手動指定時不顯示"""
+        if config.get("screenResolution", "auto") != "auto":
+            return None
+        warning = self.resolutionWarning(config)
+        if warning:
+            return f"⚠️ {warning}"
+        rect = self.getGameRect()
+        return f"偵測到遊戲解析度：{rect[2]}x{rect[3]}" if rect else None
 
     def selectRegion(self, hint=""):
         # 先把遊戲拉到前景(蓋過本程式的視窗)再框選，選完把本程式拉回前面
-        gameHwnd = findWindow(self.gameWindowTitle) if self.gameWindowTitle else None
+        gameHwnd = self._findGame()
         if gameHwnd:
             focusWindow(gameHwnd)
             time.sleep(0.3)
@@ -219,8 +272,8 @@ class AdbBackend:
     def wakeMouse(self, x, y):
         pass  # 手機版沒有滑鼠視角問題
 
-    def isGameCovered(self):
-        return False
+    def gameBlocker(self):
+        return None
 
     def moveTo(self, x, y):
         pass
