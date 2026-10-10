@@ -252,13 +252,21 @@ class Api:
             pass
         return {"running": running, "elapsed": elapsed, "last": last}
 
+    def _floatLuma(self):
+        """浮動日誌後面畫面的亮度，最多每秒量一次"""
+        now = time.time()
+        if now - getattr(self, "_lumaAt", 0) >= 1 and self._logHwnd and win32gui.IsWindow(self._logHwnd) and win32gui.IsWindowVisible(self._logHwnd):
+            self._lumaAt = now
+            self._luma = floatlog.backdropLuma(self._logHwnd)
+        return getattr(self, "_luma", None)
+
     def apiFloatPoll(self, index, runId):
         snapshot = self._runSnapshot(self._floatKey) if self._floatKey else {"running": self.isRunning(), "elapsed": None}
         with self.logLock:
             if runId != self.floatRun:
                 index = 0  # 新的一次運行，從頭給
             logs = [log for log in self.logs["float"] if log["index"] > index]
-            return {"run": self.floatRun, "logs": logs, "running": snapshot["running"], "elapsed": snapshot["elapsed"], "stopKey": str(self.config.get("stopKey", "")), "position": str(self.config.get("floatLogPosition", "screen")), "autoClose": str(self.config.get("floatLogAutoClose", "True")).lower() == "true"}
+            return {"run": self.floatRun, "logs": logs, "running": snapshot["running"], "elapsed": snapshot["elapsed"], "stopKey": str(self.config.get("stopKey", "")), "position": str(self.config.get("floatLogPosition", "screen")), "autoClose": str(self.config.get("floatLogAutoClose", "True")).lower() == "true", "luma": self._floatLuma()}
 
     def apiHideFloatLog(self):
         if self._logHwnd and win32gui.IsWindow(self._logHwnd):

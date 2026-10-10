@@ -1,4 +1,6 @@
 import ctypes
+import mss
+import numpy as np
 import win32api
 import win32con
 import win32gui
@@ -86,5 +88,19 @@ def setHeight(hwnd, heightCss, anchor="bottom"):
     height = round(heightCss * scale)
     if anchor == "bottom":
         top = bottom - height
+    width = round(LOG_SIZE[0] * scale)
+    left, top = clampToScreen(left, top, width, height)
     win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, left, top, round(LOG_SIZE[0] * scale), height, win32con.SWP_NOACTIVATE)
     return left, top
+
+
+def backdropLuma(hwnd):
+    """視窗後面那塊畫面的平均亮度(0~255)。視窗已從截圖排除，所以抓到的是被它蓋住的內容；失敗回傳 None"""
+    try:
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        with mss.mss() as sct:
+            img = np.array(sct.grab({"left": left, "top": top, "width": right - left, "height": bottom - top}))[::4, ::4]
+        b, g, r = (float(img[..., i].mean()) for i in range(3))  # mss 是 BGRA
+        return 0.114 * b + 0.587 * g + 0.299 * r
+    except Exception:
+        return None
