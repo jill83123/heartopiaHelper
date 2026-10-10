@@ -7,6 +7,7 @@ import threading
 import time
 import webbrowser
 import webview
+import win32con
 import win32gui
 from collections import deque
 from tools.backend import AdbBackend, createBackend
@@ -291,7 +292,11 @@ class Api:
         """使用者拖曳浮動日誌後，記住新位置並切到「自訂」位置"""
         if not (self._logHwnd and win32gui.IsWindow(self._logHwnd)):
             return False
-        left, top, _, _ = win32gui.GetWindowRect(self._logHwnd)
+        left, top, right, bottom = win32gui.GetWindowRect(self._logHwnd)
+        x, y = floatlog.clampToScreen(left, top, right - left, bottom - top)  # 拖到畫面外就彈回可視範圍
+        if (x, y) != (left, top):
+            win32gui.SetWindowPos(self._logHwnd, win32con.HWND_TOPMOST, x, y, 0, 0, win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
+            left, top = x, y
         if self._floatPlaced and (left, top) == tuple(self._floatPlaced):
             return False
         self._floatPlaced = (left, top)

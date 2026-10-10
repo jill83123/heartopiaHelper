@@ -41,6 +41,13 @@ def styleOverlay(hwnd):
         pass
 
 
+def clampToScreen(x, y, width, height):
+    """標題列留在最近那個螢幕的工作區內(上緣不能超出、下方至少露出標題列)，左右最多超出一半的視窗寬度，不然拖不回來"""
+    left, top, right, bottom = win32api.GetMonitorInfo(win32api.MonitorFromRect((x, y, x + width, y + height), win32con.MONITOR_DEFAULTTONEAREST))["Work"]
+    bar = COLLAPSED_HEIGHT * 2  # 下方至少要露出來的範圍(約一個標題列高)
+    return max(left - width // 2, min(int(x), right - width + width // 2)), max(top, min(int(y), bottom - bar))
+
+
 def targetPosition(hwnd, mode, config, collapsed=False):
     """浮動日誌視窗左上角要放的位置(螢幕座標)。mode: screen(螢幕左下角，舊設定沿用這個名稱)、topLeft、topRight、bottomRight(螢幕四個角)、custom(上次拖曳的位置)"""
     scale = dpiScale(hwnd)
@@ -48,7 +55,7 @@ def targetPosition(hwnd, mode, config, collapsed=False):
     margin = round(MARGIN * scale)
     if mode == "custom":
         try:
-            return int(config.get("floatLogX")), int(config.get("floatLogY"))
+            return clampToScreen(int(config.get("floatLogX")), int(config.get("floatLogY")), width, height)
         except (TypeError, ValueError):
             pass  # 還沒拖曳過，退回螢幕左下角
     left, top, right, bottom = win32api.GetMonitorInfo(win32api.MonitorFromPoint((0, 0), win32con.MONITOR_DEFAULTTOPRIMARY))["Work"]
