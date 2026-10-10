@@ -33,7 +33,7 @@ class RegionTooSmallError(ValueError):
 APP_TITLE = "心動小鎮助手"
 
 
-def findWindow(titlePart):
+def findWindow(titlePart, excludeClasses=()):
     """找標題含指定文字的可見視窗，回傳 hwnd；找不到回傳 None"""
     hits = []
     exact = []
@@ -43,7 +43,10 @@ def findWindow(titlePart):
         if not win32gui.IsWindowVisible(hwnd):
             return
         title = win32gui.GetWindowText(hwnd).lower()
-        if key not in title or win32gui.GetClassName(hwnd) == "CabinetWClass":  # 檔案總管的資料夾名稱可能含關鍵字
+        if key not in title:
+            return
+        # 檔案總管的資料夾名稱、瀏覽器的分頁標題都可能含關鍵字
+        if win32gui.GetClassName(hwnd) == "CabinetWClass" or win32gui.GetClassName(hwnd) in excludeClasses:
             return
         (exact if title == key else hits).append(hwnd)
 
