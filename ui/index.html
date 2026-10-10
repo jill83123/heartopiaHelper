@@ -101,7 +101,7 @@
           </div>
 
           <div class="label">安全模式</div>
-          <div class="check">
+          <div class="check mb-16">
             <input type="checkbox" id="safeModeToggle" />
             <label for="safeModeToggle">啟用</label>
             <span class="muted fs-12">煮滿</span>
@@ -364,6 +364,15 @@
               <div class="check">
                 <input type="checkbox" class="setting-check" id="floatLogAutoClose" data-key="floatLogAutoClose" />
                 <label for="floatLogAutoClose">運行結束後自動關閉浮動日誌</label>
+              </div>
+              <div class="check">
+                <input type="checkbox" class="setting-check" id="floatLogAutoTheme" data-key="floatLogAutoTheme" />
+                <label for="floatLogAutoTheme">依背景亮度自動切換浮動日誌顏色</label>
+              </div>
+              <div class="check sub">
+                <label for="floatLogThemeSeconds">偵測間隔</label>
+                <input type="number" min="1" step="1" class="setting input qty" id="floatLogThemeSeconds" data-key="floatLogThemeSeconds" />
+                <span class="muted fs-12">秒</span>
               </div>
               <label for="floatLogPosition" class="label">視窗位置</label>
               <select id="floatLogPosition" class="setting input" data-key="floatLogPosition">

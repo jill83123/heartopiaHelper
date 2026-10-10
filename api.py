@@ -248,9 +248,15 @@ class Api:
         return {"running": running, "elapsed": elapsed, "last": last}
 
     def _floatLuma(self):
-        """浮動日誌後面畫面的亮度，最多每秒量一次"""
+        """浮動日誌後面畫面的亮度，依設定的間隔秒數量測；關閉「依背景切換顏色」時不量(回傳 None)"""
+        if str(self.config.get("floatLogAutoTheme", "True")).lower() != "true":
+            return None
+        try:
+            interval = max(1.0, float(self.config.get("floatLogThemeSeconds", "3")))
+        except ValueError:
+            interval = 3.0
         now = time.time()
-        if now - getattr(self, "_lumaAt", 0) >= 1 and self._logHwnd and win32gui.IsWindow(self._logHwnd) and win32gui.IsWindowVisible(self._logHwnd):
+        if now - getattr(self, "_lumaAt", 0) >= interval and self._logHwnd and win32gui.IsWindow(self._logHwnd) and win32gui.IsWindowVisible(self._logHwnd):
             self._lumaAt = now
             self._luma = floatlog.backdropLuma(self._logHwnd)
         return getattr(self, "_luma", None)

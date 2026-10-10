@@ -381,6 +381,8 @@ CONFIG_DEFAULTS = {
     "floatLogEnabled": "True",
     "floatLogAutoClose": "True",
     "floatLogPosition": "screen",
+    "floatLogAutoTheme": "True",
+    "floatLogThemeSeconds": "3",
     "floatLogHeight": "132",
     "fishingDetectFrequency": "0.2",
     "fishingEnabled": "True",
