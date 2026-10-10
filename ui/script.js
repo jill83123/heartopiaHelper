@@ -651,6 +651,45 @@ adbPresets.forEach((preset) => {
   });
 });
 
+// 自動偵測模擬器的 ADB 位址: 找到就填進位址欄；找到多個時填第一個，並列出全部讓使用者確認
+const adbDetectButtons = [...document.querySelectorAll('.adb-detect')];
+adbDetectButtons.forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const input = document.querySelector(`#${btn.dataset.input}`);
+    const label = btn.textContent;
+    adbDetectButtons.forEach((b) => (b.disabled = true));
+    btn.textContent = '偵測中...';
+    try {
+      const res = await getApi().apiDetectAdb();
+      if (res.status !== 'success') {
+        await showDialog('自動偵測失敗', res.message);
+        return;
+      }
+      if (!res.devices.length) {
+        await showDialog(
+          '找不到模擬器',
+          ['請確認：', '．模擬器已經開啟', '．模擬器設定中已開啟 ADB（Android 偵錯橋）', '．「ADB 路徑」正確'].join('\n'),
+        );
+        return;
+      }
+      const [first, ...others] = res.devices;
+      document.querySelectorAll(`.adb-preset[data-input="${btn.dataset.input}"]`).forEach((p) => delete p.dataset.custom);
+      input.value = first.address;
+      input.dispatchEvent(new Event('change'));
+      syncAdbPresets();
+      if (others.length) {
+        const list = res.devices.map((d) => `．${d.address}${d.name ? `（${d.name}）` : ''}`).join('\n');
+        await showDialog('找到多個模擬器', `已填入第一個：${first.address}\n\n全部找到的位址：\n${list}\n\n如果不是你要用的，請在下拉選單選「其他」，再自行填寫。`);
+      }
+    } catch (e) {
+      await showDialog('自動偵測失敗', String(e));
+    } finally {
+      btn.textContent = label;
+      adbDetectButtons.forEach((b) => (b.disabled = isAnyRunning));
+    }
+  });
+});
+
 // 背景定時的設定只有勾選「啟用」時才顯示
 const syncAltVisibility = () => {
   const enabled = document.querySelector('#fishingAltEnabled').checked;
@@ -1186,6 +1225,7 @@ const setup = async () => {
     updateResetButtons();
     syncFoodOptionsDisabled();
     adbPresets.forEach((preset) => (preset.disabled = isAnyTaskRunning));
+    adbDetectButtons.forEach((btn) => (btn.disabled = isAnyTaskRunning));
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;
     if (fiveStarToggle) fiveStarToggle.disabled = isAnyTaskRunning;
     const resetBtn = document.querySelector('#resetSettingsBtn');
