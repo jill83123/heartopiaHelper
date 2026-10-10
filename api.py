@@ -14,7 +14,7 @@ from tools.backend import AdbBackend, createBackend
 from tools import floatlog
 from tools.updater import Updater, checkUpdate, isReleasePage
 from version import VERSION
-from tools.tools import autoRepairMinutes, getConfigPath, getResourcePath, writeConfigMany, CONFIG_DEFAULTS, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
+from tools.tools import autoRepairMinutes, getConfigPath, getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
 from scripts.Cooking import Cooking
 from scripts.Fishing import Fishing
 from scripts.PlantGathering import PlantGathering
@@ -373,8 +373,8 @@ class Api:
         }
 
     def _dishImagePath(self):
-        """菜品記錄圖放在設定檔旁邊(更新程式不會動到)"""
-        return os.path.join(os.path.dirname(getConfigPath()), "dish.png")
+        """菜品記錄圖放在設定檔旁的 userdata/(更新程式不會動到)"""
+        return getUserDataPath("dish.png")
 
     def apiGetDishImage(self):
         """已記錄的菜名截圖(data URL)，還沒記錄回傳 None"""
