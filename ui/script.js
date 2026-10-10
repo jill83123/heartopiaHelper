@@ -286,7 +286,7 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
           <option value="screen">前景（遊戲須在最上層）</option>
           <option value="adb">背景（模擬器 ADB，可疊視窗）</option>
         </select>
-        <span class="fs-12 text-warn adb-warn" data-mode-for="${p}ControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用，建議使用 1600×900。</span>
+        <span class="fs-12 text-warn adb-warn" data-mode-for="${p}ControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用。</span>
       </div>
     </div>
 
@@ -699,14 +699,7 @@ const syncCookAdbHint = () => {
   document.querySelector('#dishAdbHint').hidden = document.querySelector('#cookingControlMode').value !== 'adb';
 };
 // 操作模式選了模擬器(ADB)，下拉選單下方顯示卡頓的提醒
-const syncResolutionWarn = () => {
-  document.querySelector('#resolutionWarn').hidden = document.querySelector('#screenResolution').value === '1600x900';
-  document.querySelector('#uiScaleWarn').hidden = document.querySelector('#uiScale').value === '100';
-};
-document.querySelector('#screenResolution').addEventListener('change', syncResolutionWarn);
-document.querySelector('#uiScale').addEventListener('change', syncResolutionWarn);
 const syncAdbWarns = () => {
-  syncResolutionWarn();
   document.querySelectorAll('.adb-warn').forEach((el) => {
     const select = document.querySelector(`#${el.dataset.modeFor}`);
     el.hidden = !select || select.value !== 'adb';
