@@ -372,7 +372,7 @@ CONFIG_DEFAULTS = {
     "controlMode": "screen",
     "adbPath": r"C:\Program Files\platform-tools\adb.exe",
     "adbDevice": "127.0.0.1:5555",
-    "screenResolution": "1600x900",
+    "screenResolution": "auto",
     "uiScale": "100",
     "gameWindowTitle": "Heartopia",
     "stopKey": "F8",
@@ -591,7 +591,7 @@ def validateConfig(config, task):
             checks.append("模擬器模式需要填寫「ADB 裝置位址」")
     else:
         resolution = config.get("screenResolution", "")
-        if not re.fullmatch(r"\d+x\d+", resolution):
+        if resolution != "auto" and not re.fullmatch(r"\d+x\d+", resolution):
             checks.append("「遊戲解析度」格式不正確")
 
     return next((error for error in checks if error), None)
