@@ -147,18 +147,25 @@ class ScreenBackend:
             return BASE_WIDTH  # 找不到遊戲視窗時用模板基準寬度(不縮放)
         return int(resolution.split("x")[0])
 
-    def resolutionNotice(self, config):
-        """自動偵測解析度時，開始前顯示偵測結果；寬度偏離建議範圍或找不到視窗會加上警告。手動指定時不顯示"""
+    def resolutionWarning(self, config):
+        """自動偵測到的解析度不在支援的三種內時回傳警告說明，否則回傳 None。手動指定、找不到視窗時不警告"""
         if config.get("screenResolution", "auto") != "auto":
             return None
         rect = self.getGameRect()
-        if not rect:
-            return "⚠️ 找不到遊戲視窗，請確認遊戲已開啟、視窗標題設定正確"
-        w, h = rect[2], rect[3]
-        if any(w == sw for sw, _ in SUPPORTED_RESOLUTIONS):
-            return f"偵測到遊戲解析度：{w}x{h}"
+        if not rect or any(rect[2] == sw for sw, _ in SUPPORTED_RESOLUTIONS):
+            return None
         options = "、".join(f"{sw}x{sh}" for sw, sh in SUPPORTED_RESOLUTIONS)
-        return f"⚠️ 偵測到遊戲解析度 {w}x{h}，不在支援的解析度內（{options}），可能辨識不到，請調整遊戲解析度"
+        return f"偵測到遊戲解析度 {rect[2]}x{rect[3]}，不在支援的解析度內（{options}），可能辨識不到，請調整遊戲解析度"
+
+    def resolutionNotice(self, config):
+        """自動偵測解析度時，開始前在日誌顯示偵測結果(不支援時附上警告)。手動指定時不顯示"""
+        if config.get("screenResolution", "auto") != "auto":
+            return None
+        warning = self.resolutionWarning(config)
+        if warning:
+            return f"⚠️ {warning}"
+        rect = self.getGameRect()
+        return f"偵測到遊戲解析度：{rect[2]}x{rect[3]}" if rect else None
 
     def selectRegion(self, hint=""):
         # 先把遊戲拉到前景(蓋過本程式的視窗)再框選，選完把本程式拉回前面
