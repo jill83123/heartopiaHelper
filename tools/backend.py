@@ -28,6 +28,11 @@ from tools.tools import (
 # 找遊戲視窗時要排除的視窗類別: 瀏覽器(Chrome、Edge 與 Electron 程式、Firefox)的分頁標題可能剛好含遊戲名稱
 BROWSER_CLASSES = ("Chrome_WidgetWin_1", "MozillaWindowClass")
 
+
+class GameWindowLostError(Exception):
+    """前景模式運行中遊戲視窗不見了。刻意不繼承 RuntimeError，各功能裡針對單一步驟失敗的 except RuntimeError 才不會把它吞掉，讓整個任務停下來"""
+
+
 BASE_WIDTH = 1600  # 模板的基準寬度
 SUPPORTED_RESOLUTIONS = ((1600, 900), (1366, 768), (1280, 720))  # 要和設定頁的解析度選項一致
 
@@ -59,7 +64,13 @@ class ScreenBackend:
         """整個畫面，回傳 (影像, 左上角 x, 左上角 y)"""
         return captureFullScreen()
 
+    def _requireGame(self):
+        """送出滑鼠、鍵盤操作前確認遊戲視窗還在，不在就停止任務，否則操作會落在最上層的其他視窗(例如瀏覽器)"""
+        if self.gameWindowTitle and not self._findGame():
+            raise GameWindowLostError(f"找不到遊戲視窗「{self.gameWindowTitle}」，遊戲可能已關閉")
+
     def click(self, x, y):
+        self._requireGame()
         clickMouse(x, y)
 
     def getGameRect(self):
@@ -80,6 +91,7 @@ class ScreenBackend:
 
     def wakeMouse(self, x, y):
         """遊戲有時會卡住滑鼠、讓畫面跟著滑鼠轉視角，操作前先左右鍵各點兩下解除"""
+        self._requireGame()
         self.moveTo(x, y)
         time.sleep(0.2)
         for _ in range(2):
@@ -123,16 +135,19 @@ class ScreenBackend:
         keyboard.send("ctrl+v")
 
     def rightClick(self, x, y):
+        self._requireGame()
         clickRightMouse(x, y)
 
     def pressKey(self, key):
         """按一下鍵盤按鍵(按住一小段隨機時間再放開)"""
+        self._requireGame()
         keyboard.press(key)
         time.sleep(random.uniform(0.05, 0.14))
         keyboard.release(key)
 
     def holdDown(self, x, y):
         """按住拋竿鍵(F)不放，直到 holdUp"""
+        self._requireGame()
         keyboard.press("f")
 
     def holdUp(self):
