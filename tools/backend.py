@@ -121,7 +121,13 @@ class ScreenBackend:
         keyboard.release("f")
 
     def getScaleWidth(self, config):
-        return int(config.get("screenResolution").split("x")[0])
+        resolution = config.get("screenResolution", "auto")
+        if resolution == "auto":
+            rect = self.getGameRect()
+            if rect:
+                return rect[2]
+            return 1600  # 找不到遊戲視窗時用模板基準寬度(不縮放)
+        return int(resolution.split("x")[0])
 
     def selectRegion(self, hint=""):
         # 先把遊戲拉到前景(蓋過本程式的視窗)再框選，選完把本程式拉回前面
