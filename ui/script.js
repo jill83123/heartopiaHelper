@@ -803,7 +803,22 @@ const syncBan5Visibility = () => {
 };
 document.addEventListener('change', (e) => {
   if (e.target.matches?.('select[id$="FoodStars"]')) syncBan5Visibility();
+  if (e.target.matches?.('input[id$="UseFood"]')) syncFoodOptionsDisabled();
 });
+
+// 沒勾「吃食物」時，底下的子選項(分鐘、飽食度、名稱、星級...)一律停用，包含它們的還原按鈕
+const syncFoodOptionsDisabled = () => {
+  document.querySelectorAll('input[id$="UseFood"]').forEach((useFood) => {
+    const prefix = useFood.id.slice(0, -'UseFood'.length);
+    document.querySelectorAll(`[id^="${prefix}Food"]`).forEach((el) => {
+      if (!el.matches('.setting, .setting-check')) return;
+      el.disabled = el.disabled || !useFood.checked;
+    });
+    document.querySelectorAll('.reset-default').forEach((btn) => {
+      if (btn.dataset.reset?.startsWith(`${prefix}Food`)) btn.disabled = btn.disabled || !useFood.checked;
+    });
+  });
+};
 
 // 初始化
 // 將設定值填入對應的輸入框
@@ -1169,6 +1184,7 @@ const setup = async () => {
     });
     isAnyRunning = isAnyTaskRunning;
     updateResetButtons();
+    syncFoodOptionsDisabled();
     adbPresets.forEach((preset) => (preset.disabled = isAnyTaskRunning));
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;
     const resetBtn = document.querySelector('#resetSettingsBtn');
