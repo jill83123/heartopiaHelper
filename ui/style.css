@@ -1,13 +1,106 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+TC:wght@100..900&display=swap');
-@import url('https://cdn.jsdelivr.net/npm/twemoji-colr-font@15.0.3/twemoji.min.css');
+/* 字體隨程式一起打包，不依賴網路 (授權見 fonts/OFL-*.txt) */
+@font-face {
+  font-family: 'Inter';
+  src: url('fonts/Inter-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans TC';
+  src: url('fonts/NotoSansTC-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* ============ 設計 token ============ */
+:root {
+  --bg: #eaf5fd;
+  --surface: #ffffff;
+  --surface-2: #f3f8fc;
+  --border: #d9e8f3;
+  --border-strong: #bcd3e5;
+  --text: #2b3a4b;
+  --text-2: #5f7288;
+  --text-3: #97a9bb;
+
+  --brand: #ffc233; /* 主色：主要動作 */
+  --brand-hover: #f5a30a;
+  --brand-soft: #fff3cf;
+  --brand-edge: #e8a410;
+  --on-brand: #5b3600;
+  --sky: #7cc4f0; /* 輔色：導覽、聚焦、開關 */
+  --sky-soft: #e4f3fd;
+  --sky-deep: #2f8fd0;
+
+  --success: #34a56f;
+  --success-soft: #e0f5e9;
+  --danger: #dd5647;
+  --danger-soft: #fde8e4;
+  --warn-text: #a8680a;
+  --warn-soft: #fff4d6;
+  --warn-border: #f2d38b;
+
+  --font: 'Inter', 'Noto Sans TC', 'Segoe UI Emoji', 'Microsoft JhengHei', sans-serif;
+  --mono: 'Cascadia Mono', Consolas, 'Noto Sans TC', monospace;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  --shadow-1: 0 1px 2px rgba(40, 90, 140, 0.08), 0 6px 18px rgba(40, 90, 140, 0.07);
+  --shadow-brand: 0 3px 0 var(--brand-edge), 0 8px 16px rgba(255, 194, 51, 0.35);
+  --ring: 0 0 0 3px rgba(124, 196, 240, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #172233;
+    --surface: #1f2d42;
+    --surface-2: #192639;
+    --border: #2c3f58;
+    --border-strong: #3e5676;
+    --text: #eaf2fa;
+    --text-2: #a9bdd2;
+    --text-3: #6e849c;
+
+    --brand: #ffc040;
+    --brand-hover: #ffcf6b;
+    --brand-soft: #3d3420;
+    --brand-edge: #b8841a;
+    --on-brand: #4a2a03;
+    --sky-soft: #1f3347;
+    --sky-deep: #7cc4f0;
+
+    --success: #4cc38a;
+    --success-soft: #1d3329;
+    --danger: #f0746a;
+    --danger-soft: #3c2325;
+    --warn-text: #e5b04f;
+    --warn-soft: #352c19;
+    --warn-border: #5a4720;
+
+    --shadow-1: 0 2px 0 rgba(0, 0, 0, 0.25);
+    --ring: 0 0 0 3px rgba(124, 196, 240, 0.4);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
 
 html {
   font-size: 14px;
+  background: var(--bg);
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', 'Noto Sans TC', 'twemoji Mozilla', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.6;
 }
 
 /* 字級、間距、通用輔助類 */
@@ -24,6 +117,13 @@ body {
 .mb-8 {
   margin-bottom: 8px !important;
 }
+.mt-8 {
+  margin-top: 8px !important;
+}
+.mt-16 {
+  margin-top: 16px;
+}
+
 .mb-16 {
   margin-bottom: 16px !important;
 }
@@ -31,40 +131,52 @@ body {
   margin-top: auto !important;
 }
 
+.gap-16 {
+  gap: 16px;
+}
+
 .gap-8 {
   gap: 8px !important;
 }
 
 .w-120 {
-  width: 120px !important;
+  width: 104px !important;
 }
 
 .flex {
   display: flex;
+  flex-wrap: wrap; /* 視窗變窄時按鈕換到下一行 */
   justify-content: space-between;
   align-items: center;
+  row-gap: 8px;
 }
 
 .muted {
-  color: #94a3b8;
+  color: var(--text-2);
   font-size: 0.95em;
 }
 .text-danger {
-  color: #f44646 !important;
+  color: var(--danger) !important;
 }
 .bg-success {
-  background-color: #16a34a !important;
+  background-color: var(--success) !important;
 }
 
-/* 版面結構 */
+/* 依操作模式隱藏不適用的設定 */
+[hidden] {
+  display: none !important;
+}
+
+/* ============ 版面結構 ============ */
 .container {
-  max-width: 100%;
-  padding: 16px 28px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 24px 24px;
 }
 .row {
   display: flex;
   gap: 16px;
-  margin-bottom: 8px;
+  margin-bottom: 16px; /* 一組輸入欄位與下一組的固定距離 */
 }
 .col {
   display: flex;
@@ -73,166 +185,1373 @@ body {
   min-width: 0;
 }
 
-/* tab 分頁 */
+/* 頁首：天空漸層 + 雲朵，分頁放在裡面 */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 24px 24px;
+  margin-bottom: 16px;
+  background: linear-gradient(180deg, #6cbdee 0%, #a9dcf7 72%, var(--bg) 100%);
+}
+@media (prefers-color-scheme: dark) {
+  .hero {
+    background: linear-gradient(180deg, #2b5f8a 0%, #25496b 72%, var(--bg) 100%);
+  }
+}
+.hero-inner {
+  position: relative;
+  max-width: 504px;
+  margin: 0 auto;
+}
+.hero-title {
+  margin: 0 0 12px;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-shadow: 0 2px 0 rgba(47, 143, 208, 0.55);
+}
+.hero-title small {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  opacity: 0.9;
+  text-shadow: none;
+}
+.cloud {
+  position: absolute;
+  background: #fff;
+  border-radius: 99px;
+  opacity: 0.85;
+}
+.cloud::before,
+.cloud::after {
+  content: '';
+  position: absolute;
+  background: #fff;
+  border-radius: 50%;
+}
+.cloud.a {
+  width: 90px;
+  height: 24px;
+  right: 24px;
+  top: 16px;
+}
+.cloud.a::before {
+  width: 36px;
+  height: 36px;
+  left: 14px;
+  top: -18px;
+}
+.cloud.a::after {
+  width: 28px;
+  height: 28px;
+  left: 42px;
+  top: -12px;
+}
+.cloud.b {
+  width: 60px;
+  height: 16px;
+  right: 140px;
+  top: 40px;
+  opacity: 0.6;
+}
+.cloud.b::before {
+  width: 24px;
+  height: 24px;
+  left: 10px;
+  top: -12px;
+}
+.cloud.b::after {
+  width: 18px;
+  height: 18px;
+  left: 28px;
+  top: -8px;
+}
+
+/* tab 分頁：膠囊式 */
 .tabs {
   list-style: none;
-  padding-left: 0;
+  margin: 0;
+  padding: 4px;
   display: flex;
-  border-bottom: 2px solid #e5e7eb;
-  margin-bottom: 16px;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: var(--r-pill);
+}
+@media (prefers-color-scheme: dark) {
+  .tabs {
+    background: rgba(31, 45, 66, 0.7);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+}
+.tabs li {
+  flex: 1;
+  min-width: 0;
 }
 .tab {
+  width: 100%;
   border: none;
   outline: none;
-  color: #64748b;
-  font-size: 1.1em;
-  font-weight: 500;
-  padding: 12px 32px;
   background: none;
-  border-radius: 18px 18px 0 0;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 1em;
+  font-weight: 500;
+  padding: 8px 8px;
+  border-radius: var(--r-pill);
   cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.6);
+}
+.tab:focus-visible {
+  box-shadow: var(--ring);
 }
 .tab.active {
-  color: #2563eb;
-  background: #f1f5f9;
-  border-bottom: 2px solid #2563eb;
+  background: var(--surface);
+  color: var(--sky-deep);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
 }
+
+/* 每個分頁內容就是一張卡片 */
 .pane {
   display: none;
 }
 .pane.show.active {
   display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px 24px;
+  box-shadow: var(--shadow-1);
 }
 
-/* 標題、輸入欄 */
+/* ============ 標題、輸入欄 ============ */
 .title {
-  color: #334155;
-  font-size: 1.2em;
-  font-weight: 700;
-  margin-top: 0;
-  margin-bottom: 8px;
-}
-.label {
-  color: #475569;
-  font-size: 1em;
-  margin-bottom: 6px;
-}
-.input {
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  font-size: 1em;
-  padding: 8px 12px;
-  margin-bottom: 0;
-  transition: border-color 0.2s;
-}
-.input:focus {
-  border-color: #2563eb;
-  outline: none;
-}
-
-/* 按鈕 */
-.btn {
-  border: none;
-  border-radius: 999px;
-  background: #e0e7ef;
-  color: #334155;
-  font-size: 1em;
-  font-weight: 500;
-  padding: 8px 0;
-  margin-bottom: 0;
-  cursor: pointer;
-  width: 100%;
-  transition:
-    background 0.2s,
-    color 0.2s;
-}
-.btn:hover {
-  background: #cbd5e1;
-}
-.btn.primary {
-  background: #2563eb;
-  color: #fff;
-  font-weight: 600;
-  margin-bottom: 0;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
-}
-.btn.primary:hover {
-  background: #1d4ed8;
-}
-.btn.danger {
-  background: #dc2626;
-  color: #fff;
-  font-weight: 600;
-  margin-bottom: 0;
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.1);
-}
-.btn.danger:hover {
-  background: #991b1b;
-}
-.btn[disabled] {
-  background: #f1f5f9;
-  color: #94a3b8;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-.btn[disabled]:hover {
-  background: #f1f5f9;
-}
-
-/* 日誌狀態 */
-.log {
-  font-family: monospace;
-  width: calc(100% - 24px);
-  height: 200px;
-  background: #f1f5f9;
-  padding: 8px 12px;
-  resize: none;
-}
-
-/* 其他元件 */
-.check {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  color: var(--text);
+  font-size: 1.15em;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 16px;
 }
-
-.input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
+.title::before {
+  content: '';
+  flex: none;
+  width: 4px;
+  height: 1.1em;
+  border-radius: 2px;
+  background: var(--sky);
+}
+.label {
+  color: var(--text-2);
+  font-size: 0.93em;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.log-title {
+  display: block;
+  margin-bottom: 8px;
+}
+.input {
+  height: 38px;
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--border-strong);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1em;
+  padding: 0 12px;
+  margin-bottom: 0;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.input::placeholder {
+  color: var(--text-3);
+}
+.input:focus {
+  border-color: var(--sky);
+  box-shadow: var(--ring);
+  outline: none;
+}
+.input.invalid {
+  border-color: var(--danger);
 }
 .input[disabled] {
   cursor: not-allowed;
   opacity: 0.6;
 }
+
 select.input {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background: #fff
-    url('data:image/svg+xml;utf8,<svg fill="gray" height="20" viewBox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>')
-    no-repeat right 0.75em center/1.2em;
-  padding-right: 2.5em;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  height: 36px;
+  background: var(--surface)
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%2397a9bb' stroke-width='2' stroke-linecap='round'><path d='M1 1l5 5 5-5'/></svg>")
+    no-repeat right 12px center;
+  padding-right: 34px;
 }
-/* 移除 IE 的預設箭頭 */
 select.input::-ms-expand {
   display: none;
 }
 
-.coord {
-  color: #2563eb;
-  font-weight: 700;
+.input.qty {
+  width: 60px;
+  height: 32px;
+  padding: 0 8px;
   text-align: center;
-  margin-top: 8px;
+}
+
+/* 採集頁「功能」同一行的次數欄位 */
+/* 「功能」下拉佔 2、次數佔 1，下拉選項比較長 */
+#gather-tab-pane .col:has(> #gatherKind) {
+  flex: 2;
+}
+.col.gather-count {
+  flex: 1;
+}
+.gather-count .count-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+}
+.gather-count .input.qty {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: 38px;
+  padding: 0 12px;
+  text-align: left;
+}
+
+/* ============ 按鈕 ============ */
+.btn {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1em;
+  font-weight: 600;
+  height: 36px;
+  padding: 0 16px;
   margin-bottom: 0;
+  cursor: pointer;
+  width: 100%;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.1s;
+}
+.btn:hover {
+  background: var(--surface-2);
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.btn.primary {
+  background: var(--brand);
+  border: 2px solid #fff;
+  color: var(--on-brand);
+  box-shadow: var(--shadow-brand);
+}
+.btn.primary:hover {
+  background: var(--brand-hover);
+}
+.btn.primary:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+.btn.danger {
+  background: var(--danger-soft);
+  border-color: transparent;
+  color: var(--danger);
+}
+.btn.danger:hover {
+  background: var(--danger);
+  color: #fff;
+}
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+/* ============ 勾選：開關樣式 ============ */
+input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+input[type='checkbox']::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+input[type='checkbox']:checked {
+  background: var(--sky-deep);
+}
+input[type='checkbox']:checked::after {
+  transform: translateX(16px);
+}
+input[type='checkbox']:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+input[type='checkbox'][disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+/* 覆蓋 .input 對 checkbox 的通用樣式 */
+.input[type='checkbox'] {
+  height: 22px;
+  padding: 0;
+  border: none;
+}
+
+.check {
+  display: flex;
+  flex-wrap: wrap; /* 視窗變窄時換行，不要把版面撐破 */
+  align-items: center;
+  gap: 4px 8px;
+}
+
+/* 勾選項目下方的說明文字: 獨佔一行、可換行，並對齊開關後面的文字 */
+.check .hint {
+  flex-basis: 100%;
+  white-space: normal;
+  padding-left: 46px;
+}
+
+/* 從屬於上一個勾選項目的設定列(縮排) */
+.check.sub {
+  padding-left: 46px;
+}
+
+.check.sub .hint {
+  padding-left: 0;
+}
+
+/* 釣魚的定時項目：每個主項目（含它的子選項）自成一塊，用分隔線區分 */
+.options > .check:not(.sub) {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.options > .check:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.options > .check.sub {
+  margin-top: -2px;
+  padding: 8px 0 4px 46px;
+}
+.options > .row {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.check label,
+.check .muted:not(.hint) {
+  white-space: nowrap;
+}
+
+/* ============ 範圍座標：狀態標籤 ============ */
+.coord {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  background: var(--success-soft);
+  color: var(--success);
+  font-weight: 600;
+  text-align: left;
+}
+.coord::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.coord.text-danger {
+  background: var(--danger-soft);
+}
+
+/* 失敗原因可能很長(例如連不上模擬器)，允許換行而不是撐破版面 */
+.coord {
+  max-width: 100%;
+  line-height: 1.4;
+}
+.coord.text-danger {
+  white-space: normal;
+}
+
+
+/* 範圍選取列(設計系統的 .region)：左邊是名稱與座標狀態標籤，右邊是選取按鈕 */
+.region-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--r-md);
+}
+.region-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.region-info b {
+  font-weight: 600;
+}
+/* 狀態只用文字顏色和前面的圓點表示，不加底色的標籤框 */
+.region-info .coord,
+.region-info .coord.text-danger {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+.region-box .btn {
+  flex: none;
+  width: auto;
+}
+.region-info {
+  flex: 1;
+}
+
+/* 運行列：標題在左，停止/開始在右同一水平；與下方內容留出空間（開始按鈕有陰影） */
+.run-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 16px;
+}
+.run-head .title {
+  margin: 0;
+}
+/* 「啟用」開關與其下的設定區塊之間用分隔線區隔 */
+.check + .fg-only,
+.check + .alt-only,
+.title-row + .fg-only,
+.title-warn + .alt-only {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* 停止 / 開始按鈕獨立一行，放在日誌框下方，靠右 */
+.run-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 hr {
   border: none;
-  margin: 24px 0;
-  border-top: 1px solid #e5e7eb;
+  margin: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+/* ============ 日誌 ============ */
+.log {
+  display: block;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  width: 100%;
+  height: 170px;
+  background: var(--surface-2);
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  resize: none;
+}
+
+/* ============ 摺疊群組 ============ */
+.group {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+}
+.group[open] {
+  padding-bottom: 16px;
+}
+
+.advanced {
+  margin-top: 16px;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+.advanced > summary,
+.group[open] > summary {
+  margin-bottom: 12px;
+}
+
+.advanced .group {
+  margin-top: 12px;
+}
+
+/* 進階閥值: 群組與欄位間距 */
+.advanced > p {
+  margin-bottom: 16px !important;
+}
+
+/* 進階閥值區塊: 說明文字在左，一鍵重設按鈕在右側同一列 */
+.advanced-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.advanced-head .btn {
+  flex: none;
+  width: auto;
+  height: 32px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.threshold-grid {
+  flex-wrap: wrap;
+  row-gap: 16px;
+  margin-bottom: 8px;
+}
+
+.threshold-grid .col {
+  flex: 0 0 calc(33.333% - 11px);
+}
+
+.howto {
+  margin: 0 0 12px;
+  padding-left: 16px;
+  line-height: 1.7;
+}
+
+.howto code {
+  background: var(--sky-soft);
+  color: var(--sky-deep);
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+
+.howto-group,
+.alt-only > details.group {
+  margin: 4px 0 16px;
+}
+
+/* ============ 提示視窗：蓋在整個腳本視窗上，內容置中 ============ */
+.dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(30, 50, 75, 0.45);
+}
+
+.dialog-box {
+  width: 100%;
+  max-width: 400px;
+  max-height: 100%;
+  overflow: auto;
+  padding: 24px 24px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 16px 48px rgba(20, 40, 70, 0.3);
+}
+
+.dialog-title {
+  margin: 0 0 12px;
+  font-size: 1.15em;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* 內文每一行的行高與間距一致: 沿用 app 內文的行高(1.6)，段落與清單之間不再額外留空 */
+.dialog-msg {
+  margin: 0 0 16px;
+  word-break: break-word;
+}
+
+.dialog-msg p {
+  margin: 0;
+}
+
+/* 訊息裡的空行: 剛好一行高 */
+.dialog-gap {
+  height: 1.6em;
+}
+
+/* 清單圓點用 ::before 自繪(絕對定位)，大小可控，也不會像放大的 ::marker 那樣撐高行距 */
+.dialog-list {
+  margin: 0;
+  padding-left: 16px;
+  list-style: none;
+}
+
+.dialog-list li {
+  position: relative;
+}
+
+.dialog-list li::before {
+  content: '';
+  position: absolute;
+  left: -13px;
+  top: calc(0.8em - 2.5px);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-actions .btn {
+  width: auto;
+  min-width: 88px;
+}
+
+/* ============ 載入中 ============ */
+.loading {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--bg);
+  transition: opacity 0.25s;
+}
+
+.loading.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border);
+  border-top-color: var(--sky-deep);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============ 警告：簡單的黃字，不用群組框 ============ */
+.warn {
+  margin: 0 0 12px;
+  font-size: 0.93em;
+  line-height: 1.6;
+  color: var(--warn-text);
+}
+
+/* 標題正下方的補充說明：貼近標題 */
+.title + .title-note {
+  margin-top: -8px;
+}
+
+/* 區塊標題與警告同一行：警告在標題右側 */
+.title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-bottom: 16px;
+}
+.title-row .title {
+  margin: 0;
+}
+.title-row .warn {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* 輸入框、選單與其下方的說明 / 錯誤提示拉開距離 */
+.col > .input + span,
+.col > .input + .hint {
+  margin-top: 8px;
+}
+
+/* ============ 更新提示視窗 ============ */
+.update-box {
+  max-width: 480px;
+}
+
+.update-notes {
+  max-height: 50vh;
+  overflow: auto;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: var(--brand-soft);
+  border-radius: var(--r-md);
+  word-break: break-word;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 12px 0 4px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.md h3 {
+  font-size: 1.1em;
+}
+
+.md h4 {
+  font-size: 1em;
+}
+
+.md h5,
+.md h6 {
+  font-size: 0.95em;
+}
+
+.md p {
+  margin: 0 0 8px;
+}
+
+.md ul,
+.md ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.md blockquote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--border);
+}
+
+.md code {
+  padding: 1px 4px;
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+}
+
+.md pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  overflow: auto;
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 6px;
+}
+
+.md pre code {
+  padding: 0;
+  background: none;
+}
+
+.md hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.md-link {
+  font-weight: 600;
+  color: var(--sky-deep);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ============ 設定頁底部：清單，左邊標題與說明，右邊按鈕 ============ */
+.action-list {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+}
+
+.action-row + .action-row {
+  border-top: 1px solid var(--border);
+}
+
+.action-row .btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 104px;
+  height: 34px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.action-row > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.action-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.action-desc {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 視窗很窄時縮小邊距，按鈕列可換行 */
+@media (max-width: 480px) {
+  .container {
+    padding: 0 16px 16px;
+  }
+  .hero {
+    padding: 16px 16px 16px;
+  }
+  .tab {
+    padding: 8px 4px;
+  }
+  .pane.show.active {
+    padding: 16px;
+  }
+  .action-row {
+    flex-wrap: wrap;
+  }
+}
+
+/* 設定旁邊的道具圖示: 固定大小的小框框，圖片依比例縮放並置中，每一列的文字才會對齊 */
+.item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.item-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 釣魚項目前面多了一個圖示框(40px + 間距 8px)，子選項與說明文字也要往右縮，才會和主項目的文字對齊 */
+.options .check .hint {
+  padding-left: 94px;
+}
+.options > .check.sub {
+  padding-top: 0; /* 子選項(例如香水間隔)緊貼著上面的項目 */
+  padding-left: 94px;
+}
+/* 吃食物沒有圖示，不用對齊上面幾列的文字 */
+.options .check.no-icon .hint,
+.options > .check.sub.no-icon {
+  padding-left: 46px;
+}
+
+/* 進階比對閥值: 欄位名稱旁邊的模板縮圖 */
+.tpl-thumb {
+  height: 22px;
+  max-width: 40px;
+  width: auto;
+  margin-right: 8px;
+  vertical-align: middle;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+/* Lucide 圖示: 跟著文字顏色與大小 */
+.icon {
+  width: 1.1em;
+  height: 1.1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.2em;
+  flex: none;
+}
+
+/* 設定旁邊的還原預設值按鈕 */
+.reset-default {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sky-deep);
+  cursor: pointer;
+}
+.reset-default:hover:not(:disabled) {
+  background: var(--sky-soft);
+}
+.reset-default:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 設定旁邊的說明按鈕: 點一下跳出提示視窗 */
+.help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.help-btn:hover {
+  color: inherit;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* 運行區: 標題旁的狀態徽章，與標題下方的「上次執行」 */
+.run-head > .run-title {
+  flex: 1 1 140px;
+}
+.run-head > .flex {
+  flex: none;
+}
+.run-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+}
+.run-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 12px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.run-badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.run-badge.on {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.run-badge:empty {
+  display: none;
+}
+.run-last {
+  margin: 0 0 16px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+/* 放在運行標題同一列的最右側 */
+.run-head > .run-last {
+  margin: 0;
+  text-align: right;
+}
+.run-last:empty {
+  display: none;
+}
+/* 運行標題列下面的警告，貼近標題列 */
+.run-head + .warn {
+  margin: -8px 0 12px;
+}
+
+/* 設定頁的「浮動日誌」: 名稱與說明在左，開關或選單在右 */
+.float-log-list {
+  margin-top: 12px;
+}
+.action-row[hidden] {
+  display: none;
+}
+.action-row > label.action-name {
+  display: block;
+  cursor: pointer;
+}
+.action-row > select.input {
+  flex: 0 0 auto;
+  width: 150px;
+  max-width: 100%;
+}
+
+/* 設定頁最上層的群組: 可折疊(預設折疊)，標題維持原本的色條樣式 */
+details.section {
+  border-bottom: 1px solid var(--border);
+}
+details.section > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.15em;
+  font-weight: 700;
+  list-style: none;
+}
+details.section > summary::-webkit-details-marker {
+  display: none;
+}
+details.section > summary::before {
+  content: '';
+  flex: none;
+  width: 4px;
+  height: 1.1em;
+  border-radius: 2px;
+  background: var(--sky);
+}
+details.section > summary::after {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px 0 auto;
+  border-right: 2px solid var(--text-3);
+  border-bottom: 2px solid var(--text-3);
+  transform: rotate(45deg);
+  transition: transform 0.2s;
+}
+details.section[open] > summary::after {
+  transform: rotate(-135deg);
+}
+details.section[open] > summary {
+  margin-bottom: 0;
+}
+.section-body {
+  padding: 2px 0 16px;
+}
+.section-body > .row:first-child,
+.section-body > .title-note:first-child {
+  margin-top: 0;
+}
+
+/* 浮動日誌: 標題與開關同一列，下面是小標題「視窗位置」與選單，沒有分隔線 */
+.float-log {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+}
+.float-log-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.float-log-head {
+  margin-bottom: 12px;
+}
+.float-log:has(#floatLogPositionRow[hidden]) .float-log-head {
+  margin-bottom: 0;
+}
+#floatLogPositionRow > .check {
+  margin-bottom: 12px;
+}
+.float-log-head .action-name {
+  cursor: pointer;
+}
+#floatLogPositionRow[hidden] {
+  display: none;
+}
+#floatLogPositionRow select.input {
+  width: 100%;
+}
+
+/* 折疊時在標題下面用一行小字說明裡面有什麼，展開後就不顯示 */
+details.section > summary::before {
+  align-self: stretch;
+  height: auto;
+}
+.section-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.section-hint {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+details.section[open] .section-hint {
+  display: none;
+}
+
+/* 進階群組: 標題旁的小標籤，提示通常不用動 */
+.section-tag {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: var(--border);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+.section-tag.important {
+  background: var(--sky);
+  color: #fff;
+}
+
+/* 採集頁的數值設定: 名稱固定寬度，輸入框才會上下對齊 */
+.check.aligned {
+  gap: 4px 8px;
+  margin-bottom: 12px;
+}
+.check.aligned > .label-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  width: 13em; /* 名稱加「？」固定寬度，輸入框才會上下對齊 */
+}
+.check.aligned > .muted {
+  min-width: 2.4em; /* 「秒」與「分鐘」一樣寬，後面的圖示才會對齊 */
+}
+
+/* 注意事項按鈕: 黃字小按鈕，點開用提示視窗 */
+.notice-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--r-pill);
+  background: var(--warn-soft);
+  color: var(--warn-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.text-warn {
+  color: var(--warn-text);
+}
+
+.dish-box {
+  flex-wrap: wrap;
+}
+.dish-box .region-info {
+  flex: 1 1 auto;
+}
+.dish-box .region-info b {
+  white-space: nowrap;
+}
+.dish-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+.dish-actions .btn {
+  flex: none;
+  width: auto;
+}
+/* 菜名截圖獨立一行，放在按鈕下方 */
+.dish-image {
+  flex: none;
+  display: block;
+  height: 40px;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.run-head > .notice-btn {
+  flex: none;
+}
+
+.dialog-image {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  margin: 0 auto 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+}
+
+/* 標題旁的「?」說明鈕: 與文字垂直置中，不撐高該行 */
+.region-info b {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.help-btn {
+  flex: none;
+  line-height: 1;
+}
+.region-info b > .help-btn {
+  margin: -4px 0;
+}
+.help-btn .icon {
+  display: block;
+}
+
+/* 獨立欄位(下拉選單、文字、比對閥值)與還原預設值按鈕同一列 */
+.field-reset {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.field-reset > .input {
+  flex: 1;
+  min-width: 0;
+}
+.field-reset > .reset-default {
+  flex: none;
+}
+
+.dialog-title.danger {
+  color: var(--danger);
+}
+
+/* 料理數量: 只要放得下兩三位數字的寬度(用 id 才壓得過欄位預設的 100% 寬)，文字靠左 */
+#expectedCookQty {
+  flex: none; /* 外層是 .field-reset(欄位 flex:1 撐滿)，要取消才會是固定寬度 */
+  width: 64px;
+  text-align: left;
+}
+
+/* 料理數量的標題只佔文字寬度(點空白處不會聚焦欄位) */
+label[for="expectedCookQty"] {
+  align-self: flex-start; /* .col 是縱向 flex，不指定的話標題會被撐成整列寬 */
+}
+
+/* 「上次執行」在日誌框左下，與右邊的停止 / 開始按鈕同一列 */
+.run-actions {
+  align-items: center;
+}
+.run-actions .run-last {
+  margin: 0 auto 0 0;
+  text-align: left;
+}
+
+/* 浮動日誌的開關與下方的設定之間加分隔線 */
+#floatLogPositionRow {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* 標題下方緊接著的警告，貼近標題 */
+.title-row + .title-warn {
+  margin-top: -8px;
+}
+
+/* 標題列右側的「啟用」開關 */
+.title-row .title-toggle {
+  margin-left: auto;
+}
+
+/* 欄位標題只佔文字的寬度(不要撐滿整欄，點到旁邊的空白也會聚焦欄位) */
+.col > .label {
+  align-self: flex-start;
+}
+
+/* 名稱旁的「?」說明鈕: 與文字垂直置中(沒有套用固定寬度的列也一樣) */
+.label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 連續兩句備註貼近一點 */
+.note-tight {
+  margin-bottom: 2px;
+}
+.note-tight + .title-note {
+  margin-top: 0;
 }
