@@ -1,7 +1,7 @@
 import threading
 import traceback
 from tools.finder import matchAuto
-from tools.tools import getThreshold
+from tools.tools import LOG_DIVIDER, getThreshold
 
 
 class BaseTask:
@@ -43,6 +43,7 @@ class BaseTask:
         if self.isStart:
             self._stopEvent.set()
             self.setLog("停止運行")
+            self.setLog(LOG_DIVIDER)
 
     def _guard(self, fn, stopEvent):
         """執行緒內發生例外時記錄下來並停止，避免執行緒默默死掉但介面仍顯示運行中"""
@@ -52,6 +53,7 @@ class BaseTask:
             traceback.print_exc()
             self.setLog(f"❌ 發生錯誤，已停止運行：{e}")
             stopEvent.set()
+            self.setLog(LOG_DIVIDER)
 
     def _getMatchCords(self, img, itemName):
         templatePath = f"{self.templateDir}/{itemName}.png"

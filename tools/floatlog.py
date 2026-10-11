@@ -104,3 +104,27 @@ def backdropLuma(hwnd):
         return 0.114 * b + 0.587 * g + 0.299 * r
     except Exception:
         return None
+
+
+def visibleRect():
+    """浮動日誌視窗目前在螢幕上的範圍(左、上、右、下)，沒有顯示回傳 None。點擊遊戲畫面時要避開，不然會點到它的按鈕(例如停止)"""
+    try:
+        hwnd = win32gui.FindWindow(None, LOG_TITLE)
+        if hwnd and win32gui.IsWindowVisible(hwnd):
+            return win32gui.GetWindowRect(hwnd)
+    except Exception:
+        pass
+    return None
+
+
+def setPassThrough(on):
+    """讓浮動日誌暫時變成「滑鼠點擊會穿透」(on=True)或恢復正常。程式要點的位置剛好被它蓋住時，點擊才會落在下面的遊戲上"""
+    try:
+        hwnd = win32gui.FindWindow(None, LOG_TITLE)
+        if not hwnd:
+            return
+        style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+        style = style | win32con.WS_EX_TRANSPARENT if on else style & ~win32con.WS_EX_TRANSPARENT
+        win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style)
+    except Exception:
+        pass

@@ -15,7 +15,7 @@ from tools.backend import AdbBackend, createBackend
 from tools import floatlog
 from tools.updater import Updater, checkUpdate, isReleasePage
 from version import VERSION
-from tools.tools import autoRepairMinutes, getConfigPath, getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
+from tools.tools import autoRepairMinutes, getConfigPath, getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
 from scripts.Cooking import Cooking
 from scripts.Fishing import Fishing
 from scripts.PlantGathering import PlantGathering
@@ -28,16 +28,14 @@ LOG_LIMIT = 500
 # 背景定時與前景定時相同的那組定時項目設定(去掉 fishing 開頭的部分)
 ALT_KEYS = (
     "AutoCast",
-    "PerfumeSeconds",
+    "FaceFront",
+    "SkipTail",
     "UseBait",
-    "BaitSeconds",
     "UseFood",
     "FoodKeepLast",
-    "FoodBan5",
     "FoodName",
     "FoodStars",
-    "FoodMinutes",
-    "FoodBelow",
+    "FoodUntil",
     "UseRepair",
     "RepairNow",
     "RepairMinutes",
@@ -47,11 +45,9 @@ ALT_KEYS = (
 GATHER_FOOD_KEYS = (
     "UseFood",
     "FoodKeepLast",
-    "FoodBan5",
     "FoodName",
     "FoodStars",
-    "FoodMinutes",
-    "FoodBelow",
+    "FoodUntil",
     "FoodLock",
     "UseRepair",
     "RepairMinutes",
@@ -111,7 +107,7 @@ class Api:
 
     def setLog(self, msg, source):
         now = datetime.datetime.now().strftime("%H:%M:%S")
-        formattedMsg = f"[{now}] {msg}"
+        formattedMsg = msg if msg == LOG_DIVIDER else f"[{now}] {msg}"
         print(formattedMsg)
         if source not in self.logs:
             return
@@ -136,6 +132,17 @@ class Api:
     # ===== 浮動日誌(置頂的小視窗) =====
     def _floatEnabled(self):
         return str(self.config.get("floatLogEnabled", "True")).lower() == "true"
+
+    def _floatShowFor(self, sources):
+        """這次運行有沒有該顯示浮動日誌: 依任務實際的操作模式(前景/背景)對照設定，同時含前景與背景時任一邊開著就顯示"""
+        if not self._floatEnabled():
+            return False
+        for source in sources:
+            isAdb = self.taskConfig(source).get("controlMode") == "adb"
+            key = "floatLogBackground" if isAdb else "floatLogForeground"
+            if str(self.config.get(key, "False" if key == "floatLogForeground" else "True")).lower() == "true":
+                return True
+        return False
 
     def _floatHwnd(self):
         if self._logHwnd and win32gui.IsWindow(self._logHwnd):
@@ -185,7 +192,7 @@ class Api:
             self.floatSources = set(sources)
             self.logs["float"].clear()
             self.floatRun += 1
-        if not self._floatEnabled():
+        if not self._floatShowFor(sources):
             return
         try:
             hwnd = self._floatHwnd()
