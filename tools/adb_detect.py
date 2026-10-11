@@ -92,16 +92,18 @@ def _speaksAdb(port):
 
 
 def candidatePorts():
-    """可能是模擬器 ADB 的埠: {埠: 顯示名稱}。優先用模擬器程序正在監聽的埠，再補上有開的常見埠"""
+    """可能是模擬器 ADB 的埠: ({埠: 顯示名稱}, {埠: 擁有的程序 pid})。優先用模擬器程序正在監聽的埠，再補上有開的常見埠"""
     pids = _emulatorPids()
+    listening = _listeningPorts()
     found = {}
-    for port, pid in _listeningPorts().items():
+    for port, pid in listening.items():
         if pid in pids and port >= 1024 and port != ADB_SERVER_PORT:
             found[port] = pids[pid]
     for port in COMMON_PORTS:
         if port not in found and _isOpen(port):
             found[port] = ""
-    return {port: name for port, name in found.items() if _speaksAdb(port)}
+    names = {port: name for port, name in found.items() if _speaksAdb(port)}
+    return names, {port: listening[port] for port in names if port in listening}
 
 
 def _priority(port):
@@ -128,7 +130,7 @@ def _onlineDevices(adbPath):
 
 
 def _identity(adbPath, serial):
-    """同一台模擬器可能同時從好幾個埠連得上(例如 MuMu 的 7555)，用 android_id 判斷是不是同一台"""
+    """沒有程序資訊時的備用: 用 android_id 判斷是不是同一台"""
     try:
         return _adb(adbPath, ["-s", serial, "shell", "settings", "get", "secure", "android_id"], timeout=5).strip() or serial
     except Exception:
@@ -146,7 +148,7 @@ def detectAdbDevices(adbPath):
     except subprocess.TimeoutExpired:
         raise RuntimeError("adb 無回應")
 
-    names = candidatePorts()
+    names, owners = candidatePorts()
     for port in names:
         try:
             _adb(adbPath, ["connect", f"{HOST}:{port}"], timeout=6)
@@ -162,10 +164,15 @@ def detectAdbDevices(adbPath):
             except Exception:
                 pass
 
+    # 同一台模擬器的多個埠由同一個程序監聽，用程序 pid 分組。
+    # 不能只靠 android_id: 複製出來的多開模擬器 android_id 會一樣，會被誤併成一台
     groups = {}
     for serial in online:
-        port = int(serial.rsplit(":", 1)[1]) if re.search(r":\d+$", serial) else 0
-        groups.setdefault(_identity(adbPath, serial), []).append((port, serial))
+        if not re.search(r":\d+$", serial):
+            continue  # emulator-5554 這類是 adb 自己掃到的，上面一定有對應的 IP:埠
+        port = int(serial.rsplit(":", 1)[1])
+        key = owners[port] if port in owners else _identity(adbPath, serial)
+        groups.setdefault(key, []).append((port, serial))
 
     devices = []
     for members in groups.values():

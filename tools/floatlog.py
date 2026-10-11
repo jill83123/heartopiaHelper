@@ -1,6 +1,4 @@
 import ctypes
-import mss
-import numpy as np
 import win32api
 import win32con
 import win32gui
@@ -10,7 +8,7 @@ LOG_TITLE = "浮動日誌"
 LOG_SIZE = (360, 132)
 MIN_HEIGHT = 80  # 拖拉調整高度的範圍(96 dpi 的像素)
 MAX_HEIGHT = 700
-COLLAPSED_HEIGHT = 28  # 縮小後只剩標題列(96 dpi 的像素)，要和 log.html 的 .bar 高度一致  # 視窗大小(96 dpi 的像素)，小小的不擋畫面
+COLLAPSED_HEIGHT = 39  # 縮小後只剩標題列(96 dpi 的像素)，要和 log.html 的 .bar 高度一致；Windows 不讓視窗比這更矮  # 視窗大小(96 dpi 的像素)，小小的不擋畫面
 LOG_ALPHA = 215  # 視窗整體不透明度(0~255)，半透明
 MARGIN = 12  # 離螢幕邊緣的距離(96 dpi 的像素)
 WDA_EXCLUDEFROMCAPTURE = 0x11
@@ -39,6 +37,22 @@ def styleOverlay(hwnd):
     win32gui.SetLayeredWindowAttributes(hwnd, 0, LOG_ALPHA, win32con.LWA_ALPHA)
     try:
         ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
+    except Exception:
+        pass
+    enableShadow(hwnd)
+
+
+class MARGINS(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_int), ("right", ctypes.c_int), ("top", ctypes.c_int), ("bottom", ctypes.c_int)]
+
+
+def enableShadow(hwnd):
+    """無邊框視窗預設沒有系統陰影，把框架延伸 1 像素進視窗內，DWM 就會替它畫陰影(和其他應用程式一樣)"""
+    try:
+        dwm = ctypes.windll.dwmapi
+        policy = ctypes.c_int(2)  # DWMNCRP_ENABLED
+        dwm.DwmSetWindowAttribute(hwnd, 2, ctypes.byref(policy), ctypes.sizeof(policy))  # DWMWA_NCRENDERING_POLICY
+        dwm.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(MARGINS(1, 1, 1, 1)))
     except Exception:
         pass
 
@@ -94,13 +108,25 @@ def setHeight(hwnd, heightCss, anchor="bottom"):
     return left, top
 
 
-def backdropLuma(hwnd):
-    """視窗後面那塊畫面的平均亮度(0~255)。視窗已從截圖排除，所以抓到的是被它蓋住的內容；失敗回傳 None"""
+def visibleRect():
+    """浮動日誌視窗目前在螢幕上的範圍(左、上、右、下)，沒有顯示回傳 None。點擊遊戲畫面時要避開，不然會點到它的按鈕(例如停止)"""
     try:
-        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-        with mss.mss() as sct:
-            img = np.array(sct.grab({"left": left, "top": top, "width": right - left, "height": bottom - top}))[::4, ::4]
-        b, g, r = (float(img[..., i].mean()) for i in range(3))  # mss 是 BGRA
-        return 0.114 * b + 0.587 * g + 0.299 * r
+        hwnd = win32gui.FindWindow(None, LOG_TITLE)
+        if hwnd and win32gui.IsWindowVisible(hwnd):
+            return win32gui.GetWindowRect(hwnd)
     except Exception:
-        return None
+        pass
+    return None
+
+
+def setPassThrough(on):
+    """讓浮動日誌暫時變成「滑鼠點擊會穿透」(on=True)或恢復正常。程式要點的位置剛好被它蓋住時，點擊才會落在下面的遊戲上"""
+    try:
+        hwnd = win32gui.FindWindow(None, LOG_TITLE)
+        if not hwnd:
+            return
+        style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+        style = style | win32con.WS_EX_TRANSPARENT if on else style & ~win32con.WS_EX_TRANSPARENT
+        win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style)
+    except Exception:
+        pass

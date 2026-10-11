@@ -47,11 +47,12 @@ def flashTaskbar():
         pass
 
 
-def notify(title, message):
-    """跳出桌面通知並讓工作列圖示閃爍，失敗(非 Windows、被系統關閉通知等)就算了，不影響主程式"""
+def notify(title, message, flash=True):
+    """跳出桌面通知並讓工作列圖示閃爍(flash=False 就只跳通知)，失敗(非 Windows、被系統關閉通知等)就算了，不影響主程式"""
     if os.name != "nt":
         return
-    flashTaskbar()
+    if flash:
+        flashTaskbar()
 
     def run():
         try:

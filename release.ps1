@@ -36,8 +36,17 @@ if ((Read-Host "確定要繼續嗎？(y/N)") -ne "y") { Write-Host "已取消"; 
 # 優先用專案的 venv，確保套件齊全
 $python = if (Test-Path "venv\Scripts\python.exe") { "venv\Scripts\python.exe" } else { "python" }
 Write-Host "打包中..."
-& $python -m PyInstaller --noconfirm --noconsole --icon icon.ico --add-data "config.default.ini;." --add-data "ui;ui" --add-data "templates;templates" --add-data "tools/ADBKeyboard.apk;tools" main.py
+& $python -m PyInstaller --noconfirm main.spec  # 打包設定(資料檔、圖示、不顯示主控台、不用 UPX)都寫在 main.spec
 if ($LASTEXITCODE -ne 0) { Fail "打包失敗" }
+
+# 3.5 依 .gitignore 清掉 dist\main 最上層被忽略的項目（執行時產生的 debug 截圖、config.ini、userdata 等），避免打進 zip
+Get-ChildItem "dist\main" -Force | Where-Object { $_.Name -notin @("main.exe", "_internal") } | ForEach-Object {
+    git check-ignore -q $_.Name
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "排除被 .gitignore 忽略的項目: $($_.Name)"
+        Remove-Item $_.FullName -Recurse -Force
+    }
+}
 
 # 4. 壓縮 (exe 要在 zip 的最上層)
 $zip = "heartopiaHelper_$tag.zip"

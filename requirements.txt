@@ -5,3 +5,10 @@ opencv-python==4.13.0.92
 pywebview==6.1
 pywin32==311
 pyinstaller==6.18.0
+winrt-runtime==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Foundation.Collections==3.2.1
+winrt-Windows.Globalization==3.2.1
+winrt-Windows.Graphics.Imaging==3.2.1
+winrt-Windows.Media.Ocr==3.2.1
+winrt-Windows.Storage.Streams==3.2.1

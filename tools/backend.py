@@ -5,11 +5,13 @@ import keyboard
 import numpy as np
 import os
 import subprocess
+import threading
 import time
 import tkinter as tk
 import win32api
 import win32clipboard
 import win32gui
+from tools import floatlog
 from tools.tools import (
     captureFullScreen,
     ScaleResolver,
@@ -37,6 +39,13 @@ BASE_WIDTH = 1600  # 模板的基準寬度
 SUPPORTED_RESOLUTIONS = ((1600, 900), (1366, 768), (1280, 720))  # 要和設定頁的解析度選項一致
 
 
+def resolutionWarningText(detected):
+    return (f"{detected}\n\n穩定版本為：\n"
+            "．電腦 1600 x 900\n"
+            "．模擬器（MuMu） 1280 x 720\n\n"
+            "其餘解析度沒有經過大量測試，可能辨識不到或點擊位置不準")
+
+
 class ScreenBackend:
     """前景模式: 截取桌面畫面、以全域滑鼠鍵盤操作，遊戲須在最上層"""
 
@@ -47,6 +56,8 @@ class ScreenBackend:
     def __init__(self, gameWindowTitle=""):
         self.scaleResolver = ScaleResolver()
         self.gameWindowTitle = gameWindowTitle
+        self._floatPassing = False  # 浮動日誌目前是不是處於「點擊穿透」
+        self._floatTimer = None
 
     def _findGame(self):
         """遊戲視窗的 hwnd；沒設定標題或找不到回傳 None"""
@@ -69,9 +80,32 @@ class ScreenBackend:
         if self.gameWindowTitle and not self._findGame():
             raise GameWindowLostError(f"找不到遊戲視窗「{self.gameWindowTitle}」，遊戲可能已關閉")
 
+    def _passThroughFloatLog(self, x, y):
+        """要操作的位置被浮動日誌蓋住時，讓它暫時不吃滑鼠(不然會點到它的按鈕，例如停止)；沒蓋住就維持正常"""
+        rect = floatlog.visibleRect()
+        covered = bool(rect) and rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]
+        if covered != self._floatPassing:
+            self._floatPassing = covered
+            floatlog.setPassThrough(covered)
+        if covered:  # 萬一移過去之後沒有接著點(例如中途按了停止)，過一下自動恢復，不然停止鈕會一直點不到
+            if self._floatTimer:
+                self._floatTimer.cancel()
+            self._floatTimer = threading.Timer(2.0, self._restoreFloatLog)
+            self._floatTimer.daemon = True
+            self._floatTimer.start()
+
+    def _restoreFloatLog(self):
+        if self._floatPassing:
+            self._floatPassing = False
+            floatlog.setPassThrough(False)
+
     def click(self, x, y):
         self._requireGame()
-        clickMouse(x, y)
+        self._passThroughFloatLog(x, y)
+        try:
+            clickMouse(x, y)
+        finally:
+            self._restoreFloatLog()
 
     def getGameRect(self):
         """遊戲畫面(客戶區)在螢幕上的範圍 (x, y, w, h)；找不到視窗或已最小化回傳 None"""
@@ -94,11 +128,14 @@ class ScreenBackend:
         self._requireGame()
         self.moveTo(x, y)
         time.sleep(0.2)
-        for _ in range(2):
-            clickMouse(int(x), int(y))
-            time.sleep(0.1)
-            clickRightMouse(int(x), int(y))
-            time.sleep(0.15)
+        try:
+            for _ in range(2):
+                clickMouse(int(x), int(y))
+                time.sleep(0.1)
+                clickRightMouse(int(x), int(y))
+                time.sleep(0.15)
+        finally:
+            self._restoreFloatLog()
 
     def gameBlocker(self):
         """前景模式下，遊戲收不到操作的原因(視窗不見了、被別的視窗蓋住)；沒問題回傳 None。沒設定視窗標題時不檢查"""
@@ -113,6 +150,7 @@ class ScreenBackend:
 
     def moveTo(self, x, y):
         """先把滑鼠移過去。遊戲的按鈕要先偵測到滑鼠懸停，第一下點擊才有效"""
+        self._passThroughFloatLog(x, y)
         win32api.SetCursorPos((int(x) - 4, int(y) - 4))
         time.sleep(0.05)
         win32api.SetCursorPos((int(x), int(y)))
@@ -136,13 +174,17 @@ class ScreenBackend:
 
     def rightClick(self, x, y):
         self._requireGame()
-        clickRightMouse(x, y)
+        self._passThroughFloatLog(x, y)
+        try:
+            clickRightMouse(x, y)
+        finally:
+            self._restoreFloatLog()
 
-    def pressKey(self, key):
-        """按一下鍵盤按鍵(按住一小段隨機時間再放開)"""
+    def pressKey(self, key, hold=None):
+        """按一下鍵盤按鍵(預設按住一小段隨機時間再放開，hold 是指定的按住秒數)"""
         self._requireGame()
         keyboard.press(key)
-        time.sleep(random.uniform(0.05, 0.14))
+        time.sleep(hold if hold is not None else random.uniform(0.05, 0.14))
         keyboard.release(key)
 
     def holdDown(self, x, y):
@@ -169,8 +211,7 @@ class ScreenBackend:
         rect = self.getGameRect()
         if not rect or any(rect[2] == sw for sw, _ in SUPPORTED_RESOLUTIONS):
             return None
-        options = "、".join(f"{sw}x{sh}" for sw, sh in SUPPORTED_RESOLUTIONS)
-        return f"偵測到遊戲解析度 {rect[2]}x{rect[3]}，不在支援的解析度內（{options}），可能辨識不到，請調整遊戲解析度"
+        return resolutionWarningText(f"偵測到遊戲解析度 {rect[2]}x{rect[3]}。")
 
     def resolutionNotice(self, config):
         """自動偵測解析度時，開始前在日誌顯示偵測結果(不支援時附上警告)。手動指定時不顯示"""
@@ -263,6 +304,10 @@ class AdbBackend:
         else:
             self._run(["shell", "input", "tap", x, y])
 
+    def swipe(self, x1, y1, x2, y2, durationMs):
+        """手指從 (x1, y1) 滑到 (x2, y2)"""
+        self._run(["shell", "input", "swipe", *(str(int(v)) for v in (x1, y1, x2, y2, durationMs))])
+
     def getGameRect(self):
         return None  # 模擬器畫面就是整張截圖
 
@@ -321,6 +366,22 @@ class AdbBackend:
         if not self._size:
             self._screencap()
         return max(self._size)
+
+    def resolutionWarning(self, config):
+        """模擬器畫面不是 1280x720 時回傳警告說明，否則回傳 None"""
+        if not self._size:
+            self._screencap()
+        w, h = max(self._size), min(self._size)
+        if (w, h) == (1280, 720):
+            return None
+        return resolutionWarningText(f"偵測到遊戲解析度 {w}x{h}。")
+
+    def resolutionNotice(self, config):
+        """開始前在日誌顯示模擬器解析度(不是 1280x720 時附上警告)"""
+        warning = self.resolutionWarning(config)
+        if warning:
+            return f"⚠️ {warning}"
+        return f"偵測到遊戲解析度：{max(self._size)}x{min(self._size)}"
 
     def _selectOnImage(self, img, isPoint, hint=""):
         ih, iw = img.shape[:2]
