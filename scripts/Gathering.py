@@ -429,7 +429,7 @@ class GatherBase(Fishing):
             if self._toolBroken:
                 self._toolBroken = False
                 self._brokenStreak += 1
-                if "repair" in self.disabled or not self._flag("fishingUseRepair") or self._brokenStreak > BROKEN_MAX_STREAK:
+                if "repair" in self.disabled or self._brokenStreak > BROKEN_MAX_STREAK:  # 沒勾定時丟維修盒也一樣，耐久耗盡就丟
                     self._alert("工具耐久耗盡，無法繼續，已停止（請補充維修盒或檢查設定）")
                     stopEvent.set()
                     self.setLog(LOG_DIVIDER)
