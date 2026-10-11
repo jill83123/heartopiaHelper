@@ -62,7 +62,11 @@ USES_ONE_MAX_ASPECT = 0.42  # 「1」是細細一條，寬／高不會超過這�
 USES_MIN_CONTRAST = 40  # 底色與字最深的地方至少差這麼多亮度，否則當作沒有字
 USES_SLASH_MAX_FILL = 0.38  # 斜線比數字空，用字的像素佔外框的比例分辨
 # 釣到新紀錄的魚時，畫面會停在對話框(「太棒了！釣到了新紀錄的…」)，要點一下才會繼續，期間沒有任何選單。
-# 對話框是畫面下方中間一塊白色圓角框(文字內容每次不同)，所以用「這個範圍幾乎都是白的」來判斷
+# 對話框是畫面下方中間一塊白色圓角框(文字內容每次不同)，所以看框左右兩端(沒有文字的地方)是不是整片白的來判斷
+DIALOG_SIDES = ((0.24, 0.32), (0.68, 0.76))  # 對話框左右兩端的範圍(佔遊戲畫面寬的比例)
+DIALOG_TOP, DIALOG_BOTTOM = 0.83, 0.93  # 對話框上下範圍(佔遊戲畫面高的比例)
+DIALOG_WHITE = 235  # 三個色頻都要這麼亮才算白(實測對話框 246 以上，沙灘、浪花都在 200 以下或不成片)
+DIALOG_FILL = 0.97  # 兩端都要有這個比例以上是白的
 # 吃食物有兩種時機: 每隔設定的分鐘數吃一次，或操作中剛好看得到體力條(地圖旁邊)且低於設定的 % 數就吃。
 # 不會為了看飽食度特地開背包。看到的飽食度高於設定的 % 就不吃，並把定時的下一次往後延一個間隔
 SATIETY_BAR = (-4, -18, 200, 18)  # 體力條範圍，相對於體力圖示中心: 左、上、右、下(1600 寬)
@@ -89,7 +93,6 @@ PERFUME_REACTION_RANGE = (6.0, 9.0)  # 圖示要「連續」消失這麼久(秒)
 CASTING_LOOK_SECONDS = 40  # 拋竿中看不到圖示；有香水魚很快上鉤，連續拋竿超過這麼久都沒釣到魚，就收竿回主畫面看看香水還在不在
 START_PERFUME_CHECKS = 8  # 剛開始運行時，主畫面連續這麼多次看不到香水圖示才噴(約 2 秒)，避免漏看
 PERFUME_ICON_GRACE = 25  # 噴完香水後，地圖下方的圖示要多久內出現(秒)，超過還沒出現就再噴
-PERFUME_EXPIRY_MARGIN = 8  # 自己噴的香水，距離持續時間還剩這麼多秒以上，就算看不到圖示也不補噴
 PERFUME_READ_BIAS = 6  # 從灰色角度讀出來的剩餘量會偏低(實測 57 秒時讀 44%，實際約 52%)，加上這個修正
 PERFUME_LOOSE_SCORE = 0.62  # 判斷「香水還在不在」用的寬鬆門檻(旁邊的鞋子效果圖示只有約 0.57)，寧可誤認為還在，也不要誤噴
 PERFUME_EXPIRED_REACTION_RANGE = (1.5, 3.0)  # 自己噴的香水，已超過持續時間又看不到圖示時，圖示要連續消失這麼久(秒)就補噴
@@ -99,6 +102,7 @@ PERFUME_RECHECK = 3  # 決定要噴之前，最後再各隔 0.4 秒重新截圖�
 BAIT_PLACED_GRACE = 15  # 放完誘魚器後，水面的魚尾光柱要多久內出現(秒)；這段時間不重複判斷
 BAIT_MISS_READS_EXPIRED = 3  # 放下去已經超過誘魚器的時效，要連續這麼多次看不到魚尾就算結束
 BAIT_MISS_READS = 8  # 水面連續這麼多次都看不到魚尾，才算誘魚器沒效果了、需要再放
+BAIT_CAST_MISS_SECONDS = 10  # 拋竿中看不到魚尾，要連續這麼久(秒)才收竿去放誘魚器
 BAIT_NOT_SEEN_LIMIT = 2  # 連續放了這麼多次都看不到魚尾，就不再靠魚尾判斷，改回照間隔時間放
 TAIL_BEAM_SIZE = (35, 200, 35, 220)  # 魚尾光柱的寬、高範圍: 最小寬、最大寬、最小高、最大高(1600 寬為基準)
 TAIL_BEAM_FILL = 0.74  # 光柱的方框裡至少要有多少比例是白青色(實測光柱 0.82~0.85，容易誤判的海浪、水圈在 0.73 以下)
@@ -178,6 +182,7 @@ class Fishing(BaseTask):
         self._noMoreFood = False  # 這一輪吃到沒有食物了
         self._ate = False  # 這一輪有沒有真的吃下去
         self._baitSeen = False  # 放完誘魚器後有沒有看過水面的魚尾
+        self._castMissSince = None  # 拋竿中從什麼時候開始連續看不到魚尾
         self._baitMiss = 0  # 水面連續幾次看不到魚尾
         self._baitNotSeen = 0  # 連續幾次放完都沒看到魚尾
         self._tailOff = False  # 魚尾偵測看起來沒作用，改回照間隔時間放誘魚器
@@ -235,6 +240,7 @@ class Fishing(BaseTask):
         if name == "bait":
             self._baitSeen = False
             self._baitMiss = 0
+            self._castMissSince = None
         if name == "perfume":
             self._missingSince = None
             self._iconSeen = False
@@ -353,10 +359,11 @@ class Fishing(BaseTask):
             self._baitChecked = True
             self._baitSeen = True
             self._baitMiss = 0
+            self._castMissSince = None
             self._baitNotSeen = 0
             if self._tailLogged != "active":
                 self._saveTailShot(img)
-            self._baitState("active", "水面已有誘魚器")
+            self._baitState("active", "✅ 水面已有誘魚器")
             return False
         if last is not None and time.time() - last < BAIT_PLACED_GRACE:
             return False
@@ -397,10 +404,14 @@ class Fishing(BaseTask):
                 self._baitChecked = True
                 self._baitSeen = True
                 self._baitMiss = 0
+                self._castMissSince = None
                 return False
             if last is None or time.time() - last >= BAIT_PLACED_GRACE:
                 self._baitMiss += 1
-            return self._baitMiss >= self._baitMissNeeded()
+                if self._castMissSince is None:
+                    self._castMissSince = time.time()
+            # 咬鉤、收線的瞬間光柱也會暫時看不到，要連續看不到夠久才收竿，不然會魚還沒上來就把竿收了
+            return self._baitMiss >= self._baitMissNeeded() and self._castMissSince is not None and time.time() - self._castMissSince >= BAIT_CAST_MISS_SECONDS
         if name == "bait" and self._flag("fishingSkipTail") and not self._tailOff:
             return self._baitDue(img)
         last = self.lastDone.get(name)
@@ -414,11 +425,11 @@ class Fishing(BaseTask):
                 self._sprayNoIcon = 0
                 self._missingSince = None
                 if last is not None and not self._iconSeen:
-                    self.setLog("香水已生效")
+                    self.setLog("✅ 香水已生效")
                 self._iconSeen = True
                 if last is None:  # 開始前已經噴過，從現在開始計時
                     left = self._perfumeLeft(img)
-                    self.setLog("已有香水效果，先不噴")
+                    self.setLog("✅ 已有香水效果")
                     self._markDone(name)
                     if left is not None:  # 接著只在降到比現在更低的一格時才記
                         left = min(100, left + PERFUME_READ_BIAS)
@@ -438,11 +449,6 @@ class Fishing(BaseTask):
                 if self._perfumeStillThere():
                     self._startMiss = 0
                     return False
-            if last is not None and self._ownSpray and self._iconSeen and time.time() - last < ITEM_DURATION["perfume"] - PERFUME_EXPIRY_MARGIN:
-                # 這瓶是自己噴的、噴完也看過圖示，香水還沒到持續時間就看不到圖示，多半是圖示被計時的灰色蓋住認不出來，不是真的沒了。
-                # 寧可晚幾秒補噴，也不要在香水還有一半時浪費掉一瓶
-                self._missingSince = None
-                return False
             if last is not None:
                 # 不是一發現就噴，隔一兩秒才反應
                 if self._missingSince is None:
@@ -622,7 +628,7 @@ class Fishing(BaseTask):
         for _ in range(PERFUME_RECHECK):
             time.sleep(0.4)
             if self._hasPerfumeIcon(self._shot(), loose=True):
-                self.setLog("再確認一次，看到香水圖示，不補噴")
+                self.setLog("偵測到香水圖示，不補噴")
                 self._missingSince = None
                 return True
         return False
@@ -923,6 +929,7 @@ class Fishing(BaseTask):
                 continue
             if view == "full":
                 return img, view
+        self._saveShot(self._shot(), "bagview")
         raise RuntimeError("背包打開後找不到搜尋圖示，背包可能不是預設狀態，請先清除搜尋、篩選與分類，回到完整清單")
 
     def _openBagFilter(self, stopEvent, shouldContinue=None):
@@ -1566,6 +1573,8 @@ class Fishing(BaseTask):
                 self._closeBag(stopEvent)
 
             else:
+                if time.time() - self._newFishAt >= NEW_FISH_CLICK_SECONDS and self._hasDialog(img):
+                    self._markNewFish("對話框", img)  # 提示卡沒抓到，只剩下對話框(畫面被蓋住才檢查，不會把主畫面誤判)
                 if time.time() - self._newFishAt < NEW_FISH_CLICK_SECONDS:
                     # 釣到新魚會跳出對話框，點螢幕任何一處就能點掉。不去辨識對話框(浪花、沙灘會被誤認)，
                     # 看到「新圖鑑」字樣或星星卡之後，畫面進入介面被蓋住的狀態就直接點
@@ -1613,6 +1622,16 @@ class Fishing(BaseTask):
         if region.size > 0 and self._find(region, "newFishMark") is not None:
             return True
         return self._hasStarCard(img)
+
+    def _hasDialog(self, img):
+        """畫面下方中間有白色圓角對話框(「太棒了！第一次釣到…」「釣到了新紀錄的…」)。
+        文字在框中間，所以只看左右兩端兩塊，兩塊都是整片白色才算，沙灘、浪花不會"""
+        x, y, w, h = self._gameRect(img)
+        for left, right in DIALOG_SIDES:
+            roi = img[max(0, y + int(h * DIALOG_TOP)) : y + int(h * DIALOG_BOTTOM), max(0, x + int(w * left)) : x + int(w * right), :3]
+            if roi.size == 0 or (roi.min(axis=2) >= DIALOG_WHITE).mean() < DIALOG_FILL:
+                return False
+        return True
 
     def _hasStarCard(self, img):
         """右側(離最上排的圖示列一段距離)有金黃色實心星星 = 新星數的星星卡。
