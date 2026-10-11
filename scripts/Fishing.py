@@ -1014,6 +1014,8 @@ class Fishing(BaseTask):
                 continue
             if view == "full":
                 return img, view
+        resolver = self.backend.scaleResolver
+        self._trace(f"背包畫面認不出來：縮放倍率 {resolver.factor}（{'已鎖定' if resolver.locked else '未鎖定'}）")
         self._saveShot(self._shot(), "bagview")
         raise RuntimeError("背包打開後找不到搜尋圖示，背包可能不是預設狀態，請先清除搜尋、篩選與分類，回到完整清單")
 

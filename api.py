@@ -15,7 +15,7 @@ from tools.backend import AdbBackend, createBackend
 from tools import floatlog
 from tools.updater import Updater, checkUpdate, isReleasePage
 from version import VERSION
-from tools.tools import autoRepairMinutes, getConfigPath, getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
+from tools.tools import autoRepairMinutes, getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
 from scripts.Cooking import Cooking
 from scripts.Fishing import Fishing
 from scripts.PlantGathering import PlantGathering

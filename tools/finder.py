@@ -33,6 +33,11 @@ def resolveScale(backend, config, img, templatePath):
     resolver = backend.scaleResolver
     baseScale = getBaseScale(backend, config)
 
+    # 模擬器的畫面大小固定、介面也沒有縮放設定，依解析度算出的縮放就是對的；試其他倍率只會被背景誤導
+    # (實測曾在主畫面誤鎖到 0.9，之後背包畫面全部認不出來)，所以模擬器模式不試
+    if config.get("controlMode", "screen").lower() == "adb":
+        return baseScale
+
     # 沒鎖定時每次都試 7 個倍率很慢(整張畫面比對 7 次，約 0.3 秒，每個模板都要)，隔幾秒試一次就夠
     if not resolver.locked and time.time() - getattr(resolver, "probedAt", 0) >= PROBE_INTERVAL:
         resolver.probedAt = time.time()
