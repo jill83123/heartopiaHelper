@@ -39,6 +39,13 @@ BASE_WIDTH = 1600  # 模板的基準寬度
 SUPPORTED_RESOLUTIONS = ((1600, 900), (1366, 768), (1280, 720))  # 要和設定頁的解析度選項一致
 
 
+def resolutionWarningText(detected):
+    return (f"{detected}\n\n穩定版本為：\n"
+            "．電腦 1600 x 900\n"
+            "．模擬器（MuMu） 1280 x 720\n\n"
+            "其餘解析度沒有經過大量測試，可能辨識不到或點擊位置不準")
+
+
 class ScreenBackend:
     """前景模式: 截取桌面畫面、以全域滑鼠鍵盤操作，遊戲須在最上層"""
 
@@ -204,8 +211,7 @@ class ScreenBackend:
         rect = self.getGameRect()
         if not rect or any(rect[2] == sw for sw, _ in SUPPORTED_RESOLUTIONS):
             return None
-        options = "、".join(f"{sw}x{sh}" for sw, sh in SUPPORTED_RESOLUTIONS)
-        return f"偵測到遊戲解析度 {rect[2]}x{rect[3]}，不在支援的解析度內（{options}），可能辨識不到，請調整遊戲解析度"
+        return resolutionWarningText(f"偵測到遊戲解析度 {rect[2]}x{rect[3]}。")
 
     def resolutionNotice(self, config):
         """自動偵測解析度時，開始前在日誌顯示偵測結果(不支援時附上警告)。手動指定時不顯示"""
@@ -360,6 +366,22 @@ class AdbBackend:
         if not self._size:
             self._screencap()
         return max(self._size)
+
+    def resolutionWarning(self, config):
+        """模擬器畫面不是 1280x720 時回傳警告說明，否則回傳 None"""
+        if not self._size:
+            self._screencap()
+        w, h = max(self._size), min(self._size)
+        if (w, h) == (1280, 720):
+            return None
+        return resolutionWarningText(f"偵測到遊戲解析度 {w}x{h}。")
+
+    def resolutionNotice(self, config):
+        """開始前在日誌顯示模擬器解析度(不是 1280x720 時附上警告)"""
+        warning = self.resolutionWarning(config)
+        if warning:
+            return f"⚠️ {warning}"
+        return f"偵測到遊戲解析度：{max(self._size)}x{min(self._size)}"
 
     def _selectOnImage(self, img, isPoint, hint=""):
         ih, iw = img.shape[:2]
