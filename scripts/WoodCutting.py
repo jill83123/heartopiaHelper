@@ -6,4 +6,4 @@ class WoodCutting(GatherBase):
 
     prefix = "wood"
     label = "砍木頭"
-    pressGap = (0.3, 0.8)
+    pressGap = (0.15, 0.4)  # 連點的間隔(秒)

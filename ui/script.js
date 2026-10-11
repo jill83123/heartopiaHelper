@@ -350,32 +350,13 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
       <input type="checkbox" class="setting-check" id="${p}UseRepair" data-key="${p}UseRepair" />
       <span class="item-icon"><img data-tpl="iconRepairBox" alt="" hidden /></span>
       <label for="${p}UseRepair">丟維修盒</label>
-    </div>`
-        : ''
-    }
-    ${
-      tool
-        ? `<div class="check sub no-icon mb-8">
-      <label for="${p}AutoRepair">間隔</label>
-      <select id="${p}AutoRepair" class="setting input" data-key="${p}AutoRepair" style="width: auto">
-        <option value="True">自動計算（依${tool}耐久）</option>
-        <option value="False">手動設定</option>
-      </select>
-    </div>
-    <div class="check sub no-icon mb-8" data-repair-auto="${p}">
-      <span class="label-wrap">
-        <label for="${p}Durability">${tool}耐久</label>
-        <button type="button" class="help-btn" data-help="tool-durability" aria-label="說明"><svg class="icon" aria-hidden="true"><use href="#i-circle-help"/></svg></button>
-      </span>
-      <input type="number" min="1" step="1" class="setting input qty" id="${p}Durability" data-key="${p}Durability" />
-      ${resetIcon(`${p}Durability`)}
-      <span class="muted fs-12" id="${p}RepairAutoText"></span>
-    </div>
-    <div class="check sub no-icon mb-8" data-repair-manual="${p}">
       <span class="muted fs-12">每</span>
       <input type="number" min="0.5" step="0.5" class="setting input qty" id="${p}RepairMinutes" data-key="${p}RepairMinutes" />
       <span class="muted fs-12">分鐘</span>
       ${resetIcon(`${p}RepairMinutes`)}
+    </div>
+    <div class="check sub no-icon always-on mb-8" style="margin-top: -4px">
+      <span class="muted fs-12">＊ 不論有無勾選，工具耐久耗盡時都會嘗試丟維修盒</span>
     </div>`
         : ''
     }
@@ -478,21 +459,6 @@ const fillAdbDetails = () => {
 };
 fillAdbDetails();
 
-// 維修盒間隔選「自動計算」時顯示耐久欄位與算出的間隔，選「手動設定」時顯示分鐘欄位
-const syncRepairAuto = async () => {
-  for (const { prefix } of GATHER_KINDS) {
-    const mode = document.querySelector(`#${prefix}AutoRepair`);
-    if (!mode) continue;
-    const auto = mode.value === 'True';
-    document.querySelectorAll(`[data-repair-auto="${prefix}"]`).forEach((el) => (el.hidden = !auto));
-    document.querySelectorAll(`[data-repair-manual="${prefix}"]`).forEach((el) => (el.hidden = auto));
-    if (!auto) continue;
-    const minutes = await getApi().apiGetRepairMinutes(prefix);
-    document.querySelector(`#${prefix}RepairAutoText`).textContent =
-      minutes == null ? '請填寫正確的耐久、次數與定時時間' : `→ 約每 ${minutes} 分鐘丟一次`;
-  }
-};
-
 // 「目前菜品」的範例圖: 遊戲食譜介面的實際截圖，紅框是要框選的菜名
 const DISH_EXAMPLE = 'dish-example.png';
 const BUBBLE_EXAMPLE = 'bubble-example.png';
@@ -501,10 +467,6 @@ const HELP_TEXTS = {
   'no-pickup': {
     title: '多久沒採到東西就停止',
     message: '倒數圖示和獲得物品氣泡都超過這個時間沒出現才停止。\n可避免角色位置不小心改變，出現空揮工具等情況。',
-  },
-  'tool-durability': {
-    title: '工具耐久',
-    message: ['發展家等級 48 為 200。', '發展家等級 63 為 220。', '', '丟維修盒的間隔（分鐘）＝ 耐久 × 0.51 ÷ 每輪次數 × 定時秒數 ÷ 60。'].join('\n'),
   },
   'bubble-example': {
     title: '泡泡區域範圍',
@@ -803,7 +765,6 @@ const handleSettingChange = async (e) => {
   });
   syncAdbPresets();
   await getApi().apiWriteSetting(key, value);
-  syncRepairAuto();
 };
 
 // 料理數量超過建議值(3 份)時提示
@@ -923,7 +884,7 @@ const syncChildVisibility = () => {
     const toggle = parent.querySelector(':scope > .setting-check');
     if (!toggle) return;
     for (let el = parent.nextElementSibling; el && el.matches('.check.sub, .row'); el = el.nextElementSibling) {
-      el.classList.toggle('child-off', !toggle.checked);
+      if (!el.matches('.always-on')) el.classList.toggle('child-off', !toggle.checked); // always-on: 不隨母選項隱藏的說明列
     }
   });
 };
@@ -961,7 +922,6 @@ const fillSettings = (settings) => {
   syncFgVisibility();
   syncGatherKind();
   syncFloatLogRow();
-  syncRepairAuto();
   safeModeToggle.checked = String(settings.isSafeMode).toLowerCase() === 'true';
   fiveStarToggle.checked = String(settings.stopAtFiveStar).toLowerCase() === 'true';
 

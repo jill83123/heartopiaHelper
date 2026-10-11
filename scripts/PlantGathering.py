@@ -6,4 +6,4 @@ class PlantGathering(GatherBase):
 
     prefix = "plant"
     label = "採集植物"
-    pressGap = (0.2, 0.6)
+    pressGap = (0.15, 0.4)  # 連點的間隔(秒)

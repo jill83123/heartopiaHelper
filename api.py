@@ -15,7 +15,7 @@ from tools.backend import AdbBackend, createBackend
 from tools import floatlog
 from tools.updater import Updater, checkUpdate, isReleasePage
 from version import VERSION
-from tools.tools import autoRepairMinutes, getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
+from tools.tools import getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
 from scripts.Cooking import Cooking
 from scripts.Fishing import Fishing
 from scripts.PlantGathering import PlantGathering
@@ -500,10 +500,6 @@ class Api:
             self._templateImages = images
         return self._templateImages
 
-    def apiGetRepairMinutes(self, kind):
-        """採集功能自動計算的維修盒間隔(分鐘)，讓介面顯示"""
-        return autoRepairMinutes(self.config, kind) if kind in GATHER_TASKS else None
-
     def apiGetDefaults(self):
         """所有設定的預設值，讓介面在欄位旁邊顯示並可一鍵還原"""
         return dict(CONFIG_DEFAULTS)
@@ -658,10 +654,6 @@ class Api:
             config[f"fishing{key}"] = value or CONFIG_DEFAULTS.get(f"fishing{key}", "")
         if kind == "plant":
             config["fishingUseFood"] = "False"  # 無工具的採集不用吃食物(以前存下的設定也不再生效)
-        if str(config.get(f"{kind}AutoRepair", "False")).lower() == "true":
-            minutes = autoRepairMinutes(config, kind)
-            if minutes is not None:
-                config["fishingRepairMinutes"] = str(minutes)
         for key in ("AutoCast", "UseBait", "RepairNow"):
             config[f"fishing{key}"] = "False"
         return config
