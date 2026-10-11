@@ -255,6 +255,8 @@ def matchBest(screenImg, templatePath, threshold, scale):
             screenGray, offX, offY = region, x0, y0
     res = cv2.matchTemplate(screenGray, template, cv2.TM_CCOEFF_NORMED, mask=mask)
     res = np.nan_to_num(res, nan=0.0, posinf=0.0, neginf=0.0)  # 有遮罩時全平坦的區域會算出 nan
+    if mask is not None:
+        res[(res > 1.0) | (res < -1.0)] = 0.0  # 有遮罩時平坦區域還會算出幾億的假分數，不能讓它過門檻
     _, score, _, loc = cv2.minMaxLoc(res)
     if score < threshold:
         return None
@@ -336,14 +338,18 @@ DEFAULT_THRESHOLDS = {
     "snowStartBtn": 0.7,
     "snowflake": 0.7,
     "snowCompleted": 0.7,
-    "bagBtn": 0.75,
+    "bagBtn": 0.62,  # 沙灘背景上主畫面約 0.76、拋竿中(沒有背包鈕)最高 0.49，取中間
     "castBtn": 0.7,
     "biteMark": 0.75,
+    "newFishMark": 0.8,
+    "noStamina": 0.7,
+    "noStaminaShort": 0.82,  # 和其他提示的字有些重疊，其他提示會有 0.65~0.76
+    "toolBroken": 0.7,
     "usesLabel": 0.7,
-    "staminaIcon": 0.7,
+    "staminaIcon": 0.45,  # 圖示是半透明的，實測 0.48~0.8 都有(原本的 0.7 會認不到，飽食度就讀不到)；只在左上角固定位置附近找，後面還會檢查有沒有體力條
     "endFilterBtn": 0.9,
     "endSearchBtn": 0.9,
-    "filterHeaderFishing": 0.85,
+    "filterHeaderFishing": 0.93,  # 「篩選：園藝用品」實測 0.87，不能誤認
     "keepOff": 0.85,
     "toolBtn": 0.75,
     "closeBtn": 0.75,
@@ -360,7 +366,7 @@ DEFAULT_THRESHOLDS = {
     "eatBtn": 0.75,
     "repairBoxItem": 0.75,
     "castBadge": 0.7,
-    "toolBroken": 0.6,
+    "toolBroken": 0.7,
     "respawnPlant": 0.6,
     "respawnWood": 0.6,
     "respawnMushroom": 0.6,
@@ -370,6 +376,8 @@ DEFAULT_THRESHOLDS = {
 
 # 整體嚴格度: 在各項閥值上統一加減，抓不到就選「寬鬆」，誤判太多就選「嚴格」
 STRICTNESS_OFFSETS = {"loose": -0.1, "normal": 0.0, "strict": 0.05}
+
+LOG_DIVIDER = " "  # 任務停止後在日誌空一行(用不換行空格，浮動日誌的空 div 才不會縮掉)，setLog 看到整行就是它時不加時間
 
 CONFIG_DEFAULTS = {
     "controlMode": "screen",
@@ -383,46 +391,44 @@ CONFIG_DEFAULTS = {
     "expectedCookQty": "50",
     "isSafeMode": "True",
     "stopAtFiveStar": "False",
+    "debugMode": "False",
     "safeModeQty": "3",
     "detectFrequency": "0.05",
     "clickFrequency": "0.05",
     "snowDetectFrequency": "0.05",
     "matchStrictness": "normal",
     "floatLogEnabled": "True",
-    "floatLogAutoClose": "True",
+    "floatLogForeground": "False",
+    "floatLogBackground": "True",
+    "floatLogAutoClose": "False",
     "floatLogPosition": "screen",
-    "floatLogAutoTheme": "True",
-    "floatLogThemeSeconds": "3",
+    "floatLogTheme": "dark",
     "floatLogHeight": "132",
     "fishingDetectFrequency": "0.2",
     "fishingEnabled": "True",
     "fishingAutoCast": "True",
-    "fishingPerfumeSeconds": "123",
+    "fishingFaceFront": "True",
+    "fishingSkipTail": "False",
     "fishingUseBait": "True",
-    "fishingBaitSeconds": "63",
     "fishingUseFood": "True",
     "fishingFoodKeepLast": "True",
-    "fishingFoodBan5": "True",
     "fishingFoodName": "",
-    "fishingFoodStars": "0",
-    "fishingFoodMinutes": "10",
-    "fishingFoodBelow": "50",
+    "fishingFoodStars": "14",
+    "fishingFoodUntil": "99",
     "fishingUseRepair": "False",
     "fishingRepairNow": "False",
     "fishingRepairMinutes": "15",
     # 背景定時(模擬器)
     "fishingAltEnabled": "False",
     "fishingAltAutoCast": "False",
-    "fishingAltPerfumeSeconds": "123",
+    "fishingAltFaceFront": "True",
+    "fishingAltSkipTail": "False",
     "fishingAltUseBait": "True",
-    "fishingAltBaitSeconds": "63",
     "fishingAltUseFood": "False",
     "fishingAltFoodKeepLast": "True",
-    "fishingAltFoodBan5": "True",
     "fishingAltFoodName": "",
-    "fishingAltFoodStars": "0",
-    "fishingAltFoodMinutes": "10",
-    "fishingAltFoodBelow": "50",
+    "fishingAltFoodStars": "14",
+    "fishingAltFoodUntil": "99",
     "fishingAltUseRepair": "False",
     "fishingAltRepairNow": "False",
     "fishingAltRepairMinutes": "15",
@@ -438,21 +444,17 @@ CONFIG_DEFAULTS = {
     "woodIntervalSeconds": "120",
     "woodUseFood": "False",
     "woodFoodKeepLast": "True",
-    "woodFoodBan5": "True",
     "woodFoodName": "",
-    "woodFoodStars": "0",
-    "woodFoodMinutes": "10",
-    "woodFoodBelow": "50",
+    "woodFoodStars": "14",
+    "woodFoodUntil": "99",
     "woodFoodLock": "True",
-    "woodUseRepair": "True",
-    "woodAutoRepair": "True",
-    "woodDurability": "200",
+    "woodUseRepair": "False",
     "woodRepairMinutes": "15",
     **{f"{name}Threshold": str(value) for name, value in DEFAULT_THRESHOLDS.items()},
 }
 
 # 「還原設定值」不會動的項目: 跟使用者的環境有關(操作模式、ADB、解析度、停止鍵)，還原後還要重填很麻煩
-RESET_EXCLUDED_KEYS = {"floatLogEnabled", "floatLogAutoClose", "floatLogPosition", "floatLogHeight", "controlMode", "gatherKind", "adbPath", "adbDevice", "screenResolution", "uiScale", "gameWindowTitle", "stopKey", "cookDishRecordedAt"}
+RESET_EXCLUDED_KEYS = {"floatLogEnabled", "floatLogForeground", "floatLogBackground", "floatLogAutoClose", "floatLogPosition", "floatLogTheme", "floatLogHeight", "controlMode", "gatherKind", "adbPath", "adbDevice", "screenResolution", "uiScale", "gameWindowTitle", "stopKey", "cookDishRecordedAt"}
 
 
 def getThreshold(config, name):
@@ -492,16 +494,11 @@ def fishingItemChecks(config, prefix, who):
         return None
 
     checks = []
-    if on("AutoCast"):
-        checks.append(number("PerfumeSeconds", "香水間隔", 30, isInt=True))
-    if on("UseBait"):
-        checks.append(number("BaitSeconds", "誘魚器間隔", 10, isInt=True))
     if on("UseFood"):
-        checks.append(number("FoodMinutes", "吃食物間隔", 0.5))
-        checks.append(number("FoodBelow", "吃食物的飽食度", 1, isInt=True))
+        checks.append(number("FoodUntil", "吃到的飽食度", 1, isInt=True))
         try:
-            if int(config.get(f"{prefix}FoodBelow")) > 99:
-                checks.append(f"「{who}吃食物的飽食度」不能大於 99")
+            if int(config.get(f"{prefix}FoodUntil")) > 100:
+                checks.append(f"「{who}吃到的飽食度」不能大於 100")
         except (TypeError, ValueError):
             pass
         if not config.get(f"{prefix}FoodName", "").strip():
@@ -510,25 +507,6 @@ def fishingItemChecks(config, prefix, who):
     if on("UseRepair"):
         checks.append(number("RepairMinutes", "維修盒間隔", 0.5))
     return checks
-
-
-# 維修盒回復工具耐久: 每秒 3%、持續 17 秒，約回復耐久上限的 51%。自動計算間隔時間隔剛好用完一個維修盒的回復量(耐久從滿的開始，丟下去剛好回滿，不會浪費維修盒；真的見底還有「工具耐久耗盡」的提示補救)
-REPAIR_RESTORE_RATIO = 0.51
-REPAIR_SAFETY = 1.0
-
-
-def autoRepairMinutes(config, prefix):
-    """依工具耐久上限、每輪消耗(次數 × 每次 -1)與定時時間，算出多久丟一次維修盒(分鐘)。設定不正確時回傳 None"""
-    try:
-        durability = float(config.get(f"{prefix}Durability"))
-        count = int(config.get(f"{prefix}Count"))
-        roundSeconds = float(config.get(f"{prefix}IntervalSeconds"))
-    except (TypeError, ValueError):
-        return None
-    if durability < 1 or count < 1 or roundSeconds <= 0:
-        return None
-    rounds = durability * REPAIR_RESTORE_RATIO * REPAIR_SAFETY / count
-    return max(1.0, round(rounds * roundSeconds / 60, 1))
 
 
 # 採集功能的設定名稱開頭 -> 訊息裡的稱呼
@@ -578,8 +556,6 @@ def validateConfig(config, task):
                 checks.append(f"「沒採到東西就停止的分鐘數」要大於定時時間的 2 倍（至少 {interval * 2 / 60:.1f} 分鐘），否則等下一輪的時候就會誤停")
         except (TypeError, ValueError):
             pass
-        if config.get(f"{task}AutoRepair", "False").lower() == "true" and config.get(f"{task}UseRepair", "False").lower() == "true":
-            checks.append(number(f"{task}Durability", "工具耐久", 1))
         checks += fishingItemChecks(config, task, who)
     elif task == "fishing":
         checks.append(number("fishingDetectFrequency", "偵測頻率", 0.1))
@@ -615,21 +591,56 @@ def _isValidLike(default, value):
         return False
 
 
+# 預設值有調整、但舊使用者的設定檔已經存了舊預設值時，靠這張表更新: {版本: {設定名稱: (舊預設值, 新預設值)}}
+# 只有使用者的值還是舊預設值才會換(自己調過的不動)。要新增時把 CONFIG_VERSION 加 1 並加一組
+CONFIG_VERSION = 4
+CONFIG_VALUE_MIGRATIONS = {
+    1: {"filterHeaderFishingThreshold": ("0.85", "0.93")},
+    2: {"staminaIconThreshold": ("0.7", "0.6")},
+    3: {"staminaIconThreshold": ("0.6", "0.5")},
+    4: {"staminaIconThreshold": ("0.5", "0.45")},
+}
+
+
+def _migrateDefaultValues(current):
+    """把設定檔裡仍是舊預設值的項目換成新預設值，並記下 configVersion。回傳有沒有改動"""
+    try:
+        version = int(current.get("configVersion", 0))
+    except ValueError:
+        version = 0
+    if version >= CONFIG_VERSION:
+        return False
+    for target, changes in CONFIG_VALUE_MIGRATIONS.items():
+        if target <= version:
+            continue
+        for key, (old, new) in changes.items():
+            try:
+                same = float(current.get(key)) == float(old)
+            except (TypeError, ValueError):
+                same = False
+            if same:
+                current[key] = new
+    current["configVersion"] = str(CONFIG_VERSION)
+    return True
+
+
 def migrateConfig():
     """啟動時整理設定檔，原則是不動使用者原本的設定:
     1. 更新後新增的設定項目，補上預設值(附加在檔案最後)
     2. 只有「衝突」才改: 已存在的值型別不對(數字被留空、布林變成別的文字)，換回預設值
-    3. 動手前把原檔備份成 userdata/config.ini.bak，萬一有問題可以手動還原
+    3. 預設值調整過的項目，使用者還是舊預設值的話換成新的(見 CONFIG_VALUE_MIGRATIONS)
+    4. 動手前把原檔備份成 userdata/config.ini.bak，萬一有問題可以手動還原
     回傳被修正的項目名稱"""
     path = getConfigPath()
     current = _readConfigFile()
     added = {k: v for k, v in CONFIG_DEFAULTS.items() if k not in current}
     fixed = {k: CONFIG_DEFAULTS[k] for k, v in current.items() if k in CONFIG_DEFAULTS and not _isValidLike(CONFIG_DEFAULTS[k], v)}
-    if not added and not fixed and current.get("floatLogPosition") != "game":
+    if not added and not fixed and current.get("configVersion") == str(CONFIG_VERSION) and current.get("floatLogPosition") != "game":
         return []
     shutil.copyfile(path, getUserDataPath("config.ini.bak"))
     current.update(added)
     current.update(fixed)
+    _migrateDefaultValues(current)
     if current.get("floatLogPosition") == "game":  # 已移除的選項(遊戲左下角)，改回螢幕左下角
         current["floatLogPosition"] = "screen"
     with open(path, "w", encoding="utf-8") as f:
@@ -638,8 +649,23 @@ def migrateConfig():
     return list(fixed)
 
 
+def _migrateFoodBan5(config):
+    """舊版有獨立的「不吃 5 星」設定: 星級「不限」又勾了它，等於新版的「1-4 星」(14)；沒勾就是「全部」(0)。換算後移除舊設定。回傳有沒有改動"""
+    legacy = [key for key in config if key.endswith("FoodBan5")]
+    for key in legacy:
+        starsKey = key[: -len("FoodBan5")] + "FoodStars"
+        if config.get(starsKey, "0") == "0" and config[key].lower() == "true":
+            config[starsKey] = "14"
+        del config[key]
+    return bool(legacy)
+
+
 def readConfig():
     config = _readConfigFile()
+    if _migrateFoodBan5(config):
+        with open(getConfigPath(), "w", encoding="utf-8") as f:
+            for k, v in config.items():
+                f.write(f"{k}={v}\n")
     for key, value in CONFIG_DEFAULTS.items():
         config.setdefault(key, value)
     return config

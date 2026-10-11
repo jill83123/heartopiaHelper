@@ -23,6 +23,13 @@ if sys.stdout is None:
     sys.stdout = open(os.devnull, "w", encoding="utf-8")
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
+# 沒有主控台的視窗程式，stdout 是系統預設編碼(繁中 Windows 是 cp950)的串流，印到 ✅、⚠️ 這類符號會丟出 UnicodeEncodeError，
+# 讓正在寫日誌的執行緒默默死掉(釣魚就停在那裡不動)。編碼不動，只讓印不出來的字元換成 ?，不再丟例外
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(errors="replace")
+    except Exception:
+        pass
 
 api = Api()
 

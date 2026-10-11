@@ -40,6 +40,9 @@ const THRESHOLD_FIELDS = {
     ['castBadge', '拋竿按鈕 F 標記（電腦版）'],
     ['perfumeBuff', '香水效果圖示'],
     ['biteMark', '咬鉤驚嘆號'],
+    ['newFishMark', '新圖鑑提示'],
+    ['noStamina', '體力不足提示'],
+    ['toolBroken', '工具耐久耗盡提示'],
     ['bagBtn', '背包圖示'],
     ['closeBtn', '關閉按鈕'],
     ['cancelBtn', '取消按鈕'],
@@ -115,7 +118,8 @@ const setRichText = (el, text) => {
   });
 };
 
-const showDialog = (title, message, { confirm = false, image = '', danger = false, okText = '確認' } = {}) =>
+// choices: [{ value, label }]。有給時顯示單選清單，確認回傳選到的 value，取消回傳 null
+const showDialog = (title, message, { confirm = false, image = '', danger = false, okText = '確認', choices = null } = {}) =>
   new Promise((resolve) => {
     const dialog = document.querySelector('#dialog');
     const okBtn = document.querySelector('#dialogOk');
@@ -162,10 +166,26 @@ const showDialog = (title, message, { confirm = false, image = '', danger = fals
     document.querySelector('#dialogTitle').classList.toggle('danger', danger);
     cancelBtn.hidden = !confirm;
 
+    const choicesEl = document.querySelector('#dialogChoices');
+    choicesEl.replaceChildren();
+    choicesEl.hidden = !choices;
+    let picked = choices ? choices[0].value : null;
+    (choices || []).forEach((c, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dialog-choice' + (i === 0 ? ' selected' : '');
+      b.textContent = c.label;
+      b.onclick = () => {
+        picked = c.value;
+        choicesEl.querySelectorAll('.dialog-choice').forEach((x) => x.classList.toggle('selected', x === b));
+      };
+      choicesEl.appendChild(b);
+    });
+
     const close = (result) => {
       dialog.hidden = true;
       document.removeEventListener('keydown', onKey);
-      resolve(result);
+      resolve(choices ? (result ? picked : null) : result);
     };
     const onKey = (e) => {
       if (e.key === 'Escape') close(false);
@@ -300,6 +320,7 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
         <span class="fs-12 text-warn adb-warn" data-mode-for="${p}ControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用。</span>
       </div>
     </div>
+    <div class="adb-details" data-adb-details="${p}" data-mode-for="${p}ControlMode" hidden></div>
 
     <div class="check no-icon aligned">
       <span class="label-wrap">
@@ -329,32 +350,13 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
       <input type="checkbox" class="setting-check" id="${p}UseRepair" data-key="${p}UseRepair" />
       <span class="item-icon"><img data-tpl="iconRepairBox" alt="" hidden /></span>
       <label for="${p}UseRepair">丟維修盒</label>
-    </div>`
-        : ''
-    }
-    ${
-      tool
-        ? `<div class="check sub no-icon mb-8">
-      <label for="${p}AutoRepair">間隔</label>
-      <select id="${p}AutoRepair" class="setting input" data-key="${p}AutoRepair" style="width: auto">
-        <option value="True">自動計算（依${tool}耐久）</option>
-        <option value="False">手動設定</option>
-      </select>
-    </div>
-    <div class="check sub no-icon mb-8" data-repair-auto="${p}">
-      <span class="label-wrap">
-        <label for="${p}Durability">${tool}耐久</label>
-        <button type="button" class="help-btn" data-help="tool-durability" aria-label="說明"><svg class="icon" aria-hidden="true"><use href="#i-circle-help"/></svg></button>
-      </span>
-      <input type="number" min="1" step="1" class="setting input qty" id="${p}Durability" data-key="${p}Durability" />
-      ${resetIcon(`${p}Durability`)}
-      <span class="muted fs-12" id="${p}RepairAutoText"></span>
-    </div>
-    <div class="check sub no-icon mb-8" data-repair-manual="${p}">
       <span class="muted fs-12">每</span>
       <input type="number" min="0.5" step="0.5" class="setting input qty" id="${p}RepairMinutes" data-key="${p}RepairMinutes" />
       <span class="muted fs-12">分鐘</span>
       ${resetIcon(`${p}RepairMinutes`)}
+    </div>
+    <div class="check sub no-icon always-on mb-8" style="margin-top: -4px">
+      <span class="muted fs-12">＊ 不論有無勾選，工具耐久耗盡時都會嘗試丟維修盒</span>
     </div>`
         : ''
     }
@@ -364,24 +366,16 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
     <div class="check no-icon mb-8">
       <input type="checkbox" class="setting-check" id="${p}UseFood" data-key="${p}UseFood" />
       <label for="${p}UseFood">吃食物</label>
-      <span class="muted fs-12">每</span>
-      <input type="number" min="0.5" step="0.5" class="setting input qty" id="${p}FoodMinutes" data-key="${p}FoodMinutes" />
-      <span class="muted fs-12">分鐘</span>
-      ${resetIcon(`${p}FoodMinutes`)}
-      <span class="muted fs-12">，或飽食度低於</span>
-      <input type="number" min="1" max="99" step="1" class="setting input qty" id="${p}FoodBelow" data-key="${p}FoodBelow" />
+      <span class="muted fs-12">體力不足時吃，吃到飽食度</span>
+      <input type="number" min="1" max="100" step="1" class="setting input qty" id="${p}FoodUntil" data-key="${p}FoodUntil" />
       <span class="muted fs-12">%</span>
-      ${resetIcon(`${p}FoodBelow`)}
-    </div>
-    <div class="check sub no-icon mb-8">
-      <input type="checkbox" class="setting-check" id="${p}FoodKeepLast" data-key="${p}FoodKeepLast" />
-      <label for="${p}FoodKeepLast">可使用多次的食物，保留最後一次不吃</label>
+      ${resetIcon(`${p}FoodUntil`)}
     </div>
     <div class="check sub no-icon mb-16">
       <input type="checkbox" class="setting-check" id="${p}FoodLock" data-key="${p}FoodLock" />
       <label for="${p}FoodLock" title="第一次搜尋時開啟遊戲的「下次開啟背包保持該結果」，之後開背包就直接停在這份食物">鎖定食物，背包保持搜尋結果</label>
     </div>
-    <div class="row mb-16">
+    <div class="row mb-8">
       <div class="col">
         <label for="${p}FoodName" class="label">食物名稱（背包搜尋用）</label>
         <input type="text" class="setting input" id="${p}FoodName" placeholder="例如 沙拉" data-key="${p}FoodName" />
@@ -390,19 +384,19 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
       <div class="col">
         <label for="${p}FoodStars" class="label" title="同名食物有不同星級，搜尋結果會分成多格">食物星級</label>
         <select id="${p}FoodStars" class="setting input" data-key="${p}FoodStars">
-          <option value="0">不限（吃第一個）</option>
           <option value="1">1 星</option>
           <option value="2">2 星</option>
           <option value="3">3 星</option>
           <option value="4">4 星</option>
+          <option value="5">5 星</option>
+          <option value="14">1-4 星</option>
+          <option value="0">全部（含 5 星）</option>
         </select>
-        <div class="ban5-wrap" hidden>
-          <div class="check no-icon mt-8">
-            <input type="checkbox" class="setting-check" id="${p}FoodBan5" data-key="${p}FoodBan5" />
-            <label for="${p}FoodBan5" title="跳過 5 星的食物，改吃其他星級">不吃 5 星的食物</label>
-          </div>
-        </div>
       </div>
+    </div>
+    <div class="check sub no-icon mb-16">
+      <input type="checkbox" class="setting-check" id="${p}FoodKeepLast" data-key="${p}FoodKeepLast" />
+      <label for="${p}FoodKeepLast">保留最後一次不吃</label>
     </div>
 
     <hr />`
@@ -424,20 +418,46 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
 };
 GATHER_KINDS.forEach(buildGatherBlock);
 
-// 維修盒間隔選「自動計算」時顯示耐久欄位與算出的間隔，選「手動設定」時顯示分鐘欄位
-const syncRepairAuto = async () => {
-  for (const { prefix } of GATHER_KINDS) {
-    const mode = document.querySelector(`#${prefix}AutoRepair`);
-    if (!mode) continue;
-    const auto = mode.value === 'True';
-    document.querySelectorAll(`[data-repair-auto="${prefix}"]`).forEach((el) => (el.hidden = !auto));
-    document.querySelectorAll(`[data-repair-manual="${prefix}"]`).forEach((el) => (el.hidden = auto));
-    if (!auto) continue;
-    const minutes = await getApi().apiGetRepairMinutes(prefix);
-    document.querySelector(`#${prefix}RepairAutoText`).textContent =
-      minutes == null ? '請填寫正確的耐久、次數與定時時間' : `→ 約每 ${minutes} 分鐘丟一次`;
-  }
+// 操作模式選了模擬器(ADB)時，在選單下方多一個可摺疊的「模擬器連線設定」(和背景定時那一組一樣，各處共用同一份設定)。
+// 位置由 data-adb-details 的佔位元素決定，值是用來區分 id 的名稱
+const fillAdbDetails = () => {
+  document.querySelectorAll('[data-adb-details]').forEach((box) => {
+    const id = box.dataset.adbDetails;
+    box.innerHTML = `
+      <details class="group">
+        <summary>模擬器連線設定（與設定頁共用）</summary>
+        <div class="row">
+          <div class="col">
+            <label for="adbPreset_${id}" class="label">模擬器</label>
+            <select id="adbPreset_${id}" class="input adb-preset" data-input="adbDevice_${id}">
+              <option value="127.0.0.1:5555">BlueStacks / 雷電 LDPlayer（5555）</option>
+              <option value="127.0.0.1:16384">MuMu 12（16384）</option>
+              <option value="127.0.0.1:7555">MuMu 6（7555）</option>
+              <option value="127.0.0.1:62001">夜神 Nox（62001）</option>
+              <option value="">其他（自行填寫）</option>
+            </select>
+            <span class="muted fs-12 adb-hint" data-for="adbPreset_${id}" hidden>建議設定：請在模擬器設定中開啟 ADB。</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <div class="label-row">
+              <label for="adbDevice_${id}" class="label">ADB 裝置位址</label>
+              <button type="button" class="text-btn adb-detect" data-input="adbDevice_${id}">自動偵測</button>
+            </div>
+            <input type="text" class="setting input" id="adbDevice_${id}" placeholder="127.0.0.1:5555" data-key="adbDevice" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="adbPath_${id}" class="label">ADB 路徑</label>
+            <input type="text" class="setting input" id="adbPath_${id}" placeholder="例如 C:\\platform-tools\\adb.exe" data-key="adbPath" />
+          </div>
+        </div>
+      </details>`;
+  });
 };
+fillAdbDetails();
 
 // 「目前菜品」的範例圖: 遊戲食譜介面的實際截圖，紅框是要框選的菜名
 const DISH_EXAMPLE = 'dish-example.png';
@@ -447,10 +467,6 @@ const HELP_TEXTS = {
   'no-pickup': {
     title: '多久沒採到東西就停止',
     message: '倒數圖示和獲得物品氣泡都超過這個時間沒出現才停止。\n可避免角色位置不小心改變，出現空揮工具等情況。',
-  },
-  'tool-durability': {
-    title: '工具耐久',
-    message: ['發展家等級 48 為 200。', '發展家等級 63 為 220。', '', '丟維修盒的間隔（分鐘）＝ 耐久 × 0.51 ÷ 每輪次數 × 定時秒數 ÷ 60。'].join('\n'),
   },
   'bubble-example': {
     title: '泡泡區域範圍',
@@ -491,10 +507,18 @@ const NOTICE_TEXTS = {
     title: '雪雕注意事項',
     message: '．雪雕後方的背景建議越單純越好，背景太雜容易誤判而點錯位置。',
   },
+  fishing: {
+    title: '釣魚注意事項',
+    message: '．請確保**遊戲視角**（非人物視角）**正對魚尾**且**可見**（如下圖）。',
+    image: 'fishing-example.png',
+  },
 };
 document.addEventListener('click', (e) => {
   const notice = e.target.closest('.notice-btn');
-  if (notice) return void showDialog(NOTICE_TEXTS[notice.dataset.notice].title, NOTICE_TEXTS[notice.dataset.notice].message);
+  if (notice) {
+    const text = NOTICE_TEXTS[notice.dataset.notice];
+    return void showDialog(text.title, text.message, { image: text.image || '' });
+  }
   const btn = e.target.closest('.help-btn');
   const help = btn && HELP_TEXTS[btn.dataset.help];
   if (help) showDialog(help.title, help.message, { image: help.image || '' });
@@ -683,15 +707,18 @@ adbDetectButtons.forEach((btn) => {
         );
         return;
       }
-      const [first, ...others] = res.devices;
+      let address = res.devices[0].address;
+      if (res.devices.length > 1) {
+        address = await showDialog('找到多個模擬器', '請選擇要使用的模擬器：', {
+          confirm: true,
+          choices: res.devices.map((d) => ({ value: d.address, label: `${d.address}${d.name ? `（${d.name}）` : ''}` })),
+        });
+        if (!address) return;
+      }
       document.querySelectorAll(`.adb-preset[data-input="${btn.dataset.input}"]`).forEach((p) => delete p.dataset.custom);
-      input.value = first.address;
+      input.value = address;
       input.dispatchEvent(new Event('change'));
       syncAdbPresets();
-      if (others.length) {
-        const list = res.devices.map((d) => `．${d.address}${d.name ? `（${d.name}）` : ''}`).join('\n');
-        await showDialog('找到多個模擬器', `已填入第一個：${first.address}\n\n全部找到的位址：\n${list}\n\n如果不是你要用的，請在下拉選單選「其他」，再自行填寫。`);
-      }
     } catch (e) {
       await showDialog('自動偵測失敗', String(e));
     } finally {
@@ -738,7 +765,6 @@ const handleSettingChange = async (e) => {
   });
   syncAdbPresets();
   await getApi().apiWriteSetting(key, value);
-  syncRepairAuto();
 };
 
 // 料理數量超過建議值(3 份)時提示
@@ -753,6 +779,10 @@ const syncAdbWarns = () => {
   document.querySelectorAll('.adb-warn').forEach((el) => {
     const select = document.querySelector(`#${el.dataset.modeFor}`);
     el.hidden = !select || select.value !== 'adb';
+  });
+  document.querySelectorAll('.adb-details').forEach((box) => {
+    const select = document.querySelector(`#${box.dataset.modeFor}`);
+    box.hidden = !select || select.value !== 'adb';
   });
 };
 document.addEventListener('change', (e) => {
@@ -843,17 +873,21 @@ const handleGatherLogMessage = (prefix) => (log) => {
   logContainer.scrollTop = logContainer.scrollHeight;
 };
 
-// 「不吃 5 星的食物」只在食物星級選「不限」時顯示
-const syncBan5Visibility = () => {
-  document.querySelectorAll('select[id$="FoodStars"]').forEach((select) => {
-    const wrap = select.closest('.col').querySelector('.ban5-wrap');
-    if (wrap) wrap.hidden = select.value !== '0';
+document.addEventListener('change', (e) => {
+  if (e.target.matches?.('input[id$="UseFood"]')) syncFoodOptionsDisabled();
+  if (e.target.matches?.('.setting-check')) syncChildVisibility();
+});
+
+// 母選項(最外層的開關)沒勾時，緊接在它後面的子選項(縮排的 .sub 與食物名稱那一列)整組隱藏，遇到分隔線或下一個母選項為止
+const syncChildVisibility = () => {
+  document.querySelectorAll('.check:not(.sub)').forEach((parent) => {
+    const toggle = parent.querySelector(':scope > .setting-check');
+    if (!toggle) return;
+    for (let el = parent.nextElementSibling; el && el.matches('.check.sub, .row'); el = el.nextElementSibling) {
+      if (!el.matches('.always-on')) el.classList.toggle('child-off', !toggle.checked); // always-on: 不隨母選項隱藏的說明列
+    }
   });
 };
-document.addEventListener('change', (e) => {
-  if (e.target.matches?.('select[id$="FoodStars"]')) syncBan5Visibility();
-  if (e.target.matches?.('input[id$="UseFood"]')) syncFoodOptionsDisabled();
-});
 
 // 沒勾「吃食物」時，底下的子選項(分鐘、飽食度、名稱、星級...)一律停用，包含它們的還原按鈕
 const syncFoodOptionsDisabled = () => {
@@ -878,7 +912,7 @@ const fillSettings = (settings) => {
       else input.value = value;
     });
   });
-  syncBan5Visibility();
+  syncChildVisibility();
   syncCookAdbHint();
   syncAdbWarns();
   getApi().apiGetDishImage().then((image) => showDish(image, settings.cookDishRecordedAt));
@@ -888,7 +922,6 @@ const fillSettings = (settings) => {
   syncFgVisibility();
   syncGatherKind();
   syncFloatLogRow();
-  syncRepairAuto();
   safeModeToggle.checked = String(settings.isSafeMode).toLowerCase() === 'true';
   fiveStarToggle.checked = String(settings.stopAtFiveStar).toLowerCase() === 'true';
 
@@ -1161,7 +1194,7 @@ const updateResetButtons = () => {
 };
 
 // 下拉選單在選項上標示「（預設）」，不放還原按鈕
-const DEFAULT_LABEL_SELECTS = ['floatLogPosition', 'screenResolution', 'uiScale', 'matchStrictness'];
+const DEFAULT_LABEL_SELECTS = ['floatLogPosition', 'floatLogTheme', 'screenResolution', 'uiScale', 'matchStrictness'];
 
 // 只有「數值」欄位(份數、秒數、頻率...)需要還原預設值按鈕，沒有的自動補上。
 // 核取方塊、下拉選單、文字欄位(ADB、停止按鍵、食物名稱)不放；比對閥值已有「全部重設為預設值」。
@@ -1219,23 +1252,25 @@ const setup = async () => {
   // 定時檢查任務狀態，控制按鈕啟用或停用、設定欄位可編輯狀態
   poll(async () => {
     const status = await getApi().apiGetStatus();
+    // 任一任務運行中，所有頁面的開始鈕都不能按
+    const anyRunning = !!(status.cooking || status.snowCarving || status.fishing || status.plant || status.wood);
 
     // 料理
     const startCookBtn = document.querySelector('#startCookBtn');
     const stopCookBtn = document.querySelector('#stopCookBtn');
-    if (startCookBtn) startCookBtn.disabled = !!status.cooking || isSelectingRegion;
+    if (startCookBtn) startCookBtn.disabled = anyRunning || isSelectingRegion;
     if (stopCookBtn) stopCookBtn.disabled = !status.cooking;
 
     // 雪雕
     const startSnowBtn = document.querySelector('#startSnowBtn');
     const stopSnowBtn = document.querySelector('#stopSnowBtn');
-    if (startSnowBtn) startSnowBtn.disabled = !!status.snowCarving || isSelectingRegion;
+    if (startSnowBtn) startSnowBtn.disabled = anyRunning || isSelectingRegion;
     if (stopSnowBtn) stopSnowBtn.disabled = !status.snowCarving;
 
     // 釣魚
     const startFishBtn = document.querySelector('#startFishBtn');
     const stopFishBtn = document.querySelector('#stopFishBtn');
-    if (startFishBtn) startFishBtn.disabled = !!status.fishing || isSelectingRegion;
+    if (startFishBtn) startFishBtn.disabled = anyRunning || isSelectingRegion;
     getMissingFoodGroups(); // 持續更新食物名稱輸入框的紅框與提示
     if (stopFishBtn) stopFishBtn.disabled = !status.fishing;
 
@@ -1248,7 +1283,7 @@ const setup = async () => {
     // 採集(植物、砍木頭)
     GATHER_KINDS.forEach(({ prefix }) => {
       const P = capitalize(prefix);
-      document.querySelector(`#start${P}Btn`).disabled = !!status[prefix] || isSelectingRegion;
+      document.querySelector(`#start${P}Btn`).disabled = anyRunning || isSelectingRegion;
       document.querySelector(`#stop${P}Btn`).disabled = !status[prefix];
     });
 

@@ -55,6 +55,7 @@
               <span class="fs-12 text-warn adb-warn" data-mode-for="cookingControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用。</span>
             </div>
           </div>
+          <div class="adb-details" data-adb-details="cooking" data-mode-for="cookingControlMode" hidden></div>
 
 
           <div class="row">
@@ -147,6 +148,7 @@
               <span class="fs-12 text-warn adb-warn" data-mode-for="snowControlMode" hidden>模擬器容易卡頓，導致操作失敗或不正確，請斟酌使用。</span>
             </div>
           </div>
+          <div class="adb-details" data-adb-details="snow" data-mode-for="snowControlMode" hidden></div>
 
           <hr />
 
@@ -183,21 +185,19 @@
             <span class="muted fs-12">＊ 目前只能搭配香水使用</span>
           </div>
           <div class="check sub no-icon mb-8">
-            <span class="item-icon"><img data-tpl="iconPerfume" alt="" hidden /></span>
-            <label for="fishingPerfumeSeconds">香水間隔</label>
-            <input type="number" min="30" step="1" class="setting input qty" id="fishingPerfumeSeconds" data-key="fishingPerfumeSeconds" />
-            <span class="muted fs-12">秒</span>
-            <button type="button" class="reset-default" data-reset="fishingPerfumeSeconds" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
+            <input type="checkbox" class="setting-check" id="fishingFaceFront" data-key="fishingFaceFront" />
+            <label for="fishingFaceFront">釣到新魚後轉回正面</label>
+            <span class="muted fs-12">＊ 前景會按 W、模擬器會推搖桿</span>
           </div>
 
           <div class="check mb-8">
             <input type="checkbox" class="setting-check" id="fishingUseBait" data-key="fishingUseBait" />
             <span class="item-icon"><img data-tpl="iconBait" alt="" hidden /></span>
             <label for="fishingUseBait">放誘魚器</label>
-            <span class="muted fs-12">每</span>
-            <input type="number" min="10" step="1" class="setting input qty" id="fishingBaitSeconds" data-key="fishingBaitSeconds" />
-            <span class="muted fs-12">秒</span>
-            <button type="button" class="reset-default" data-reset="fishingBaitSeconds" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
+          </div>
+          <div class="check sub no-icon mb-8">
+            <input type="checkbox" class="setting-check" id="fishingSkipTail" data-key="fishingSkipTail" />
+            <label for="fishingSkipTail">水面有了就不放</label>
           </div>
 
           <div class="check mb-8">
@@ -209,24 +209,19 @@
             <span class="muted fs-12">分鐘</span>
             <button type="button" class="reset-default" data-reset="fishingRepairMinutes" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
           </div>
+          <div class="check sub no-icon always-on mb-8" style="margin-top: -4px">
+            <span class="muted fs-12">＊ 不論有無勾選，工具耐久耗盡時都會嘗試丟維修盒</span>
+          </div>
 
           <div class="check no-icon mb-8">
             <input type="checkbox" class="setting-check" id="fishingUseFood" data-key="fishingUseFood" />
             <label for="fishingUseFood">吃食物</label>
-            <span class="muted fs-12">每</span>
-            <input type="number" min="0.5" step="0.5" class="setting input qty" id="fishingFoodMinutes" data-key="fishingFoodMinutes" />
-            <span class="muted fs-12">分鐘</span>
-            <button type="button" class="reset-default" data-reset="fishingFoodMinutes" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
-            <span class="muted fs-12">，或飽食度低於</span>
-            <input type="number" min="1" max="99" step="1" class="setting input qty" id="fishingFoodBelow" data-key="fishingFoodBelow" />
+            <span class="muted fs-12">體力不足時吃，吃到飽食度</span>
+            <input type="number" min="1" max="100" step="1" class="setting input qty" id="fishingFoodUntil" data-key="fishingFoodUntil" />
             <span class="muted fs-12">%</span>
-            <button type="button" class="reset-default" data-reset="fishingFoodBelow" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
+            <button type="button" class="reset-default" data-reset="fishingFoodUntil" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
           </div>
-          <div class="check sub no-icon mb-8">
-            <input type="checkbox" class="setting-check" id="fishingFoodKeepLast" data-key="fishingFoodKeepLast" />
-            <label for="fishingFoodKeepLast">可使用多次的食物，保留最後一次不吃</label>
-          </div>
-          <div class="row mb-16">
+          <div class="row mb-8">
             <div class="col">
               <label for="fishingFoodName" class="label">食物名稱（背包搜尋用）</label>
               <input type="text" class="setting input" id="fishingFoodName" placeholder="例如 沙拉" data-key="fishingFoodName" />
@@ -235,19 +230,19 @@
             <div class="col">
               <label for="fishingFoodStars" class="label" title="同名食物有不同星級，搜尋結果會分成多格">食物星級</label>
               <select id="fishingFoodStars" class="setting input" data-key="fishingFoodStars">
-                <option value="0">不限（吃第一個）</option>
                 <option value="1">1 星</option>
                 <option value="2">2 星</option>
                 <option value="3">3 星</option>
                 <option value="4">4 星</option>
+                <option value="5">5 星</option>
+                <option value="14">1-4 星</option>
+                <option value="0">全部（含 5 星）</option>
               </select>
-              <div class="ban5-wrap" hidden>
-                <div class="check no-icon mt-8">
-                  <input type="checkbox" class="setting-check" id="fishingFoodBan5" data-key="fishingFoodBan5" />
-                  <label for="fishingFoodBan5" title="跳過 5 星的食物，改吃其他星級">不吃 5 星的食物</label>
-                </div>
-              </div>
             </div>
+          </div>
+          <div class="check sub no-icon mb-16">
+            <input type="checkbox" class="setting-check" id="fishingFoodKeepLast" data-key="fishingFoodKeepLast" />
+            <label for="fishingFoodKeepLast">保留最後一次不吃</label>
           </div>
           </div>
           </div>
@@ -306,6 +301,7 @@
               <h4 class="title">運行</h4>
               <span class="run-badge" data-run-badge="fishing"></span>
             </div>
+            <button type="button" class="notice-btn" data-notice="fishing"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"/></svg> 注意事項</button>
           </div>
           <div class="fg-only">
             <label for="logContainerFish" class="label log-title">前景日誌</label>
@@ -358,33 +354,41 @@
             <div class="col"></div>
           </div>
 
-          <div class="float-log">
-            <div class="float-log-head">
-              <input type="checkbox" class="setting-check" id="floatLogEnabled" data-key="floatLogEnabled" />
-              <label for="floatLogEnabled" class="action-name">浮動日誌</label>
+          <div class="check float-log-head mb-8">
+            <input type="checkbox" class="setting-check" id="floatLogEnabled" data-key="floatLogEnabled" />
+            <label for="floatLogEnabled">浮動日誌</label>
+          </div>
+          <div id="floatLogPositionRow">
+            <div class="check sub no-icon float-modes mb-8">
+              <span>於</span>
+              <input type="checkbox" class="setting-check" id="floatLogForeground" data-key="floatLogForeground" />
+              <label for="floatLogForeground">前景</label>
+              <input type="checkbox" class="setting-check" id="floatLogBackground" data-key="floatLogBackground" />
+              <label for="floatLogBackground">背景（模擬器）</label>
+              <span>模式時顯示</span>
             </div>
-            <div id="floatLogPositionRow">
-              <div class="check">
-                <input type="checkbox" class="setting-check" id="floatLogAutoClose" data-key="floatLogAutoClose" />
-                <label for="floatLogAutoClose">運行結束後自動關閉浮動日誌</label>
+            <div class="check sub no-icon mb-16">
+              <input type="checkbox" class="setting-check" id="floatLogAutoClose" data-key="floatLogAutoClose" />
+              <label for="floatLogAutoClose">運行結束後自動關閉浮動日誌</label>
+            </div>
+            <div class="row float-log-selects">
+              <div class="col">
+                <label for="floatLogTheme" class="label">視窗顏色</label>
+                <select id="floatLogTheme" class="setting input" data-key="floatLogTheme">
+                  <option value="dark">黑色</option>
+                  <option value="light">白色</option>
+                </select>
               </div>
-              <div class="check">
-                <input type="checkbox" class="setting-check" id="floatLogAutoTheme" data-key="floatLogAutoTheme" />
-                <label for="floatLogAutoTheme">依背景亮度自動切換浮動日誌顏色</label>
+              <div class="col">
+                <label for="floatLogPosition" class="label">視窗位置</label>
+                <select id="floatLogPosition" class="setting input" data-key="floatLogPosition">
+                  <option value="screen">螢幕左下角</option>
+                  <option value="bottomRight">螢幕右下角</option>
+                  <option value="topLeft">螢幕左上角</option>
+                  <option value="topRight">螢幕右上角</option>
+                  <option value="custom">自訂位置（拖曳視窗調整）</option>
+                </select>
               </div>
-              <div class="check sub">
-                <label for="floatLogThemeSeconds">偵測間隔</label>
-                <input type="number" min="1" step="1" class="setting input qty" id="floatLogThemeSeconds" data-key="floatLogThemeSeconds" />
-                <span class="muted fs-12">秒</span>
-              </div>
-              <label for="floatLogPosition" class="label">視窗位置</label>
-              <select id="floatLogPosition" class="setting input" data-key="floatLogPosition">
-                <option value="screen">螢幕左下角</option>
-                <option value="bottomRight">螢幕右下角</option>
-                <option value="topLeft">螢幕左上角</option>
-                <option value="topRight">螢幕右上角</option>
-                <option value="custom">自訂位置（拖曳日誌視窗即可調整）</option>
-              </select>
             </div>
           </div>
             </div>
@@ -572,6 +576,26 @@
             </div>
           </details>
 
+          <details class="section">
+            <summary>
+              <span class="section-text">
+                <span class="section-name">除錯<span class="section-tag">進階</span></span>
+                <span class="section-hint">回報問題時才需要開啟</span>
+              </span>
+            </summary>
+            <div class="section-body">
+          <div class="action-list">
+            <div class="action-row">
+              <div>
+                <div class="action-name">除錯模式</div>
+                <div class="action-desc">開啟後會把程式判斷用的截圖與流程記錄存到 debug 資料夾（截圖左下角的玩家 ID 會被遮蓋），截圖最多保留最近 100 張（約佔 50～130MB），不需要時請關閉</div>
+              </div>
+              <input type="checkbox" class="setting-check" id="debugMode" data-key="debugMode" />
+            </div>
+          </div>
+            </div>
+          </details>
+
           <details class="section" open>
             <summary>
               <span class="section-text">
@@ -617,6 +641,7 @@
       <div class="dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogMsg">
         <h4 id="dialogTitle" class="dialog-title"></h4>
         <div id="dialogMsg" class="dialog-msg"></div>
+        <div id="dialogChoices" class="dialog-choices" hidden></div>
         <img id="dialogImage" class="dialog-image" alt="" hidden />
         <div class="dialog-actions">
           <button type="button" id="dialogCancel" class="btn" hidden>取消</button>

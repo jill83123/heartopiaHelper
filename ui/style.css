@@ -15,6 +15,7 @@
 
 /* ============ 設計 token ============ */
 :root {
+  --field-gap: 6px; /* 標籤、輸入框、下拉、開關之間統一的間距 */
   --bg: #eaf5fd;
   --surface: #ffffff;
   --surface-2: #f3f8fc;
@@ -359,7 +360,7 @@ body {
   color: var(--text-2);
   font-size: 0.93em;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: var(--field-gap);
 }
 .log-title {
   display: block;
@@ -426,7 +427,7 @@ select.input::-ms-expand {
 .gather-count .count-field {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--field-gap);
   height: 38px;
 }
 .gather-count .input.qty {
@@ -544,7 +545,7 @@ input[type='checkbox'][disabled] {
   display: flex;
   flex-wrap: wrap; /* 視窗變窄時換行，不要把版面撐破 */
   align-items: center;
-  gap: 4px 8px;
+  gap: 4px var(--field-gap);
 }
 
 /* 勾選項目下方的說明文字: 獨佔一行、可換行，並對齊開關後面的文字 */
@@ -561,6 +562,18 @@ input[type='checkbox'][disabled] {
 
 .check.sub .hint {
   padding-left: 0;
+}
+
+/* 功能還在測試中的小標籤: 放在選項那一列的最右邊 */
+.beta-tag {
+  padding: 1px 8px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--r-pill);
+  background: var(--warn-soft);
+  color: var(--warn-text);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* 釣魚的定時項目：每個主項目（含它的子選項）自成一塊，用分隔線區分 */
@@ -580,8 +593,11 @@ input[type='checkbox'][disabled] {
 }
 .options > .row {
   margin-top: 8px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+/* 母選項沒勾時，底下的子選項整組隱藏 */
+.child-off {
+  display: none !important;
 }
 
 .check label,
@@ -937,7 +953,7 @@ summary {
 /* 輸入框、選單與其下方的說明 / 錯誤提示拉開距離 */
 .col > .input + span,
 .col > .input + .hint {
-  margin-top: 8px;
+  margin-top: var(--field-gap);
 }
 
 /* ============ 更新提示視窗 ============ */
@@ -1130,6 +1146,10 @@ summary {
 .options > .check.sub.no-icon {
   padding-left: 46px;
 }
+/* 子選項已經縮排了，裡面的說明文字不用再縮一次 */
+.options > .check.sub .hint {
+  padding-left: 0;
+}
 
 /* 進階比對閥值: 欄位名稱旁邊的模板縮圖 */
 .tpl-thumb {
@@ -1319,39 +1339,32 @@ details.section[open] > summary {
   margin-top: 0;
 }
 
-/* 浮動日誌: 標題與開關同一列，下面是小標題「視窗位置」與選單，沒有分隔線 */
-.float-log {
-  margin-top: 12px;
-  padding: 12px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
+/* 設定頁的浮動日誌: 和釣魚頁一樣是「標題＋啟用開關」，關閉時下面的設定收起來，開啟後用分隔線區隔 */
+.check.float-log-head {
+  margin-top: 24px;
+  margin-bottom: 16px !important; /* 和下面的子選項拉開 */
 }
-.float-log-head {
+/* 沒啟用、設定收起來時，下方不用再留和子選項的距離 */
+.check.float-log-head:has(+ #floatLogPositionRow[hidden]) {
+  margin-bottom: 8px !important; /* 加上區塊底部的 16px，和上方的 24px 留白相同 */
+}
+#floatLogPositionRow > .row.float-log-selects {
+  padding-left: 46px; /* 和子選項對齊同一條線 */
+}
+#floatLogPositionRow > .check.float-modes {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  margin-bottom: 16px !important; /* 和下一列(運行結束後自動關閉)拉開 */
 }
-.float-log-head {
-  margin-bottom: 12px;
-}
-.float-log:has(#floatLogPositionRow[hidden]) .float-log-head {
-  margin-bottom: 0;
-}
-#floatLogPositionRow > .check {
-  margin-bottom: 12px;
-}
-#floatLogPositionRow > .check.sub {
-  margin-top: -4px;
-}
-.float-log-head .action-name {
-  cursor: pointer;
-}
-#floatLogPositionRow[hidden] {
-  display: none;
+#floatLogPositionRow > .check.float-modes label + input {
+  margin-left: 20px; /* 前景、背景兩個開關之間拉開 */
 }
 #floatLogPositionRow select.input {
   width: 100%;
+}
+#floatLogPositionRow > .row:last-child {
+  margin-bottom: 0;
 }
 
 /* 折疊時在標題下面用一行小字說明裡面有什麼，展開後就不顯示 */
@@ -1369,9 +1382,6 @@ details.section > summary::before {
   color: var(--text-3);
   font-size: 12px;
   font-weight: 400;
-}
-details.section[open] .section-hint {
-  display: none;
 }
 
 /* 進階群組: 標題旁的小標籤，提示通常不用動 */
@@ -1458,6 +1468,32 @@ details.section[open] .section-hint {
   flex: none;
 }
 
+.dialog-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.dialog-choice {
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.dialog-choice:hover {
+  border-color: var(--text-3);
+}
+
+.dialog-choice.selected {
+  background: var(--brand-soft);
+  border-color: var(--brand-edge);
+}
+
 .dialog-image {
   display: block;
   max-width: 100%;
@@ -1502,7 +1538,7 @@ details.section[open] .section-hint {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--field-gap);
 }
 .label-row > .label {
   margin-bottom: 0;
@@ -1551,11 +1587,6 @@ label[for="expectedCookQty"] {
   text-align: left;
 }
 
-/* 浮動日誌的開關與下方的設定之間加分隔線 */
-#floatLogPositionRow {
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
 
 /* 標題下方緊接著的警告，貼近標題 */
 .title-row + .title-warn {
@@ -1585,4 +1616,98 @@ label[for="expectedCookQty"] {
 }
 .note-tight + .title-note {
   margin-top: 0;
+}
+
+/* 子選項後面緊接的欄位列(例如食物名稱、星級)和子選項對齊同一條線 */
+.check.sub + .row {
+  padding-left: 46px;
+}
+
+/* 釣魚項目的圖示框縮成 32px，圖示列不會比其他列高太多，子選項和母選項的間距才和其他項目接近 */
+.options .item-icon {
+  width: 32px;
+  height: 32px;
+}
+.options .check .hint,
+.options > .check.sub {
+  padding-left: 86px;
+}
+.options .check.no-icon .hint,
+.options > .check.sub.no-icon {
+  padding-left: 46px;
+}
+.options > .check.sub .hint {
+  padding-left: 0;
+}
+
+/* 食物名稱、星級那一列直接接在「吃食物」後面時，也和子選項對齊同一條線 */
+.options > .check.no-icon:not(.sub) + .row {
+  padding-left: 46px;
+}
+
+/* 釣魚項目上下排列的間距統一 8px: 母選項、子選項、食物名稱那一列之間都一樣，不另外加上下留白 */
+.options > .check.sub,
+.options > .check.sub.no-icon {
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.options > .row {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* 前景定時各區塊內距加大: 分隔線上下留白、母子選項之間拉開 */
+.options > .check:not(.sub) {
+  margin-top: 16px;
+  padding-top: 20px;
+}
+.options > .check:first-child {
+  margin-top: 0;
+  padding-top: 0;
+}
+.options > .check.sub,
+.options > .check.sub.no-icon {
+  margin-top: 14px;
+}
+.options > .row {
+  margin-top: 14px;
+}
+
+/* 標題列與下方警告拉近，右側「啟用」開關與標題垂直置中 */
+.title-row:has(+ .title-warn) {
+  margin-bottom: 0;
+}
+.title-row + .title-warn {
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+.title-row .title-toggle {
+  align-self: center;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* 警告文字再貼近標題: 去掉標題列和警告多出來的行高 */
+.title-row:has(+ .title-warn) {
+  margin-bottom: -4px;
+}
+.title-row + .title-warn {
+  margin-top: 0;
+  line-height: 1.3;
+}
+
+/* 背景定時: 警告文字縮排到和標題文字同一條垂直線(長條 4px + 間距 8px)，右側開關往下移到兩行中間 */
+.title-row:has(+ .title-warn) {
+  margin-bottom: 0;
+}
+.title-row + .title-warn {
+  margin-top: 2px;
+  padding-left: 12px;
+  line-height: 1.4;
+}
+.title-row:has(+ .title-warn) .title-toggle {
+  transform: translateY(10px);
 }

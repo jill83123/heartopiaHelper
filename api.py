@@ -15,7 +15,7 @@ from tools.backend import AdbBackend, createBackend
 from tools import floatlog
 from tools.updater import Updater, checkUpdate, isReleasePage
 from version import VERSION
-from tools.tools import autoRepairMinutes, getConfigPath, getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
+from tools.tools import getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
 from scripts.Cooking import Cooking
 from scripts.Fishing import Fishing
 from scripts.PlantGathering import PlantGathering
@@ -28,16 +28,14 @@ LOG_LIMIT = 500
 # 背景定時與前景定時相同的那組定時項目設定(去掉 fishing 開頭的部分)
 ALT_KEYS = (
     "AutoCast",
-    "PerfumeSeconds",
+    "FaceFront",
+    "SkipTail",
     "UseBait",
-    "BaitSeconds",
     "UseFood",
     "FoodKeepLast",
-    "FoodBan5",
     "FoodName",
     "FoodStars",
-    "FoodMinutes",
-    "FoodBelow",
+    "FoodUntil",
     "UseRepair",
     "RepairNow",
     "RepairMinutes",
@@ -47,16 +45,16 @@ ALT_KEYS = (
 GATHER_FOOD_KEYS = (
     "UseFood",
     "FoodKeepLast",
-    "FoodBan5",
     "FoodName",
     "FoodStars",
-    "FoodMinutes",
-    "FoodBelow",
+    "FoodUntil",
     "FoodLock",
     "UseRepair",
     "RepairMinutes",
 )
 GATHER_TASKS = ("plant", "wood")
+FLOAT_START_BUTTONS = {"cooking": "#startCookBtn", "snowCarving": "#startSnowBtn", "fishing": "#startFishBtn", "plant": "#startPlantBtn", "wood": "#startWoodBtn"}  # 浮動日誌「開始」要按主視窗哪一顆
+FLOAT_TASK_NAMES = {"cooking": "料理", "snowCarving": "雪雕", "fishing": "釣魚", "plant": "採集", "wood": "採集"}  # 浮動日誌標題顯示目前(上次)執行的內容
 RUN_KEYS = ("cooking", "snowCarving", "fishing", "plant", "wood")  # 要記錄執行時間的任務(釣魚的前景、背景定時算同一個)
 
 REGION_HINTS = {
@@ -101,6 +99,7 @@ class Api:
         self._logWindow = None
         self._logHwnd = None
         self._logShown = False
+        self._floatDestroying = False  # 程式要結束了，浮動日誌才可以真的被關掉
         self._floatKey = None  # 浮動日誌目前在看哪一個任務(RUN_KEYS 之一)
         self.runInfo = {key: {"start": None, "end": None} for key in RUN_KEYS}
         self._floatPlaced = None  # 最近一次把浮動日誌放在哪個位置，拖曳後和它比較才知道有沒有移動
@@ -111,8 +110,11 @@ class Api:
 
     def setLog(self, msg, source):
         now = datetime.datetime.now().strftime("%H:%M:%S")
-        formattedMsg = f"[{now}] {msg}"
-        print(formattedMsg)
+        formattedMsg = msg if msg == LOG_DIVIDER else f"[{now}] {msg}"
+        try:
+            print(formattedMsg)
+        except Exception:  # 主控台印不出來的字元(例如 ✅)不能讓寫日誌的執行緒跟著死掉
+            pass
         if source not in self.logs:
             return
         with self.logLock:
@@ -137,6 +139,17 @@ class Api:
     def _floatEnabled(self):
         return str(self.config.get("floatLogEnabled", "True")).lower() == "true"
 
+    def _floatShowFor(self, sources):
+        """這次運行有沒有該顯示浮動日誌: 依任務實際的操作模式(前景/背景)對照設定，同時含前景與背景時任一邊開著就顯示"""
+        if not self._floatEnabled():
+            return False
+        for source in sources:
+            isAdb = self.taskConfig(source).get("controlMode") == "adb"
+            key = "floatLogBackground" if isAdb else "floatLogForeground"
+            if str(self.config.get(key, "False" if key == "floatLogForeground" else "True")).lower() == "true":
+                return True
+        return False
+
     def _floatHwnd(self):
         if self._logHwnd and win32gui.IsWindow(self._logHwnd):
             return self._logHwnd
@@ -157,6 +170,7 @@ class Api:
                 text_select=False,
                 hidden=True,  # 先隱藏著建好，按「開始」時才不取得焦點地顯示，不會把遊戲從最上層搶走
             )
+            self._logWindow.events.closing += self._onFloatClosing
         for _ in range(100):  # 等視窗建好
             hwnd = win32gui.FindWindow(None, floatlog.LOG_TITLE)
             if hwnd:
@@ -167,6 +181,14 @@ class Api:
                 return hwnd
             time.sleep(0.05)
         return None
+
+    def _onFloatClosing(self):
+        """浮動日誌被從工作列、Alt+F4 等系統途徑關閉時: 運行中不讓關，沒運行就只是隱藏(視窗要留著，下次才能再顯示)。只有程式結束時才真的關"""
+        if self._floatDestroying:
+            return None
+        if not self.isRunning():
+            self.apiHideFloatLog()
+        return False
 
     def _prepareFloatLog(self):
         """程式啟動後先把浮動日誌視窗建好(隱藏)。建立視窗的當下一定會取得焦點，所以不能等到按「開始」才建"""
@@ -185,7 +207,7 @@ class Api:
             self.floatSources = set(sources)
             self.logs["float"].clear()
             self.floatRun += 1
-        if not self._floatEnabled():
+        if not self._floatShowFor(sources):
             return
         try:
             hwnd = self._floatHwnd()
@@ -207,6 +229,7 @@ class Api:
                 except Exception:
                     pass
                 time.sleep(0.3)  # 等在途中的呼叫結束
+                self._floatDestroying = True
                 self._logWindow.destroy()
         except Exception:
             pass
@@ -248,27 +271,25 @@ class Api:
             pass
         return {"running": running, "elapsed": elapsed, "last": last}
 
-    def _floatLuma(self):
-        """浮動日誌後面畫面的亮度，依設定的間隔秒數量測；關閉「依背景切換顏色」時不量(回傳 None)"""
-        if str(self.config.get("floatLogAutoTheme", "True")).lower() != "true":
-            return None
-        try:
-            interval = max(1.0, float(self.config.get("floatLogThemeSeconds", "3")))
-        except ValueError:
-            interval = 3.0
-        now = time.time()
-        if now - getattr(self, "_lumaAt", 0) >= interval and self._logHwnd and win32gui.IsWindow(self._logHwnd) and win32gui.IsWindowVisible(self._logHwnd):
-            self._lumaAt = now
-            self._luma = floatlog.backdropLuma(self._logHwnd)
-        return getattr(self, "_luma", None)
-
     def apiFloatPoll(self, index, runId):
         snapshot = self._runSnapshot(self._floatKey) if self._floatKey else {"running": self.isRunning(), "elapsed": None}
         with self.logLock:
             if runId != self.floatRun:
                 index = 0  # 新的一次運行，從頭給
             logs = [log for log in self.logs["float"] if log["index"] > index]
-            return {"run": self.floatRun, "logs": logs, "running": snapshot["running"], "elapsed": snapshot["elapsed"], "stopKey": str(self.config.get("stopKey", "")), "position": str(self.config.get("floatLogPosition", "screen")), "autoClose": str(self.config.get("floatLogAutoClose", "True")).lower() == "true", "luma": self._floatLuma()}
+            return {"run": self.floatRun, "logs": logs, "running": snapshot["running"], "elapsed": snapshot["elapsed"], "stopKey": str(self.config.get("stopKey", "")), "position": str(self.config.get("floatLogPosition", "screen")), "autoClose": str(self.config.get("floatLogAutoClose", "True")).lower() == "true", "theme": str(self.config.get("floatLogTheme", "dark")), "canStart": self._floatKey in FLOAT_START_BUTTONS, "task": FLOAT_TASK_NAMES.get(self._floatKey, "")}
+
+    def apiFloatStart(self):
+        """浮動日誌的「開始」: 替主視窗按下上一次運行那個任務的開始鈕，檢查與提示窗都沿用主視窗的流程"""
+        button = FLOAT_START_BUTTONS.get(self._floatKey)
+        if not button or self.isRunning():
+            return False
+        try:
+            webview.windows[0].evaluate_js(f"document.querySelector('{button}').click()")
+        except Exception as e:
+            print(f"浮動日誌無法開始任務: {e}")
+            return False
+        return True
 
     def apiHideFloatLog(self):
         if self._logHwnd and win32gui.IsWindow(self._logHwnd):
@@ -490,10 +511,6 @@ class Api:
             self._templateImages = images
         return self._templateImages
 
-    def apiGetRepairMinutes(self, kind):
-        """採集功能自動計算的維修盒間隔(分鐘)，讓介面顯示"""
-        return autoRepairMinutes(self.config, kind) if kind in GATHER_TASKS else None
-
     def apiGetDefaults(self):
         """所有設定的預設值，讓介面在欄位旁邊顯示並可一鍵還原"""
         return dict(CONFIG_DEFAULTS)
@@ -543,6 +560,8 @@ class Api:
         return True
 
     def startCooking(self, confirmed=False):
+        if self.isRunning():
+            return {"ok": False, "error": "已有任務運行中，請先停止"}
         if self.selectLock.locked():
             return {"ok": False, "error": "正在選取範圍，請先完成選取"}
         def cookingLog(msg):
@@ -565,6 +584,8 @@ class Api:
         return {"ok": True}
 
     def startSnowCarving(self, confirmed=False):
+        if self.isRunning():
+            return {"ok": False, "error": "已有任務運行中，請先停止"}
         if self.selectLock.locked():
             return {"ok": False, "error": "正在選取範圍，請先完成選取"}
         def snowLog(msg):
@@ -594,6 +615,8 @@ class Api:
         return config
 
     def startFishing(self, confirmed=False):
+        if self.isRunning():
+            return {"ok": False, "error": "已有任務運行中，請先停止"}
         if self.selectLock.locked():
             return {"ok": False, "error": "正在選取範圍，請先完成選取"}
         def fishingLog(msg):
@@ -648,10 +671,6 @@ class Api:
             config[f"fishing{key}"] = value or CONFIG_DEFAULTS.get(f"fishing{key}", "")
         if kind == "plant":
             config["fishingUseFood"] = "False"  # 無工具的採集不用吃食物(以前存下的設定也不再生效)
-        if str(config.get(f"{kind}AutoRepair", "False")).lower() == "true":
-            minutes = autoRepairMinutes(config, kind)
-            if minutes is not None:
-                config["fishingRepairMinutes"] = str(minutes)
         for key in ("AutoCast", "UseBait", "RepairNow"):
             config[f"fishing{key}"] = "False"
         return config

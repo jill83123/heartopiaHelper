@@ -31,6 +31,7 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+!main.spec
 
 # Installer logs
 pip-log.txt
@@ -194,3 +195,6 @@ config.ini
 
 # 菜品記錄截圖與設定檔備份（本機資料，各人不同）
 userdata/
+
+# 魚尾偵測的除錯截圖
+debug/
