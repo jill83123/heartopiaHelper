@@ -450,8 +450,6 @@ CONFIG_DEFAULTS = {
     "woodFoodUntil": "99",
     "woodFoodLock": "True",
     "woodUseRepair": "True",
-    "woodAutoRepair": "True",
-    "woodDurability": "200",
     "woodRepairMinutes": "15",
     **{f"{name}Threshold": str(value) for name, value in DEFAULT_THRESHOLDS.items()},
 }
@@ -512,25 +510,6 @@ def fishingItemChecks(config, prefix, who):
     return checks
 
 
-# 維修盒回復工具耐久: 每秒 3%、持續 17 秒，約回復耐久上限的 51%。自動計算間隔時間隔剛好用完一個維修盒的回復量(耐久從滿的開始，丟下去剛好回滿，不會浪費維修盒；真的見底還有「工具耐久耗盡」的提示補救)
-REPAIR_RESTORE_RATIO = 0.51
-REPAIR_SAFETY = 1.0
-
-
-def autoRepairMinutes(config, prefix):
-    """依工具耐久上限、每輪消耗(次數 × 每次 -1)與定時時間，算出多久丟一次維修盒(分鐘)。設定不正確時回傳 None"""
-    try:
-        durability = float(config.get(f"{prefix}Durability"))
-        count = int(config.get(f"{prefix}Count"))
-        roundSeconds = float(config.get(f"{prefix}IntervalSeconds"))
-    except (TypeError, ValueError):
-        return None
-    if durability < 1 or count < 1 or roundSeconds <= 0:
-        return None
-    rounds = durability * REPAIR_RESTORE_RATIO * REPAIR_SAFETY / count
-    return max(1.0, round(rounds * roundSeconds / 60, 1))
-
-
 # 採集功能的設定名稱開頭 -> 訊息裡的稱呼
 GATHER_LABELS = {"plant": "採集植物", "wood": "砍木頭"}
 
@@ -578,8 +557,6 @@ def validateConfig(config, task):
                 checks.append(f"「沒採到東西就停止的分鐘數」要大於定時時間的 2 倍（至少 {interval * 2 / 60:.1f} 分鐘），否則等下一輪的時候就會誤停")
         except (TypeError, ValueError):
             pass
-        if config.get(f"{task}AutoRepair", "False").lower() == "true" and config.get(f"{task}UseRepair", "False").lower() == "true":
-            checks.append(number(f"{task}Durability", "工具耐久", 1))
         checks += fishingItemChecks(config, task, who)
     elif task == "fishing":
         checks.append(number("fishingDetectFrequency", "偵測頻率", 0.1))
