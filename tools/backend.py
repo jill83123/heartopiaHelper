@@ -5,11 +5,13 @@ import keyboard
 import numpy as np
 import os
 import subprocess
+import threading
 import time
 import tkinter as tk
 import win32api
 import win32clipboard
 import win32gui
+from tools import floatlog
 from tools.tools import (
     captureFullScreen,
     ScaleResolver,
@@ -47,6 +49,8 @@ class ScreenBackend:
     def __init__(self, gameWindowTitle=""):
         self.scaleResolver = ScaleResolver()
         self.gameWindowTitle = gameWindowTitle
+        self._floatPassing = False  # 浮動日誌目前是不是處於「點擊穿透」
+        self._floatTimer = None
 
     def _findGame(self):
         """遊戲視窗的 hwnd；沒設定標題或找不到回傳 None"""
@@ -69,9 +73,32 @@ class ScreenBackend:
         if self.gameWindowTitle and not self._findGame():
             raise GameWindowLostError(f"找不到遊戲視窗「{self.gameWindowTitle}」，遊戲可能已關閉")
 
+    def _passThroughFloatLog(self, x, y):
+        """要操作的位置被浮動日誌蓋住時，讓它暫時不吃滑鼠(不然會點到它的按鈕，例如停止)；沒蓋住就維持正常"""
+        rect = floatlog.visibleRect()
+        covered = bool(rect) and rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]
+        if covered != self._floatPassing:
+            self._floatPassing = covered
+            floatlog.setPassThrough(covered)
+        if covered:  # 萬一移過去之後沒有接著點(例如中途按了停止)，過一下自動恢復，不然停止鈕會一直點不到
+            if self._floatTimer:
+                self._floatTimer.cancel()
+            self._floatTimer = threading.Timer(2.0, self._restoreFloatLog)
+            self._floatTimer.daemon = True
+            self._floatTimer.start()
+
+    def _restoreFloatLog(self):
+        if self._floatPassing:
+            self._floatPassing = False
+            floatlog.setPassThrough(False)
+
     def click(self, x, y):
         self._requireGame()
-        clickMouse(x, y)
+        self._passThroughFloatLog(x, y)
+        try:
+            clickMouse(x, y)
+        finally:
+            self._restoreFloatLog()
 
     def getGameRect(self):
         """遊戲畫面(客戶區)在螢幕上的範圍 (x, y, w, h)；找不到視窗或已最小化回傳 None"""
@@ -94,11 +121,14 @@ class ScreenBackend:
         self._requireGame()
         self.moveTo(x, y)
         time.sleep(0.2)
-        for _ in range(2):
-            clickMouse(int(x), int(y))
-            time.sleep(0.1)
-            clickRightMouse(int(x), int(y))
-            time.sleep(0.15)
+        try:
+            for _ in range(2):
+                clickMouse(int(x), int(y))
+                time.sleep(0.1)
+                clickRightMouse(int(x), int(y))
+                time.sleep(0.15)
+        finally:
+            self._restoreFloatLog()
 
     def gameBlocker(self):
         """前景模式下，遊戲收不到操作的原因(視窗不見了、被別的視窗蓋住)；沒問題回傳 None。沒設定視窗標題時不檢查"""
@@ -113,6 +143,7 @@ class ScreenBackend:
 
     def moveTo(self, x, y):
         """先把滑鼠移過去。遊戲的按鈕要先偵測到滑鼠懸停，第一下點擊才有效"""
+        self._passThroughFloatLog(x, y)
         win32api.SetCursorPos((int(x) - 4, int(y) - 4))
         time.sleep(0.05)
         win32api.SetCursorPos((int(x), int(y)))
@@ -136,13 +167,17 @@ class ScreenBackend:
 
     def rightClick(self, x, y):
         self._requireGame()
-        clickRightMouse(x, y)
+        self._passThroughFloatLog(x, y)
+        try:
+            clickRightMouse(x, y)
+        finally:
+            self._restoreFloatLog()
 
-    def pressKey(self, key):
-        """按一下鍵盤按鍵(按住一小段隨機時間再放開)"""
+    def pressKey(self, key, hold=None):
+        """按一下鍵盤按鍵(預設按住一小段隨機時間再放開，hold 是指定的按住秒數)"""
         self._requireGame()
         keyboard.press(key)
-        time.sleep(random.uniform(0.05, 0.14))
+        time.sleep(hold if hold is not None else random.uniform(0.05, 0.14))
         keyboard.release(key)
 
     def holdDown(self, x, y):
@@ -262,6 +297,10 @@ class AdbBackend:
             self._run(["shell", "input", "swipe", x, y, x, y, duration])
         else:
             self._run(["shell", "input", "tap", x, y])
+
+    def swipe(self, x1, y1, x2, y2, durationMs):
+        """手指從 (x1, y1) 滑到 (x2, y2)"""
+        self._run(["shell", "input", "swipe", *(str(int(v)) for v in (x1, y1, x2, y2, durationMs))])
 
     def getGameRect(self):
         return None  # 模擬器畫面就是整張截圖

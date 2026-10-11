@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 from scripts.Fishing import Fishing
 from tools.digits import readCount
-from tools.tools import getResourcePath, getThreshold, loadTemplate
+from tools.tools import LOG_DIVIDER, getResourcePath, getThreshold, loadTemplate
 
 SCAN_SECONDS = 0.5  # 主迴圈每隔多久看一次(秒)
 # 植物、木頭大多 2 分鐘重生，定時時間就是這個重生基準。真人不會剛好在重生那一秒回來採，
@@ -156,7 +156,7 @@ class GatherBase(Fishing):
         self._closeBag(stopEvent)
 
         if not found:
-            self._alert("背包裡找不到維修盒（木頭材質的那種），請先準備維修盒")
+            self._alert("背包裡找不到維修盒（木頭材質的那種），請先準備維修盒", flash=False)
         elif count is None:
             self.setLog("背包有維修盒，但讀不出數量，無法預估可執行的時間")
         else:
@@ -274,12 +274,12 @@ class GatherBase(Fishing):
             self.setLog("⚠️ 找不到「保持結果」開關，這次沒有鎖定")
         return True
 
-    def _doFood(self, stopEvent):
+    def _eatOnce(self, stopEvent):
         if self._foodLocked and self._foodSearchPos and self._flag("fishingFoodLock"):
             done = self._eatLocked(stopEvent)
             if done is not None:
                 return done
-        return super()._doFood(stopEvent)
+        return super()._eatOnce(stopEvent)
 
     def _eatLocked(self, stopEvent):
         """背包已鎖在食物的搜尋結果: 開背包直接點食物。畫面不是預期的搜尋結果時回傳 None，改走完整的搜尋流程"""
@@ -288,7 +288,6 @@ class GatherBase(Fishing):
         if stopEvent.wait(0.9):
             return False
         img = self._shot()
-        self._noteSatiety(img)
         if not (self._find(img, "endFilterBtn") or self._find(img, "endSearchBtn")):
             self.setLog("背包沒有停在食物的搜尋結果，改用搜尋")
             self._foodLocked = False
@@ -297,12 +296,15 @@ class GatherBase(Fishing):
             return self._closeBag(stopEvent)
         name = self.config.get("fishingFoodName", "").strip()
         stars = int(self.config.get("fishingFoodStars", 0))
-        return self._eatFromResults(img, self._foodSearchPos, name, stars, stopEvent)
-
-    def _onNoFood(self):
-        """背包裡沒有可以吃的食物了(找不到，或剩下的都只剩最後一次): 繼續採集只會餓肚子，直接停止"""
-        self._alert("背包裡沒有可以吃的食物了，已停止（請補充食物後重新開始）")
-        self._stopEvent.set()
+        self._lockedEating = True
+        try:
+            result = self._eatFromResults(img, self._foodSearchPos, name, stars, stopEvent)
+        finally:
+            self._lockedEating = False
+        if result == "retry":  # 背包停在別的篩選(例如園藝用品): 取消鎖定，背包已關，改走完整搜尋
+            self._foodLocked = False
+            return None
+        return result
 
     # ===== 操作 =====
     def _press(self, img, stopEvent):
@@ -366,8 +368,9 @@ class GatherBase(Fishing):
 
     # ===== 主迴圈 =====
     def _mainLoop(self, stopEvent):
-        # 吃食物、丟維修盒不在開始時馬上做，從現在起算一個間隔後才第一次執行
-        self._markDone("food")
+        # 丟維修盒預設不在開始時馬上做，從現在起算一個間隔後才第一次執行；吃食物則開始就先檢查一次(夠飽就不吃)
+        self._hungry = False  # 開始時不先吃，等看到「體力不足」提示才吃
+        self._logOcrStatus()
         if not self._flag("fishingRepairNow"):
             self._markDone("repair")
         self.backend.focusGame()
@@ -383,6 +386,7 @@ class GatherBase(Fishing):
             if limit > 0 and time.time() - self._lastIcon > limit * 60 and time.time() - self._lastBubble > limit * 60:
                 self._alert(f"已經 {limit:g} 分鐘沒看到倒數圖示，也沒看到獲得物品氣泡，已停止（請確認角色位置、工具與目標）")
                 stopEvent.set()
+                self.setLog(LOG_DIVIDER)
                 return
             gatherDue = time.time() >= nextAt
             if not gatherDue and not self._enabledTasks():
@@ -418,12 +422,6 @@ class GatherBase(Fishing):
                 continue
             self._coveredLogged = False
 
-            if state == "unknown":
-                dialogPos = self._findDialog(img)
-                if dialogPos:  # 擋在畫面上的對話框，點掉才能繼續
-                    self._dismissDialog(dialogPos, stopEvent)
-                    continue
-
             if not self._gather(img, stopEvent):
                 return
             if self._toolBroken:
@@ -432,6 +430,7 @@ class GatherBase(Fishing):
                 if "repair" in self.disabled or not self._flag("fishingUseRepair") or self._brokenStreak > BROKEN_MAX_STREAK:
                     self._alert("工具耐久耗盡，無法繼續，已停止（請補充維修盒或檢查設定）")
                     stopEvent.set()
+                    self.setLog(LOG_DIVIDER)
                     return
                 self.setLog("工具耐久耗盡，馬上丟維修盒")
                 self._runTask("repair", self._doRepair, stopEvent)
