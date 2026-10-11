@@ -118,7 +118,8 @@ const setRichText = (el, text) => {
   });
 };
 
-const showDialog = (title, message, { confirm = false, image = '', danger = false, okText = '確認' } = {}) =>
+// choices: [{ value, label }]。有給時顯示單選清單，確認回傳選到的 value，取消回傳 null
+const showDialog = (title, message, { confirm = false, image = '', danger = false, okText = '確認', choices = null } = {}) =>
   new Promise((resolve) => {
     const dialog = document.querySelector('#dialog');
     const okBtn = document.querySelector('#dialogOk');
@@ -165,10 +166,26 @@ const showDialog = (title, message, { confirm = false, image = '', danger = fals
     document.querySelector('#dialogTitle').classList.toggle('danger', danger);
     cancelBtn.hidden = !confirm;
 
+    const choicesEl = document.querySelector('#dialogChoices');
+    choicesEl.replaceChildren();
+    choicesEl.hidden = !choices;
+    let picked = choices ? choices[0].value : null;
+    (choices || []).forEach((c, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dialog-choice' + (i === 0 ? ' selected' : '');
+      b.textContent = c.label;
+      b.onclick = () => {
+        picked = c.value;
+        choicesEl.querySelectorAll('.dialog-choice').forEach((x) => x.classList.toggle('selected', x === b));
+      };
+      choicesEl.appendChild(b);
+    });
+
     const close = (result) => {
       dialog.hidden = true;
       document.removeEventListener('keydown', onKey);
-      resolve(result);
+      resolve(choices ? (result ? picked : null) : result);
     };
     const onKey = (e) => {
       if (e.key === 'Escape') close(false);
@@ -728,15 +745,18 @@ adbDetectButtons.forEach((btn) => {
         );
         return;
       }
-      const [first, ...others] = res.devices;
+      let address = res.devices[0].address;
+      if (res.devices.length > 1) {
+        address = await showDialog('找到多個模擬器', '請選擇要使用的模擬器：', {
+          confirm: true,
+          choices: res.devices.map((d) => ({ value: d.address, label: `${d.address}${d.name ? `（${d.name}）` : ''}` })),
+        });
+        if (!address) return;
+      }
       document.querySelectorAll(`.adb-preset[data-input="${btn.dataset.input}"]`).forEach((p) => delete p.dataset.custom);
-      input.value = first.address;
+      input.value = address;
       input.dispatchEvent(new Event('change'));
       syncAdbPresets();
-      if (others.length) {
-        const list = res.devices.map((d) => `．${d.address}${d.name ? `（${d.name}）` : ''}`).join('\n');
-        await showDialog('找到多個模擬器', `已填入第一個：${first.address}\n\n全部找到的位址：\n${list}\n\n如果不是你要用的，請在下拉選單選「其他」，再自行填寫。`);
-      }
     } catch (e) {
       await showDialog('自動偵測失敗', String(e));
     } finally {
