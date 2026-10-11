@@ -346,7 +346,7 @@ DEFAULT_THRESHOLDS = {
     "noStaminaShort": 0.82,  # 和其他提示的字有些重疊，其他提示會有 0.65~0.76
     "toolBroken": 0.7,
     "usesLabel": 0.7,
-    "staminaIcon": 0.7,
+    "staminaIcon": 0.45,  # 圖示是半透明的，實測 0.48~0.8 都有(原本的 0.7 會認不到，飽食度就讀不到)；只在左上角固定位置附近找，後面還會檢查有沒有體力條
     "endFilterBtn": 0.9,
     "endSearchBtn": 0.9,
     "filterHeaderFishing": 0.93,  # 「篩選：園藝用品」實測 0.87，不能誤認
@@ -391,6 +391,7 @@ CONFIG_DEFAULTS = {
     "expectedCookQty": "50",
     "isSafeMode": "True",
     "stopAtFiveStar": "False",
+    "debugMode": "False",
     "safeModeQty": "3",
     "detectFrequency": "0.05",
     "clickFrequency": "0.05",
@@ -616,9 +617,12 @@ def _isValidLike(default, value):
 
 # 預設值有調整、但舊使用者的設定檔已經存了舊預設值時，靠這張表更新: {版本: {設定名稱: (舊預設值, 新預設值)}}
 # 只有使用者的值還是舊預設值才會換(自己調過的不動)。要新增時把 CONFIG_VERSION 加 1 並加一組
-CONFIG_VERSION = 1
+CONFIG_VERSION = 4
 CONFIG_VALUE_MIGRATIONS = {
     1: {"filterHeaderFishingThreshold": ("0.85", "0.93")},
+    2: {"staminaIconThreshold": ("0.7", "0.6")},
+    3: {"staminaIconThreshold": ("0.6", "0.5")},
+    4: {"staminaIconThreshold": ("0.5", "0.45")},
 }
 
 

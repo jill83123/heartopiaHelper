@@ -187,7 +187,6 @@
           <div class="check sub no-icon mb-8">
             <input type="checkbox" class="setting-check" id="fishingFaceFront" data-key="fishingFaceFront" />
             <label for="fishingFaceFront">釣到新魚後轉回正面</label>
-            <span class="beta-tag">測試中</span>
             <span class="muted fs-12">＊ 前景會按 W、模擬器會推搖桿</span>
           </div>
 
@@ -571,6 +570,26 @@
               <div class="row threshold-grid" data-group="fishing"></div>
             </details>
           </details>
+            </div>
+          </details>
+
+          <details class="section">
+            <summary>
+              <span class="section-text">
+                <span class="section-name">除錯<span class="section-tag">進階</span></span>
+                <span class="section-hint">回報問題時才需要開啟</span>
+              </span>
+            </summary>
+            <div class="section-body">
+          <div class="action-list">
+            <div class="action-row">
+              <div>
+                <div class="action-name">除錯模式</div>
+                <div class="action-desc">開啟後會把程式判斷用的截圖與流程記錄存到 debug 資料夾（截圖左下角的玩家 ID 會被遮蓋），截圖最多保留最近 100 張（約佔 50～130MB），不需要時請關閉</div>
+              </div>
+              <input type="checkbox" class="setting-check" id="debugMode" data-key="debugMode" />
+            </div>
+          </div>
             </div>
           </details>
 

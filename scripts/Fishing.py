@@ -1,8 +1,11 @@
 import itertools
+import math
 import os
 import sys
 import random
+import threading
 import time
+import traceback
 import cv2
 import numpy as np
 from scripts.base import BaseTask
@@ -54,6 +57,8 @@ RESULT_MAX_CELLS = 15
 STAR_STRIP = (-54, 37, 8, 50)  # x0, y0, x1, y1
 STAR_FIRST_WIDTH = 14
 STAR_STEP = 9
+STAR_SHAPE_MAX = 0.08  # 金色色塊的輪廓和五角星的差異(Hu 矩距離，越小越像，不受大小影響)要在這個值以內才算星星；實測真星星 0.004~0.02，背包圖示的黃色邊角、燈光 0.17 以上
+STAR_INNER_RATIO = 0.55  # 遊戲星星圖示的內凹程度(內圈半徑 ÷ 外圈半徑)，胖胖的五角星
 MAX_STARS = 5  # 食物最高星級；星級選「不限」又勾了不吃 5 星時，會跳過這一級
 # 可使用多次的食物，說明裡有「可用次數：2/4」。只要判斷分子是不是 1(「1」這個字很窄，其他數字寬約 8 像素，它只有約 3)
 USES_LABEL_GAP = 3  # 「可用次數：」圖案右邊多留幾像素再開始看數字
@@ -69,6 +74,7 @@ DIALOG_WHITE = 235  # 三個色頻都要這麼亮才算白(實測對話框 246 �
 DIALOG_FILL = 0.97  # 兩端都要有這個比例以上是白的
 # 吃食物有兩種時機: 每隔設定的分鐘數吃一次，或操作中剛好看得到體力條(地圖旁邊)且低於設定的 % 數就吃。
 # 不會為了看飽食度特地開背包。看到的飽食度高於設定的 % 就不吃，並把定時的下一次往後延一個間隔
+STAMINA_SEARCH = (0.08, 0.03, 0.26, 0.22)  # 體力圖示在遊戲畫面的左上角(實測中心約在寬 0.165、高 0.12 的位置)，只在這塊找: 左、上、右、下(佔畫面寬高的比例)
 SATIETY_BAR = (-4, -18, 200, 18)  # 體力條範圍，相對於體力圖示中心: 左、上、右、下(1600 寬)
 SATIETY_FILL_OFFSET = 3
 SATIETY_DISAGREE = 12  # 兩種算法差超過這個 %，這次讀數不採用
@@ -129,6 +135,21 @@ SEARCH_INPUT_OFFSET = -385  # 搜尋輸入框在「搜尋」按鈕左邊多遠
 
 
 _ocrReported = False  # OCR 狀態是否已經提示過(程式開著期間只提示一次)
+
+
+def _starContour(size=200):
+    """標準五角星的輪廓，拿來和畫面上的金色色塊比形狀"""
+    points = []
+    for k in range(10):
+        radius = (size / 2 - 4) * (1 if k % 2 == 0 else STAR_INNER_RATIO)
+        angle = -math.pi / 2 + k * math.pi / 5
+        points.append([size / 2 + radius * math.cos(angle), size / 2 + radius * math.sin(angle)])
+    canvas = np.zeros((size, size), np.uint8)
+    cv2.fillPoly(canvas, [np.array(points, np.int32)], 255)
+    return max(cv2.findContours(canvas, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[0], key=cv2.contourArea)
+
+
+_STAR_CONTOUR = _starContour()
 
 
 class OutOfStock(RuntimeError):
@@ -291,42 +312,99 @@ class Fishing(BaseTask):
                 self.setLog("香水效果即將結束")
                 break
 
+    DEBUG_MAX_FILES = 100  # debug/ 裡截圖(png)的總數上限，超過就刪最舊的(約 50～130MB)
+
+    @staticmethod
+    def _debugFolder():
+        base = os.path.dirname(sys.executable) if hasattr(sys, "frozen") else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        folder = os.path.join(base, "debug")
+        os.makedirs(folder, exist_ok=True)
+        return folder
+
     def _trace(self, msg, reset=False):
-        """流程追蹤: 寫進 debug/flow.log(不進日誌視窗)，出問題時用來看程式當時為什麼那樣做"""
+        """流程追蹤: 寫進 debug/flow.log(不進日誌視窗)，出問題時用來看程式當時為什麼那樣做。只有開啟「除錯模式」才寫"""
+        if not self._flag("debugMode"):
+            return
         try:
-            folder = os.path.join(os.path.dirname(sys.executable) if hasattr(sys, "frozen") else os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "debug")
-            os.makedirs(folder, exist_ok=True)
+            folder = self._debugFolder()
             path = os.path.join(folder, "flow.log")
             if reset and os.path.exists(path) and os.path.getsize(path) > 200_000:  # 平常接著寫(換一次運行不清掉，才看得到上一輪)，太大才重來
                 os.remove(path)
             with open(path, "a", encoding="utf-8") as f:
                 f.write(time.strftime("%H:%M:%S ") + msg + "\n")
+            self._lastTraceAt = time.time()
         except Exception:
             pass
 
+    def _watchLoop(self, stopEvent, threadId):
+        """除錯模式專用: 主迴圈超過一段時間沒有任何流程記錄，就把它目前執行到哪一行記下來，用來找出卡住的地方"""
+        self._trace("【監看】已啟動")
+        while not stopEvent.wait(5):
+            try:
+                if time.time() - getattr(self, "_lastTraceAt", 0) < 15:
+                    continue
+                frame = sys._current_frames().get(threadId)
+                if frame is None:
+                    self._trace("【監看】主迴圈的執行緒已經結束")
+                    return
+                stack = "".join(traceback.format_stack(frame)[-6:]).rstrip()
+                self._trace("【監看】主迴圈 15 秒沒有新記錄，目前執行到:\n" + stack)
+                self._lastTraceAt = time.time()
+            except Exception as e:
+                self._trace(f"【監看】發生錯誤: {e!r}")
+                return
+        self._trace("【監看】結束")
+
+    def _traceWait(self, reason):
+        """主畫面卻沒有拋竿時，記下是被哪個條件擋住(同一個原因只記一次)"""
+        if getattr(self, "_waitReason", None) != reason:
+            self._waitReason = reason
+            self._trace(f"主畫面不拋竿：{reason}")
+
+    def _writeShot(self, folder, fileName, img):
+        """存一張 debug 截圖。遊戲畫面左下角會顯示玩家 ID，存檔前把那一塊塗黑(只改副本，不動傳進來的影像)"""
+        img = img.copy()
+        h, w = img.shape[:2]
+        x0, y0, x1, y1 = 0, 0, w, h
+        rect = self.backend.getGameRect()  # 前景模式整個螢幕的截圖裡，遊戲只佔視窗的那一塊
+        if rect:
+            ox, oy = getattr(self, "_origin", (0, 0))
+            x0, y0 = max(0, rect[0] - ox), max(0, rect[1] - oy)
+            x1, y1 = min(w, rect[0] - ox + rect[2]), min(h, rect[1] - oy + rect[3])
+        if x1 > x0 and y1 > y0:
+            img[y1 - max(1, int((y1 - y0) * 0.06)) : y1, x0 : x0 + max(1, int((x1 - x0) * 0.3))] = 0
+        cv2.imwrite(os.path.join(folder, fileName), img)
+
+    def _pruneShots(self, folder, prefix, keep):
+        """同一種截圖只留最近 keep 張，再把整個 debug/ 的截圖總數壓在 DEBUG_MAX_FILES 以內(刪最舊的)"""
+        for name in sorted(f for f in os.listdir(folder) if f.startswith(prefix + "_"))[:-keep]:
+            os.remove(os.path.join(folder, name))
+        shots = sorted((os.path.getmtime(os.path.join(folder, f)), f) for f in os.listdir(folder) if f.lower().endswith(".png"))
+        for _, name in shots[: -self.DEBUG_MAX_FILES]:
+            os.remove(os.path.join(folder, name))
+
     def _saveShot(self, img, prefix):
+        if not self._flag("debugMode"):
+            return
         try:
-            folder = os.path.join(os.path.dirname(sys.executable) if hasattr(sys, "frozen") else os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "debug")
-            os.makedirs(folder, exist_ok=True)
-            cv2.imwrite(os.path.join(folder, time.strftime(prefix + "_%Y%m%d_%H%M%S.png")), img)
-            for name in sorted(f for f in os.listdir(folder) if f.startswith(prefix + "_"))[:-10]:
-                os.remove(os.path.join(folder, name))
+            folder = self._debugFolder()
+            self._writeShot(folder, time.strftime(prefix + "_%Y%m%d_%H%M%S.png"), img)
+            self._pruneShots(folder, prefix, 10)
         except Exception:
             pass
 
     def _saveTailShot(self, img):
         """判斷「水面已有誘魚器」的那一張畫面存下來(框出偵測到的光柱)，之後覺得誤判時可以拿來檢查。最多留最近 20 張"""
+        if not self._flag("debugMode"):
+            return
         try:
-            folder = os.path.join(os.path.dirname(sys.executable) if hasattr(sys, "frozen") else os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "debug")
-            os.makedirs(folder, exist_ok=True)
+            folder = self._debugFolder()
             shot = img.copy()
             if self._tailRect:
                 x, y, w, h = self._tailRect
                 cv2.rectangle(shot, (x, y), (x + w, y + h), (0, 0, 255), 2)
-            cv2.imwrite(os.path.join(folder, time.strftime("tail_%Y%m%d_%H%M%S.png")), shot)
-            old = sorted(f for f in os.listdir(folder) if f.startswith("tail_"))[:-20]
-            for name in old:
-                os.remove(os.path.join(folder, name))
+            self._writeShot(folder, time.strftime("tail_%Y%m%d_%H%M%S.png"), shot)
+            self._pruneShots(folder, "tail", 20)
         except Exception:
             pass
 
@@ -487,7 +565,14 @@ class Fishing(BaseTask):
         return last is None or time.time() - last >= wait
 
     def _dueTasks(self, img, casting=False):
-        return [(name, fn) for name, fn in self._enabledTasks() if self._isDue(name, img, casting)]
+        due = []
+        for name, fn in self._enabledTasks():
+            started = time.time()
+            if self._isDue(name, img, casting):
+                due.append((name, fn))
+            if time.time() - started > 2:  # 單一項目的判斷花太久，記下是哪一個
+                self._trace(f"判斷「{name}」要不要執行花了 {time.time() - started:.1f} 秒")
+        return due
 
     # ===== 畫面辨識與操作 =====
     def _shot(self):
@@ -973,7 +1058,9 @@ class Fishing(BaseTask):
 
     def _useFishingItem(self, itemName, buttonName, label, stopEvent):
         if not self._openFishingList(stopEvent):
+            self._trace(f"{label}: 背包沒有停在釣魚用品清單")
             return False
+        self._trace(f"{label}: 已打開釣魚用品清單")
         img, itemPos = self._waitFor(itemName, stopEvent, 2)
         if not itemPos:
             # 可能是背包停在別的篩選卻被誤認成釣魚用品: 關掉重開，重新選分類再找一次
@@ -987,9 +1074,12 @@ class Fishing(BaseTask):
             return False
         if not self._clickWhenVisible(buttonName, stopEvent, 2):
             raise RuntimeError(f"找不到{label}的使用按鈕")
+        self._trace(f"{label}: 已按使用")
         if stopEvent.wait(1.5):
             return False
-        return self._closeBag(stopEvent)
+        closed = self._closeBag(stopEvent)
+        self._trace(f"{label}: 關閉背包 {closed}")
+        return closed
 
     def _doPerfume(self, stopEvent):
         return self._useFishingItem("perfumeItem", "sprayBtn", "香水", stopEvent)
@@ -1059,11 +1149,27 @@ class Fishing(BaseTask):
         """吃到飽食度達到(或超過)這個 % 為止"""
         return int(self.config.get("fishingFoodUntil", 99))
 
+    def _findStaminaIcon(self, img):
+        """體力圖示固定在遊戲畫面的左上角(地圖旁邊)，只在那一小塊找: 不會被畫面其他地方相似的圖案騙到(圖示是半透明的，分數本來就不高)，也比較快。
+        手機版的圖和位置沒驗證過，維持整張找"""
+        if self.isAdb:
+            return self._find(img, "staminaIcon")
+        gx, gy, gw, gh = self._gameRect(img)
+        x0, y0 = max(0, gx), max(0, gy)
+        left, top = x0 + int(gw * STAMINA_SEARCH[0]), y0 + int(gh * STAMINA_SEARCH[1])
+        region = img[top : gy + int(gh * STAMINA_SEARCH[3]), left : gx + int(gw * STAMINA_SEARCH[2])]
+        if region.size == 0:
+            return None
+        path = self._templatePath("staminaIcon")
+        pos = matchBest(region, path, getThreshold(self.config, "staminaIcon"), resolveScale(self.backend, self.config, img, path))
+        return (pos[0] + left, pos[1] + top) if pos else None
+
     def _satiety(self, img):
         """讀地圖旁邊體力條的飽食度(0~100)，畫面上沒有體力條回傳 None。
         用體力圖示定位，再數體力條裡青綠色填滿的部分佔整條的比例(誤差約 ±2%)。超過 100 時外框會變橘色(條是滿的)，直接當 100"""
-        pos = self._find(img, "staminaIcon")
+        pos = self._findStaminaIcon(img)
         if not pos:
+            self._satietyRead = "找不到體力圖示"
             return None
         s = self._scale()
         # 條上有「41/180」這樣的數字，優先用 OCR 讀(最準)；讀不到(沒有 OCR、字被擋住)才用下面數條長度估算
@@ -1073,6 +1179,7 @@ class Fishing(BaseTask):
         bar = self._barSatiety(img, pos)
         if fraction and fraction[0] > max(SATIETY_MAXIMUMS):  # 「76/100」被讀成「718」這種不可能的數字，不信 OCR
             fraction = None
+        self._satietyRead = (fraction, bar)  # 除錯用: 這次讀數的依據(OCR 讀到的、條長度估的)
         if not fraction:
             return bar
         current, maximum = fraction
@@ -1108,8 +1215,12 @@ class Fishing(BaseTask):
             return 100
         # 條中間的「36/100」數字會蓋住條的一部分，不能直接數青綠色像素，也不能在字的地方就當作填滿結束。
         # 改成每一列從填滿的左端往右，字的白色像素當作還在條裡面，一直到連續兩個「空條底色」(暗藍)為止，再取各列的中位數
-        # 條是半透明的，空條的底色會隨背景變: 暗藍(色相 97~103、飽和度 150 以上、亮度 80~130)或灰藍(飽和度 60~150、亮度到 175)，都不是青綠色
-        empty = (hsv[:, :, 0] >= 90) & (hsv[:, :, 0] <= 105) & (hsv[:, :, 1] >= 60) & (hsv[:, :, 2] >= 70) & (hsv[:, :, 2] <= 175) & ~teal
+        # 條是半透明的，空條的底色會隨背景變: 暗藍(色相 97~103、飽和度 150 以上、亮度 80~130)或灰藍、灰紫(色相到 120、飽和度 60~150、亮度到 175，海面場景實測底色色相約 114)，都不是青綠色
+        empty = (hsv[:, :, 0] >= 90) & (hsv[:, :, 0] <= 120) & (hsv[:, :, 1] >= 60) & (hsv[:, :, 2] >= 70) & (hsv[:, :, 2] <= 175) & ~teal
+        # 空條的底色還會是別的顏色(夜晚的草地上是棕色)，所以「既不是青綠色、也不是字的白色」而且連續一小段(排除字邊緣的混色)也算空條
+        white = (hsv[:, :, 1] <= 70) & (hsv[:, :, 2] >= 190)
+        solidGap = cv2.erode((~teal & ~white).astype(np.uint8), np.ones((1, 3), np.uint8)).astype(bool)
+        empty = empty | solidGap
         full = np.where(counts >= 0.6 * width)[0]
         first, last = int(full[0]), int(full[-1])
         lengths = []
@@ -1172,7 +1283,10 @@ class Fishing(BaseTask):
             if stopEvent.wait(1.0):
                 return False
             satiety = self._readSatiety(stopEvent)
-            if satiety is None or satiety >= self._foodUntil():
+            if satiety is None:
+                self.setLog("吃完後讀不到飽食度，先不繼續吃")
+                return True
+            if satiety >= self._foodUntil():
                 return True
             self.setLog(f"飽食度 {satiety}%，還沒到 {self._foodUntil()}%，再吃一份")
         return True
@@ -1180,11 +1294,15 @@ class Fishing(BaseTask):
     def _readSatiety(self, stopEvent, tries=4):
         """吃完讀飽食度。吃的當下數字會跳動、被特效蓋住，一次讀不到就隔一下再讀，不要馬上當作吃飽停下來"""
         for i in range(tries):
-            satiety = self._satiety(self._shot())
+            shot = self._shot()
+            satiety = self._satiety(shot)
             if satiety is not None:
-                self._trace(f"吃完飽食度 {satiety}%（目標 {self._foodUntil()}%）")
+                self._trace(f"吃完飽食度 {satiety}%（目標 {self._foodUntil()}%）；OCR 讀到、條長度估算: {getattr(self, '_satietyRead', None)}")
+                self._saveShot(shot, "satiety")  # 對照畫面上實際的數字，確認讀得對不對
                 return satiety
-            self._trace(f"飽食度讀不到（第 {i + 1} 次）")
+            self._trace(f"飽食度讀不到（第 {i + 1} 次）；OCR 讀到、條長度估算: {getattr(self, '_satietyRead', None)}")
+            if i == 0:
+                self._saveShot(shot, "satietyfail")  # 讀不到時的畫面，看是被特效蓋住還是辨識有問題
             if stopEvent.wait(0.6):
                 return None
         return None
@@ -1300,7 +1418,8 @@ class Fishing(BaseTask):
             if self._find(img, "usesLabel"):
                 break
             if time.time() >= deadline:
-                if not self._usesNotFoundLogged:
+                # 看得到食用按鈕才是真的一次性食物；連按鈕都沒有，是點了食物卻沒開出說明(點擊沒吃到)，不能說成一次性食物
+                if not self._usesNotFoundLogged and self._find(img, "eatBtn"):
                     self._usesNotFoundLogged = True
                     self.setLog("當前為一次性食物")
                 return None
@@ -1328,7 +1447,7 @@ class Fishing(BaseTask):
             self._meals += 1
             if stopEvent.wait(0.5):
                 return False
-            satiety = self._readSatiety(stopEvent)  # 背包開著也看得到體力條
+            satiety = self._readSatiety(stopEvent, tries=10)  # 背包開著也看得到體力條；還沒確認飽食度就不關背包，多等一下(特效、跳動的數字會擋住)
             if satiety is not None and satiety < self._foodUntil():
                 return "again"
         return self._closeBag(stopEvent)
@@ -1367,10 +1486,12 @@ class Fishing(BaseTask):
             self._hungry = False  # 這一輪吃完(或失敗)之前不重複觸發，下次再看到提示才吃
         if name != "food":  # 吃食物要等開了背包、確定不夠飽才寫(見 _shouldEat)
             self.setLog(f"{self.LABELS[name]}中...")
+        self._trace(f"任務開始 {name}")
         self._wakeMouse(stopEvent)
         self._meals = 0
         try:
             ok = fn(stopEvent)
+            self._trace(f"任務結束 {name} ok={ok}")
             if name == "food" and self._meals:
                 self.setLog(f"共吃了 {self._meals} 份")
         except OutOfStock as e:
@@ -1431,6 +1552,15 @@ class Fishing(BaseTask):
             self.setLog("⚠️ OCR 無法使用，飽食度改用體力條長度估算，可能不準")
 
     def _mainLoop(self, stopEvent):
+        """真正的迴圈在 _fishingLoop。包一層只為了在除錯模式把「怎麼結束的」記下來(正常 return，或什麼例外)"""
+        try:
+            self._fishingLoop(stopEvent)
+            self._trace(f"主迴圈結束（return，stopEvent 已設定: {stopEvent.is_set()}）")
+        except BaseException:
+            self._trace("主迴圈因例外結束:\n" + traceback.format_exc())
+            raise
+
+    def _fishingLoop(self, stopEvent):
         frequency = float(self.config.get("fishingDetectFrequency", 0.2))
         unknownSince = None
         failedCasts = 0
@@ -1439,6 +1569,7 @@ class Fishing(BaseTask):
         # 丟維修盒預設不在開始時馬上做，從現在起算一個間隔後才第一次執行；吃食物則開始就先檢查一次(夠飽就不吃)
         self._hungry = False  # 開始時不先吃，等看到「體力不足」提示才吃
         self._baitChecked = False
+        self._baitCheckLogged = False
         self._toolBroken = False
         self._toolFixedAt = None
         self._toolBrokenAlerted = False
@@ -1451,6 +1582,8 @@ class Fishing(BaseTask):
             self.setLog("自動拋竿已關閉，只會定時執行勾選的項目")
 
         self._trace("========== 開始運行 ==========", reset=True)
+        if self._flag("debugMode"):
+            threading.Thread(target=self._watchLoop, args=(stopEvent, threading.get_ident()), daemon=True).start()
         lastState = None
         while not stopEvent.wait(frequency):
             img = self._shot()
@@ -1487,6 +1620,9 @@ class Fishing(BaseTask):
             if state == "idle":
                 if self._flag("fishingAutoCast") and not self._findCast(img):  # 主畫面卻比對不到拋竿鈕: 記下這個帳號的拋竿鈕樣子(自動拋竿關閉時用不到，不記)
                     self._learnCast(img)
+                if not self._baitCheckLogged and self._baitUnchecked():  # 確認魚尾要連續看好幾次，要一點時間，先說一聲
+                    self._baitCheckLogged = True
+                    self.setLog("檢查水面有沒有魚尾中...")
                 due = self._dueTasks(img)
                 if due:
                     for name, fn in due:
@@ -1498,12 +1634,16 @@ class Fishing(BaseTask):
                 if not self._flag("fishingAutoCast"):
                     continue
                 if self._baitUnchecked():
+                    self._traceWait("還沒確認魚尾")
                     continue  # 還沒確認水面有沒有魚尾(有的話不放誘魚器，沒有就要放)，確認前不拋竿
                 if self._missingSince is not None and "perfume" not in self.disabled:
+                    self._traceWait("看不到香水圖示，等反應時間")
                     continue  # 看不到香水圖示，正在等一兩秒的反應時間再補噴；這時不能拋竿，否則一拋竿計時就重來，永遠噴不到
                 if self.lastDone.get("perfume") is None and "perfume" not in self.disabled:
+                    self._traceWait("還在確認有沒有香水效果")
                     continue  # 剛開始，還在確認有沒有香水效果(連續幾次看不到圖示才噴)，先不拋竿
                 if "perfume" in self.disabled:  # 沒有香水效果又噴不了，不繼續釣魚
+                    self._traceWait("香水已停用")
                     if not self._noPerfumeLogged:
                         self._alert("沒有香水效果，也無法噴香水，暫停釣魚(請補充香水後重新開始)")
                         self._noPerfumeLogged = True
@@ -1524,6 +1664,7 @@ class Fishing(BaseTask):
                     if stopEvent.wait(0.8):
                         return
                 self._wakeMouse(stopEvent)
+                self._waitReason = None
                 self._trace(f"主畫面拋竿 perfume={self.lastDone.get('perfume')} baitChecked={self._baitChecked}")
                 self._cast(self._shot(), stopEvent, force=True)
                 # 按下後每 0.3 秒看一次: 介面隱藏(進入拋竿)就成功，不用傻等；介面一直沒隱藏就是沒拋出去，
@@ -1635,17 +1776,21 @@ class Fishing(BaseTask):
 
     def _hasStarCard(self, img):
         """右側(離最上排的圖示列一段距離)有金黃色實心星星 = 新星數的星星卡。
-        不靠模板，找大小相近的金色近似正方形小塊；範圍避開最上排的活動圖示，也避開畫面中央角色旁邊的閃光"""
+        不靠模板，找大小相近、形狀像五角星的金色小塊；範圍避開最上排的活動圖示，也避開畫面中央角色旁邊的閃光"""
         x, y, w, h = self._gameRect(img)
         roi = img[max(0, y + int(h * 0.15)) : y + int(h * 0.4), max(0, x + int(w * 0.7)) : x + w, :3]
         if roi.size == 0:
             return False
         mask = cv2.inRange(cv2.cvtColor(np.ascontiguousarray(roi), cv2.COLOR_BGR2HSV), STAR_HSV_LOW, STAR_HSV_HIGH)
-        count, _, stats, _ = cv2.connectedComponentsWithStats(mask)
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
         for i in range(1, count):
-            sw, sh, area = stats[i][2], stats[i][3], stats[i][4]
+            sx, sy, sw, sh, area = stats[i]
             if h * 0.012 <= sw <= h * 0.05 and h * 0.012 <= sh <= h * 0.05 and 0.7 <= sw / sh <= 1.4 and area >= sw * sh * 0.4:
-                return True
+                # 大小、顏色對了還要形狀像五角星: 背包圖示的黃色邊角、燈光、閃光也是金黃色的小塊，單看大小會被騙
+                blob = np.pad((labels[sy : sy + sh, sx : sx + sw] == i).astype(np.uint8) * 255, 1)
+                contour = max(cv2.findContours(blob, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[0], key=cv2.contourArea)
+                if cv2.matchShapes(_STAR_CONTOUR, contour, cv2.CONTOURS_MATCH_I1, 0) <= STAR_SHAPE_MAX:
+                    return True
         return False
 
     def _waitNewFishGone(self, stopEvent):
