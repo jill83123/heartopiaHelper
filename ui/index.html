@@ -354,41 +354,41 @@
             <div class="col"></div>
           </div>
 
-          <div class="float-log">
-            <div class="float-log-head">
-              <input type="checkbox" class="setting-check" id="floatLogEnabled" data-key="floatLogEnabled" />
-              <label for="floatLogEnabled" class="action-name">浮動日誌</label>
+          <div class="check float-log-head mb-8">
+            <input type="checkbox" class="setting-check" id="floatLogEnabled" data-key="floatLogEnabled" />
+            <label for="floatLogEnabled">浮動日誌</label>
+          </div>
+          <div id="floatLogPositionRow">
+            <div class="check sub no-icon float-modes mb-8">
+              <span>於</span>
+              <input type="checkbox" class="setting-check" id="floatLogForeground" data-key="floatLogForeground" />
+              <label for="floatLogForeground">前景</label>
+              <input type="checkbox" class="setting-check" id="floatLogBackground" data-key="floatLogBackground" />
+              <label for="floatLogBackground">背景（模擬器）</label>
+              <span>模式時顯示</span>
             </div>
-            <div id="floatLogPositionRow">
-              <div class="check float-modes">
-                <span>於</span>
-                <input type="checkbox" class="setting-check" id="floatLogForeground" data-key="floatLogForeground" />
-                <label for="floatLogForeground">前景</label>
-                <input type="checkbox" class="setting-check" id="floatLogBackground" data-key="floatLogBackground" />
-                <label for="floatLogBackground">背景（模擬器）</label>
-                <span>模式時顯示</span>
+            <div class="check sub no-icon mb-16">
+              <input type="checkbox" class="setting-check" id="floatLogAutoClose" data-key="floatLogAutoClose" />
+              <label for="floatLogAutoClose">運行結束後自動關閉浮動日誌</label>
+            </div>
+            <div class="row float-log-selects">
+              <div class="col">
+                <label for="floatLogTheme" class="label">視窗顏色</label>
+                <select id="floatLogTheme" class="setting input" data-key="floatLogTheme">
+                  <option value="dark">黑色</option>
+                  <option value="light">白色</option>
+                </select>
               </div>
-              <div class="check">
-                <input type="checkbox" class="setting-check" id="floatLogAutoClose" data-key="floatLogAutoClose" />
-                <label for="floatLogAutoClose">運行結束後自動關閉浮動日誌</label>
+              <div class="col">
+                <label for="floatLogPosition" class="label">視窗位置</label>
+                <select id="floatLogPosition" class="setting input" data-key="floatLogPosition">
+                  <option value="screen">螢幕左下角</option>
+                  <option value="bottomRight">螢幕右下角</option>
+                  <option value="topLeft">螢幕左上角</option>
+                  <option value="topRight">螢幕右上角</option>
+                  <option value="custom">自訂位置（拖曳視窗調整）</option>
+                </select>
               </div>
-              <div class="check">
-                <input type="checkbox" class="setting-check" id="floatLogAutoTheme" data-key="floatLogAutoTheme" />
-                <label for="floatLogAutoTheme">依背景亮度自動切換浮動日誌顏色</label>
-              </div>
-              <div class="check sub">
-                <label for="floatLogThemeSeconds">偵測間隔</label>
-                <input type="number" min="1" step="1" class="setting input qty" id="floatLogThemeSeconds" data-key="floatLogThemeSeconds" />
-                <span class="muted fs-12">秒</span>
-              </div>
-              <label for="floatLogPosition" class="label">視窗位置</label>
-              <select id="floatLogPosition" class="setting input" data-key="floatLogPosition">
-                <option value="screen">螢幕左下角</option>
-                <option value="bottomRight">螢幕右下角</option>
-                <option value="topLeft">螢幕左上角</option>
-                <option value="topRight">螢幕右上角</option>
-                <option value="custom">自訂位置（拖曳日誌視窗即可調整）</option>
-              </select>
             </div>
           </div>
             </div>
