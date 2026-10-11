@@ -547,7 +547,7 @@ const NOTICE_TEXTS = {
   },
   fishing: {
     title: '釣魚注意事項',
-    message: '．請確保視角**正對魚尾**且**可見**（如下圖）。',
+    message: '．請確保**遊戲視角**（非人物視角）**正對魚尾**且**可見**（如下圖）。',
     image: 'fishing-example.png',
   },
 };

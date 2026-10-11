@@ -108,7 +108,10 @@ class Api:
     def setLog(self, msg, source):
         now = datetime.datetime.now().strftime("%H:%M:%S")
         formattedMsg = msg if msg == LOG_DIVIDER else f"[{now}] {msg}"
-        print(formattedMsg)
+        try:
+            print(formattedMsg)
+        except Exception:  # 主控台印不出來的字元(例如 ✅)不能讓寫日誌的執行緒跟著死掉
+            pass
         if source not in self.logs:
             return
         with self.logLock:

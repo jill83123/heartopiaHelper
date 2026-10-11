@@ -1398,9 +1398,6 @@ details.section > summary::before {
   font-size: 12px;
   font-weight: 400;
 }
-details.section[open] .section-hint {
-  display: none;
-}
 
 /* 進階群組: 標題旁的小標籤，提示通常不用動 */
 .section-tag {
