@@ -1194,7 +1194,7 @@ const updateResetButtons = () => {
 };
 
 // 下拉選單在選項上標示「（預設）」，不放還原按鈕
-const DEFAULT_LABEL_SELECTS = ['floatLogPosition', 'screenResolution', 'uiScale', 'matchStrictness'];
+const DEFAULT_LABEL_SELECTS = ['floatLogPosition', 'floatLogTheme', 'screenResolution', 'uiScale', 'matchStrictness'];
 
 // 只有「數值」欄位(份數、秒數、頻率...)需要還原預設值按鈕，沒有的自動補上。
 // 核取方塊、下拉選單、文字欄位(ADB、停止按鍵、食物名稱)不放；比對閥值已有「全部重設為預設值」。
@@ -1252,23 +1252,25 @@ const setup = async () => {
   // 定時檢查任務狀態，控制按鈕啟用或停用、設定欄位可編輯狀態
   poll(async () => {
     const status = await getApi().apiGetStatus();
+    // 任一任務運行中，所有頁面的開始鈕都不能按
+    const anyRunning = !!(status.cooking || status.snowCarving || status.fishing || status.plant || status.wood);
 
     // 料理
     const startCookBtn = document.querySelector('#startCookBtn');
     const stopCookBtn = document.querySelector('#stopCookBtn');
-    if (startCookBtn) startCookBtn.disabled = !!status.cooking || isSelectingRegion;
+    if (startCookBtn) startCookBtn.disabled = anyRunning || isSelectingRegion;
     if (stopCookBtn) stopCookBtn.disabled = !status.cooking;
 
     // 雪雕
     const startSnowBtn = document.querySelector('#startSnowBtn');
     const stopSnowBtn = document.querySelector('#stopSnowBtn');
-    if (startSnowBtn) startSnowBtn.disabled = !!status.snowCarving || isSelectingRegion;
+    if (startSnowBtn) startSnowBtn.disabled = anyRunning || isSelectingRegion;
     if (stopSnowBtn) stopSnowBtn.disabled = !status.snowCarving;
 
     // 釣魚
     const startFishBtn = document.querySelector('#startFishBtn');
     const stopFishBtn = document.querySelector('#stopFishBtn');
-    if (startFishBtn) startFishBtn.disabled = !!status.fishing || isSelectingRegion;
+    if (startFishBtn) startFishBtn.disabled = anyRunning || isSelectingRegion;
     getMissingFoodGroups(); // 持續更新食物名稱輸入框的紅框與提示
     if (stopFishBtn) stopFishBtn.disabled = !status.fishing;
 
@@ -1281,7 +1283,7 @@ const setup = async () => {
     // 採集(植物、砍木頭)
     GATHER_KINDS.forEach(({ prefix }) => {
       const P = capitalize(prefix);
-      document.querySelector(`#start${P}Btn`).disabled = !!status[prefix] || isSelectingRegion;
+      document.querySelector(`#start${P}Btn`).disabled = anyRunning || isSelectingRegion;
       document.querySelector(`#stop${P}Btn`).disabled = !status[prefix];
     });
 

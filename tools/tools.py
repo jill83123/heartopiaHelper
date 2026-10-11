@@ -400,10 +400,9 @@ CONFIG_DEFAULTS = {
     "floatLogEnabled": "True",
     "floatLogForeground": "False",
     "floatLogBackground": "True",
-    "floatLogAutoClose": "True",
+    "floatLogAutoClose": "False",
     "floatLogPosition": "screen",
-    "floatLogAutoTheme": "True",
-    "floatLogThemeSeconds": "3",
+    "floatLogTheme": "dark",
     "floatLogHeight": "132",
     "fishingDetectFrequency": "0.2",
     "fishingEnabled": "True",
@@ -449,13 +448,13 @@ CONFIG_DEFAULTS = {
     "woodFoodStars": "14",
     "woodFoodUntil": "99",
     "woodFoodLock": "True",
-    "woodUseRepair": "True",
+    "woodUseRepair": "False",
     "woodRepairMinutes": "15",
     **{f"{name}Threshold": str(value) for name, value in DEFAULT_THRESHOLDS.items()},
 }
 
 # 「還原設定值」不會動的項目: 跟使用者的環境有關(操作模式、ADB、解析度、停止鍵)，還原後還要重填很麻煩
-RESET_EXCLUDED_KEYS = {"floatLogEnabled", "floatLogForeground", "floatLogBackground", "floatLogAutoClose", "floatLogPosition", "floatLogHeight", "controlMode", "gatherKind", "adbPath", "adbDevice", "screenResolution", "uiScale", "gameWindowTitle", "stopKey", "cookDishRecordedAt"}
+RESET_EXCLUDED_KEYS = {"floatLogEnabled", "floatLogForeground", "floatLogBackground", "floatLogAutoClose", "floatLogPosition", "floatLogTheme", "floatLogHeight", "controlMode", "gatherKind", "adbPath", "adbDevice", "screenResolution", "uiScale", "gameWindowTitle", "stopKey", "cookDishRecordedAt"}
 
 
 def getThreshold(config, name):

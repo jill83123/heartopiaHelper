@@ -1339,47 +1339,32 @@ details.section[open] > summary {
   margin-top: 0;
 }
 
-/* 浮動日誌: 標題與開關同一列，下面是小標題「視窗位置」與選單，沒有分隔線 */
-.float-log {
-  margin-top: 12px;
-  padding: 12px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
+/* 設定頁的浮動日誌: 和釣魚頁一樣是「標題＋啟用開關」，關閉時下面的設定收起來，開啟後用分隔線區隔 */
+.check.float-log-head {
+  margin-top: 24px;
+  margin-bottom: 16px !important; /* 和下面的子選項拉開 */
 }
-.float-log-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+/* 沒啟用、設定收起來時，下方不用再留和子選項的距離 */
+.check.float-log-head:has(+ #floatLogPositionRow[hidden]) {
+  margin-bottom: 8px !important; /* 加上區塊底部的 16px，和上方的 24px 留白相同 */
 }
-.float-log-head {
-  margin-bottom: 12px;
-}
-.float-log:has(#floatLogPositionRow[hidden]) .float-log-head {
-  margin-bottom: 0;
-}
-#floatLogPositionRow > .check {
-  margin-bottom: 12px;
+#floatLogPositionRow > .row.float-log-selects {
+  padding-left: 46px; /* 和子選項對齊同一條線 */
 }
 #floatLogPositionRow > .check.float-modes {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 16px !important; /* 和下一列(運行結束後自動關閉)拉開 */
 }
 #floatLogPositionRow > .check.float-modes label + input {
-  margin-left: 8px;
-}
-#floatLogPositionRow > .check.sub {
-  margin-top: -4px;
-}
-.float-log-head .action-name {
-  cursor: pointer;
-}
-#floatLogPositionRow[hidden] {
-  display: none;
+  margin-left: 20px; /* 前景、背景兩個開關之間拉開 */
 }
 #floatLogPositionRow select.input {
   width: 100%;
+}
+#floatLogPositionRow > .row:last-child {
+  margin-bottom: 0;
 }
 
 /* 折疊時在標題下面用一行小字說明裡面有什麼，展開後就不顯示 */
@@ -1602,11 +1587,6 @@ label[for="expectedCookQty"] {
   text-align: left;
 }
 
-/* 浮動日誌的開關與下方的設定之間加分隔線 */
-#floatLogPositionRow {
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
 
 /* 標題下方緊接著的警告，貼近標題 */
 .title-row + .title-warn {
