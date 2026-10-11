@@ -31,7 +31,7 @@ REPAIR_COUNT_REGION = (10, 24, 50, 54)
 # 採完(植物 1 次、木頭 3 次)後，目標會消失並在原地出現倒數圖示(雲裡一株芽、外圈一條進度弧)，重生前沒東西可採，
 # 這時再按只會對著空氣揮、甚至把人物撞開。圖示是白色的圖案，同樣只比對白色字形。
 # 圖示在目標上方(畫面中間偏上)，只看這個範圍，避免把遠處其他植物的倒數圖示也算進來
-COUNTDOWN_REGION = (0.25, 0.05, 0.75, 0.65)  # 在遊戲畫面中的範圍(比例): 左、上、右、下
+COUNTDOWN_REGION = (0.25, 0.05, 0.75, 0.8)  # 在遊戲畫面中的範圍(比例): 左、上、右、下
 # 倒數圖示的外圈是一條綠色的進度弧(隨時間越縮越短)，圖示裡面的圖案每種植物都不同。
 # 與其一種一種收模板，不如直接認這條弧: 亮綠色、剛好落在同一個圓上、半徑固定。草地和葉子的綠不會排成圓弧，所以不會混淆
 RING_HSV = ((60, 120, 150), (95, 255, 255))  # 進度弧的色相、飽和度、亮度範圍(OpenCV 的 HSV)
@@ -356,6 +356,8 @@ class GatherBase(Fishing):
             self._lastIcon = now
         if seenBubble:
             self._lastBubble = now
+        if not seenIcon:  # 沒認到倒數圖示: 存下當時的畫面(debug/noicon_*)，用來檢查圖示在哪、為什麼沒比對到
+            self._saveShot(self._shot(), "noicon")
         if not (seenIcon or seenBubble):
             self.setLog(f"這輪沒看到倒數圖示，也沒看到獲得物品氣泡（圖示已 {int((now - self._lastIcon) // 60)} 分鐘、氣泡已 {int((now - self._lastBubble) // 60)} 分鐘沒出現）")
         return True
