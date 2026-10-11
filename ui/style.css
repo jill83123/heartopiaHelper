@@ -1486,6 +1486,32 @@ details.section[open] .section-hint {
   flex: none;
 }
 
+.dialog-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.dialog-choice {
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.dialog-choice:hover {
+  border-color: var(--text-3);
+}
+
+.dialog-choice.selected {
+  background: var(--brand-soft);
+  border-color: var(--brand-edge);
+}
+
 .dialog-image {
   display: block;
   max-width: 100%;
