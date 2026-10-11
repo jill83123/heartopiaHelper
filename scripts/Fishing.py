@@ -16,8 +16,10 @@ from tools.tools import getResourcePath, getThreshold, loadTemplate, matchBest
 
 UI_WAIT_SECONDS = 4  # 等待某個畫面/按鈕出現的上限(秒)
 CAST_SETTLE_SECONDS = 3  # 按下拋竿後，最多等這麼久(秒)看介面有沒有隱藏(進入拋竿)，隱藏了就立刻往下
+UNKNOWN_AFTER_TASK_SECONDS = 4  # 剛做完定時項目(丟維修盒、噴香水...)就認不出畫面，多半是誤點到別的介面，不用等太久就處理
 UNKNOWN_SECONDS = 20  # 畫面不是拋竿、也不是主畫面超過這個秒數，就點返回
 MAX_FAILED_CASTS = 3
+FACE_FRONT_AFTER_FAILS = 2  # 連續失敗幾次才轉回正面(ADB 截圖慢，介面短暫隱藏容易漏看，單次失敗多半是誤判)
 
 # 拋竿鈕在遊戲畫面右下角的固定位置(以 1600 寬為基準): 「F」小圓點離右邊、下邊的距離，以及它到按鈕中心的距離
 CAST_BASE_WIDTH = 1600
@@ -32,7 +34,7 @@ ADB_CAST_RADIUS = 70
 # 釣竿有各種造型，鈕裡面的圖案每個人都不一樣，所以內建的圖不一定比對得到。
 # 但主畫面(看得到背包)時拋竿鈕一定在這個固定位置，第一次看到就把它的樣子記下來，之後用自己的樣子比對
 CAST_LEARN_RADIUS = 60
-ADB_PRESS_MS = 100  # 模擬器點擊要按住的時間
+ADB_PRESS_MS = 0  # 模擬器點擊要按住的時間
 
 # 喚醒滑鼠時點的位置(佔遊戲畫面寬高的比例)：上方中間
 WAKE_X = 0.5
@@ -168,6 +170,13 @@ class Fishing(BaseTask):
 
     def __init__(self, setLog, backend, config, roleName="前景定時"):
         super().__init__(setLog, backend, config)
+        baseSetLog = self.setLog
+
+        def tracedSetLog(msg, *args, **kwargs):  # 日誌視窗顯示的每一行也記進 flow.log，才看得出介面上實際顯示了什麼
+            self._trace(f"【日誌】{msg}")
+            return baseSetLog(msg, *args, **kwargs)
+
+        self.setLog = tracedSetLog
         self.roleName = roleName  # 通知與日誌裡用來分辨是哪個帳號
         self.isAdb = getattr(backend, "isAdb", False)
         if self.isAdb:
@@ -193,7 +202,6 @@ class Fishing(BaseTask):
         self._toolBroken = False  # 看到「工具耐久耗盡」的提示了，要先丟維修盒
         self._toastScore = 0.0
         self._toolFixedAt = None  # 最近一次丟維修盒的時間
-        self._toolBrokenAlerted = False
         self._tailRect = None  # 最近一次偵測到的光柱範圍(除錯存圖用)
         self._tailHits = []  # 最近幾次偵測有沒有魚尾光柱
         self._baitChecked = False  # 依魚尾判斷誘魚器時，這次運行有沒有確認過水面的魚尾(確認前不能拋竿)
@@ -231,9 +239,7 @@ class Fishing(BaseTask):
 
     def _enabledTasks(self):
         """依執行順序列出啟用的項目: (名稱, 執行函式)"""
-        tasks = []
-        if self._flag("fishingUseRepair"):
-            tasks.append(("repair", self._doRepair))
+        tasks = [("repair", self._doRepair)]  # 沒勾「丟維修盒」也在清單裡，只是只有耐久耗盡時才會丟(見 _isDue)
         if self._flag("fishingUseFood"):
             tasks.append(("food", self._doFood))
         if self._flag("fishingAutoCast"):  # 自動釣魚一定要搭配香水(魚直接上鉤)
@@ -543,12 +549,12 @@ class Fishing(BaseTask):
                     return False
                 self.setLog("香水效果已結束，補噴")
                 self._sprayNoIcon += 1
-                if self._sprayNoIcon >= 2:
+                if self._sprayNoIcon >= MAX_TASK_FAILURES:
                     self._alert("噴了香水後仍看不到香水圖示，不再噴香水，也不繼續釣魚，請確認畫面與設定")
                     self.disabled.add(name)
                     return False
                 if not self._iconSeen:  # 噴完從來沒看過圖示，多半是沒噴成功
-                    self._alert("香水沒有噴成功（噴了之後看不到效果圖示），再試一次，請確認背包有香水", flash=False)
+                    self.setLog("⚠️ 香水沒有噴成功（噴了之後看不到效果圖示），再試一次，請確認背包有香水")
             return True
         if name == "food":
             if casting:
@@ -562,6 +568,8 @@ class Fishing(BaseTask):
                     self.setLog("工具耐久耗盡，先丟維修盒")
                 self._toolBroken = True
                 return True
+        if name == "repair" and not self._flag("fishingUseRepair"):
+            return False  # 沒勾定時丟維修盒: 只在耐久耗盡時才丟
         return last is None or time.time() - last >= wait
 
     def _dueTasks(self, img, casting=False):
@@ -1017,7 +1025,7 @@ class Fishing(BaseTask):
         resolver = self.backend.scaleResolver
         self._trace(f"背包畫面認不出來：縮放倍率 {resolver.factor}（{'已鎖定' if resolver.locked else '未鎖定'}）")
         self._saveShot(self._shot(), "bagview")
-        raise RuntimeError("背包打開後找不到搜尋圖示，背包可能不是預設狀態，請先清除搜尋、篩選與分類，回到完整清單")
+        raise RuntimeError("背包打開後找不到搜尋圖示")
 
     def _openBagFilter(self, stopEvent, shouldContinue=None):
         """打開背包 -> 搜尋 -> 回傳 (搜尋圖示座標)。
@@ -1517,15 +1525,12 @@ class Fishing(BaseTask):
                 self._toolBroken = False  # 不然提示還在畫面上時會馬上又丟一次，一直失敗一直重試
                 self._toolFixedAt = time.time()
             else:
-                # 畫面操作卡住(找不到按鈕等): 下個間隔再試，連續失敗 MAX_TASK_FAILURES 次就停用；只在第一次與停用時通知，避免一直跳
+                # 畫面操作卡住(找不到按鈕等): 下個間隔再試，連續失敗 MAX_TASK_FAILURES 次才停用並通知，之前只寫日誌，避免一直跳
                 fails = self._failCount.get(name, 0) + 1
                 self._failCount[name] = fails
                 if fails >= MAX_TASK_FAILURES:
                     self._alert(f"{self.LABELS[name]}連續失敗 {fails} 次（{e}），不再嘗試，請確認畫面與設定後重新開始")
                     self.disabled.add(name)
-                elif fails == 1:
-                    self._alert(f"{self.LABELS[name]}失敗：{e}，下個間隔再試", flash=False)
-                    self._markDone(name)
                 else:
                     self.setLog(f"⚠️ {self.LABELS[name]}失敗（第 {fails} 次）：{e}，下個間隔再試")
                     self._markDone(name)
@@ -1574,7 +1579,6 @@ class Fishing(BaseTask):
         self._baitCheckLogged = False
         self._toolBroken = False
         self._toolFixedAt = None
-        self._toolBrokenAlerted = False
         self._logOcrStatus()
         if not self._flag("fishingRepairNow"):
             self._markDone("repair")
@@ -1602,6 +1606,8 @@ class Fishing(BaseTask):
             if state != "idle":
                 self._missingSince = None
             if state == "casting":
+                if failedCasts and time.time() - getattr(self, "_castPressedAt", 0) < 6:  # 介面比取樣視窗晚一點才隱藏，其實拋出去了
+                    failedCasts = 0
                 if self._castingSince is None:
                     self._castingSince = time.time()
             else:
@@ -1614,10 +1620,6 @@ class Fishing(BaseTask):
                 unknownSince = None
             if state != "casting":
                 retractLogged = False
-
-            if state == "idle" and not self._flag("fishingUseRepair") and not self._toolBrokenAlerted and self._findToolBroken(img):
-                self._toolBrokenAlerted = True
-                self._alert("工具耐久耗盡，請使用維修盒（可以勾選「丟維修盒」讓程式自動處理）", flash=False)
 
             if state == "idle":
                 if self._flag("fishingAutoCast") and not self._findCast(img):  # 主畫面卻比對不到拋竿鈕: 記下這個帳號的拋竿鈕樣子(自動拋竿關閉時用不到，不記)
@@ -1632,6 +1634,8 @@ class Fishing(BaseTask):
                             return
                         self._runTask(name, fn, stopEvent)
                         self._closeBag(stopEvent)
+                        self._leaveUnknown(stopEvent)
+                    unknownSince = time.time() - (UNKNOWN_SECONDS - UNKNOWN_AFTER_TASK_SECONDS)
                     continue
                 if not self._flag("fishingAutoCast"):
                     continue
@@ -1656,10 +1660,15 @@ class Fishing(BaseTask):
                     if stopEvent.wait(10):
                         return
                     continue
+                if self._find(img, "repairBoxItem"):  # 工具包開著會擋住拋竿，先關掉
+                    self._trace("拋竿前發現工具包開著，先關閉")
+                    self.setLog("工具包開著，先關閉")
+                    self._closeToolPanel(stopEvent)
+                    continue
                 if not self._flag("fishingFaceFront"):  # 沒勾轉回正面: 只記新魚，不操作
                     self._newFish = False
-                if (self._newFish or failedCasts) and self._flag("fishingFaceFront"):  # 釣到新魚後角色會轉向鏡頭拋不出去，往上走一下(電腦版按住 W，模擬器把左下角的搖桿往上推)轉回正面
-                    self.setLog("釣到新魚，讓角色轉回正面" if self._newFish else "拋竿失敗，讓角色轉回正面")
+                if (self._newFish or failedCasts >= FACE_FRONT_AFTER_FAILS) and self._flag("fishingFaceFront"):  # 釣到新魚後角色會轉向鏡頭拋不出去，往上走一下(電腦版按住 W，模擬器把左下角的搖桿往上推)轉回正面
+                    self.setLog("讓角色轉回正面" if self._newFish else "拋竿失敗，讓角色轉回正面")
                     self._newFish = False
                     self._waitNewFishGone(stopEvent)
                     self._faceFront()
@@ -1677,10 +1686,12 @@ class Fishing(BaseTask):
                     if stopEvent.wait(0.3):
                         return
                     shot = self._shot()
-                    if self._state(shot) != "idle":
+                    st = self._state(shot)
+                    if st != "idle":
                         hidden = True
+                        self._trace(f"按下拋竿鈕 {time.time() - self._castPressedAt:.1f} 秒後介面隱藏（{st}）")
                         break
-                    if toast is None and self._flag("fishingUseRepair") and self._findToolBroken(shot):
+                    if toast is None and self._findToolBroken(shot):
                         toast = shot
                     if not hungry and self._flag("fishingUseFood") and self._hungerToast(shot):
                         hungry = True  # 體力不足拋不出去，提示只在按下的當下出現一下子
@@ -1696,6 +1707,7 @@ class Fishing(BaseTask):
                     failedCasts = 0
                 else:
                     failedCasts += 1
+                    self._trace(f"按下拋竿鈕後 {CAST_SETTLE_SECONDS} 秒介面都沒隱藏，連續失敗 {failedCasts} 次")
 
             elif state == "casting":
                 # 咬鉤了就把這一次釣完(就算香水剛好到期，收竿魚就跑了)
@@ -1733,9 +1745,32 @@ class Fishing(BaseTask):
                         self.setLog(f"⚠️ {blocker}")
                     elif clickBackButton(self.backend, self.config):
                         self.setLog("畫面無法辨識，已點擊返回按鈕")
+                    elif self._pressBack():
+                        self.setLog("畫面無法辨識，找不到返回按鈕，已按 Esc")
                     else:
                         self.setLog("畫面無法辨識，也找不到返回按鈕")
                     unknownSince = None
+
+    def _leaveUnknown(self, stopEvent):
+        """定時項目做完(成功失敗都一樣)，畫面若不是主畫面也不是拋竿中(多半是誤點到別的介面)，馬上點返回鈕，沒有就送返回鍵，最多試 2 次"""
+        for _ in range(2):
+            if stopEvent.wait(0.8) or self._state(self._shot()) != "unknown":
+                return
+            if clickBackButton(self.backend, self.config):
+                self.setLog("操作後停在其他介面，已點擊返回按鈕")
+            elif self._pressBack():
+                self.setLog("操作後停在其他介面，已按 Esc")
+
+    def _pressBack(self):
+        """找不到返回按鈕時的最後手段: 電腦版按 Esc(只在畫面已經認不出來時才用，主畫面按 Esc 會開選單)。
+        手機版不送返回鍵(最上層畫面按返回可能跳出離開遊戲的確認或直接退到背景)。回傳是否有送出"""
+        if self.isAdb:
+            return False
+        try:
+            self.backend.pressKey("esc")
+            return True
+        except Exception:
+            return False
 
     def _faceFront(self):
         if not self.isAdb:
@@ -1746,7 +1781,7 @@ class Fishing(BaseTask):
         self.backend.swipe(x, y, x, y - h * JOYSTICK_PUSH, int(FACE_FRONT_HOLD * 1000))
 
     def _markNewFish(self, source="", img=None):
-        """釣到新魚(新圖鑑的提示卡，或「太棒了！釣到了新紀錄的…」對話框): 記下來，寫日誌並跳桌面通知(不閃工作列圖示)。
+        """釣到新魚(新圖鑑的提示卡，或「太棒了！釣到了新紀錄的…」對話框): 記下來，不通知也不寫日誌(只寫 flow.log)。
         角色會轉向鏡頭，下次拋竿前要轉回正面"""
         if self._newFish:
             return
@@ -1755,8 +1790,6 @@ class Fishing(BaseTask):
         self._trace(f"釣到新魚（{source}）")
         if img is not None:  # 誤判時看這張就知道是哪一種判斷把什麼當成了新魚
             self._saveShot(img, {"提示卡": "newfish_card", "收竿時的提示卡": "newfish_reel", "對話框": "newfish_dialog"}.get(source, "newfish"))
-        self.setLog("釣到新魚")
-        notify(f"心動小鎮助手｜{self.roleName}", "釣到新魚", flash=False)
 
     def _hasNewFishCard(self, img):
         """釣到新魚的提示: 右上角有「新圖鑑！」字樣，或有一張星星卡(新的星數才會出現，釣過的不會有)，任一個就算"""
