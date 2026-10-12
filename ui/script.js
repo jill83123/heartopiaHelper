@@ -48,7 +48,7 @@ const THRESHOLD_FIELDS = {
     ['cancelBtn', '取消按鈕'],
     ['thinkAgainBtn', '鎖定警告的再想想按鈕'],
     ['lockedIcon', '食物說明的紅色鎖頭'],
-    ['toolBtn', '工具包按鈕'],
+    ['toolBtn', '工具箱按鈕'],
     ['repairBoxItem', '維修盒道具'],
     ['perfumeItem', '香水道具'],
     ['baitItem', '誘魚器道具'],
@@ -349,16 +349,22 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
     ${
       tool
         ? `<div class="check mb-8">
-      <input type="checkbox" class="setting-check" id="${p}UseRepair" data-key="${p}UseRepair" />
+      <input type="checkbox" class="setting-check" id="${p}RepairEnabled" data-key="${p}RepairEnabled" />
       <span class="item-icon"><img data-tpl="iconRepairBox" alt="" hidden /></span>
-      <label for="${p}UseRepair">丟維修盒</label>
-      <span class="muted fs-12">每</span>
+      <label for="${p}RepairEnabled">丟維修盒</label>
+      <span class="muted fs-12">＊ 工具耐久耗盡時會丟</span>
+    </div>
+    <div class="check sub no-icon mb-8">
+      <input type="checkbox" class="setting-check" id="${p}UseRepair" data-key="${p}UseRepair" />
+      <label for="${p}UseRepair">定時丟，每</label>
       <input type="number" min="0.5" step="0.5" class="setting input qty" id="${p}RepairMinutes" data-key="${p}RepairMinutes" />
       <span class="muted fs-12">分鐘</span>
       ${resetIcon(`${p}RepairMinutes`)}
     </div>
-    <div class="check sub no-icon always-on mb-8" style="margin-top: -4px">
-      <span class="muted fs-12">＊ 不論有無勾選，工具耐久耗盡時都會嘗試丟維修盒</span>
+    <div class="check sub no-icon mb-8">
+      <input type="checkbox" class="setting-check" id="${p}RepairLeave" data-key="${p}RepairLeave" />
+      <label for="${p}RepairLeave">離開現在的位置後再丟</label>
+      <span class="muted fs-12">＊ 前景會按 S、模擬器會拉搖桿往下</span>
     </div>`
         : ''
     }
@@ -875,7 +881,47 @@ const handleGatherLogMessage = (prefix) => (log) => {
   logContainer.scrollTop = logContainer.scrollHeight;
 };
 
+// 關掉「丟維修盒」前先問一次: 關掉之後工具耐久耗盡也不會修，採集會直接停下來。
+// 在事件還沒傳到設定儲存的監聽器之前攔下來(capture)，確認後再重新送出一次 change，這次放行
+let repairOffConfirmed = null;
+document.addEventListener(
+  'change',
+  async (e) => {
+    const box = e.target;
+    if (!box.matches?.('input[id$="RepairEnabled"]') || box.checked) return;
+    if (repairOffConfirmed === box) {
+      repairOffConfirmed = null;
+      return;
+    }
+    e.stopImmediatePropagation();
+    box.checked = true;
+    const ok = await showDialog(
+      '關閉丟維修盒',
+      '關閉後，工具耐久耗盡時不會自動丟維修盒：\n．採集會直接停止\n．釣魚會一直拋不出去\n\n確定要關閉嗎？',
+      { confirm: true, danger: true, okText: '關閉' }
+    );
+    if (!ok) return;
+    box.checked = false;
+    repairOffConfirmed = box;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+  },
+  true
+);
+
+// 沒勾「定時丟」時，每幾分鐘的欄位與還原按鈕停用
+const syncRepairOptionsDisabled = () => {
+  document.querySelectorAll('input[id$="UseRepair"]').forEach((timed) => {
+    const prefix = timed.id.slice(0, -'UseRepair'.length);
+    const minutes = document.querySelector(`#${prefix}RepairMinutes`);
+    if (minutes) minutes.disabled = minutes.disabled || !timed.checked;
+    document.querySelectorAll(`.reset-default[data-reset="${prefix}RepairMinutes"]`).forEach((btn) => {
+      btn.disabled = btn.disabled || !timed.checked;
+    });
+  });
+};
+
 document.addEventListener('change', (e) => {
+  if (e.target.matches?.('input[id$="UseRepair"]')) syncRepairOptionsDisabled();
   if (e.target.matches?.('input[id$="UseFood"]')) syncFoodOptionsDisabled();
   if (e.target.matches?.('.setting-check')) syncChildVisibility();
 });
@@ -915,6 +961,7 @@ const fillSettings = (settings) => {
     });
   });
   syncChildVisibility();
+  syncRepairOptionsDisabled();
   syncCookAdbHint();
   syncAdbWarns();
   getApi().apiGetDishImage().then((image) => showDish(image, settings.cookDishRecordedAt));
@@ -1297,6 +1344,7 @@ const setup = async () => {
     isAnyRunning = isAnyTaskRunning;
     updateResetButtons();
     syncFoodOptionsDisabled();
+    syncRepairOptionsDisabled();
     adbPresets.forEach((preset) => (preset.disabled = isAnyTaskRunning));
     adbDetectButtons.forEach((btn) => (btn.disabled = isAnyTaskRunning));
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;

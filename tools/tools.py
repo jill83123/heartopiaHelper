@@ -419,7 +419,9 @@ CONFIG_DEFAULTS = {
     "fishingFoodName": "",
     "fishingFoodStars": "14",
     "fishingFoodUntil": "99",
-    "fishingUseRepair": "False",
+    "fishingRepairEnabled": "True",  # 丟維修盒(工具耐久耗盡時丟)；沒勾就不修
+    "fishingUseRepair": "False",  # 定時丟維修盒(每 fishingRepairMinutes 分鐘)，名稱沿用舊版
+    "fishingRepairLeave": "False",  # 丟之前先往後退一步
     "fishingRepairNow": "False",
     "fishingRepairMinutes": "15",
     # 背景定時(模擬器)
@@ -433,7 +435,9 @@ CONFIG_DEFAULTS = {
     "fishingAltFoodName": "",
     "fishingAltFoodStars": "14",
     "fishingAltFoodUntil": "99",
+    "fishingAltRepairEnabled": "True",
     "fishingAltUseRepair": "False",
+    "fishingAltRepairLeave": "False",
     "fishingAltRepairNow": "False",
     "fishingAltRepairMinutes": "15",
     # 採集(植物、砍木頭各自獨立的一組設定)
@@ -452,7 +456,9 @@ CONFIG_DEFAULTS = {
     "woodFoodStars": "14",
     "woodFoodUntil": "99",
     "woodFoodLock": "True",
+    "woodRepairEnabled": "True",
     "woodUseRepair": "False",
+    "woodRepairLeave": "True",
     "woodRepairMinutes": "15",
     **{f"{name}Threshold": str(value) for name, value in DEFAULT_THRESHOLDS.items()},
 }

@@ -201,16 +201,22 @@
           </div>
 
           <div class="check mb-8">
-            <input type="checkbox" class="setting-check" id="fishingUseRepair" data-key="fishingUseRepair" />
+            <input type="checkbox" class="setting-check" id="fishingRepairEnabled" data-key="fishingRepairEnabled" />
             <span class="item-icon"><img data-tpl="iconRepairBox" alt="" hidden /></span>
-            <label for="fishingUseRepair">丟維修盒</label>
-            <span class="muted fs-12">每</span>
+            <label for="fishingRepairEnabled">丟維修盒</label>
+            <span class="muted fs-12">＊ 工具耐久耗盡時會丟</span>
+          </div>
+          <div class="check sub no-icon mb-8">
+            <input type="checkbox" class="setting-check" id="fishingUseRepair" data-key="fishingUseRepair" />
+            <label for="fishingUseRepair">定時丟，每</label>
             <input type="number" min="0.5" step="0.5" class="setting input qty" id="fishingRepairMinutes" data-key="fishingRepairMinutes" />
             <span class="muted fs-12">分鐘</span>
             <button type="button" class="reset-default" data-reset="fishingRepairMinutes" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>
           </div>
-          <div class="check sub no-icon always-on mb-8" style="margin-top: -4px">
-            <span class="muted fs-12">＊ 不論有無勾選，工具耐久耗盡時都會嘗試丟維修盒</span>
+          <div class="check sub no-icon mb-8">
+            <input type="checkbox" class="setting-check" id="fishingRepairLeave" data-key="fishingRepairLeave" />
+            <label for="fishingRepairLeave">離開現在的位置後再丟</label>
+            <span class="muted fs-12">＊ 前景會按 S、模擬器會拉搖桿往下</span>
           </div>
 
           <div class="check no-icon mb-8">

@@ -15,6 +15,9 @@ from tools.notify import notify
 from tools.tools import getResourcePath, getThreshold, loadTemplate, matchBest
 
 COMMON_TEMPLATE_DIR = "templates/common"
+JOYSTICK_CENTER = (0.13, 0.77)  # 模擬器左下角移動搖桿的中心(佔畫面寬高的比例)
+JOYSTICK_PUSH = 0.08  # 搖桿推(拉)的距離(佔畫面高)
+STEP_HOLD = 0.6  # 退一步(或走回來)要按住 S / W(或推拉搖桿)的秒數
 BAG_OPEN_CHECKS = 12  # 點了背包圖示後，最多看幾次(每次隔 0.6 秒)背包有沒有打開；模擬器卡的時候要等比較久
 BAG_REOPEN_AT = (3, 7)  # 第幾次看還是主畫面時，再點一次背包圖示
 UI_WAIT_SECONDS = 4  # 等待某個畫面/按鈕出現的上限(秒)
@@ -65,6 +68,26 @@ class GameUI(DebugMixin, BaseTask):
                 candidates.append(f"{folder}/{name}.png")
             _templatePaths[key] = next((p for p in candidates if os.path.exists(getResourcePath(p))), candidates[-1])
         return _templatePaths[key]
+
+    def _walk(self, key, forward, seconds):
+        """角色走一下。電腦版按住 key(往前 W、往後 S)；模擬器把左下角的搖桿往上推(forward)或往下拉"""
+        if not self.isAdb:
+            self.backend.pressKey(key, seconds)
+            return
+        h, w = self._shot().shape[:2]
+        x, y = w * JOYSTICK_CENTER[0], h * JOYSTICK_CENTER[1]
+        push = h * JOYSTICK_PUSH
+        self.backend.swipe(x, y, x, y - push if forward else y + push, int(seconds * 1000))
+
+    def _stepBack(self, stopEvent):
+        """往後退一步，離開現在站的位置。回傳 False 代表已收到停止"""
+        self._walk("s", False, STEP_HOLD)
+        return not stopEvent.wait(0.5)
+
+    def _stepForward(self, stopEvent):
+        """往前走一步(和 _stepBack 同樣的時間)，走回原本站的位置。回傳 False 代表已收到停止"""
+        self._walk("w", True, STEP_HOLD)
+        return not stopEvent.wait(0.5)
 
     def _actionCenter(self, img):
         """右下角動作鈕的中心(影像座標)與縮放比例。電腦版與手機版的位置相同: 貼著遊戲畫面右下角固定的距離"""
@@ -216,7 +239,7 @@ class GameUI(DebugMixin, BaseTask):
         return self._click(pos, stopEvent)
 
     def _closeBag(self, stopEvent):
-        """關閉背包(或工具包)回到主畫面"""
+        """關閉背包(或工具箱)回到主畫面"""
         for _ in range(3):
             img = self._shot()
             cancelPos = self._find(img, "cancelBtn")
