@@ -113,8 +113,14 @@ def clickBackButton(backend, config, topLeftOnly=False):
     """找到返回按鈕就點擊，回傳點擊的座標(螢幕座標)，沒點到回傳 None。以顏色過濾，避免誤點外觀相似的灰色按鈕。
     topLeftOnly: 只認遊戲畫面左上角的返回按鈕(食譜等全螢幕介面的返回鈕都在那裡)，
     主畫面左側的任務收合箭頭之類外觀相似的按鈕就不會被誤點"""
+    if not topLeftOnly:  # 全螢幕介面的返回鈕都在左上角(顏色各不相同)，先試這個；沒有再用顏色過濾找整個畫面
+        clicked = clickBackButton(backend, config, topLeftOnly=True)
+        if clicked:
+            return clicked
     threshold = getThreshold(config, "backBtn")
-    coords, img, ox, oy, _ = _findInFullScreen(backend, config, BACK_BTN_TEMPLATE, threshold, colorTolerance=60)
+    # 不同介面的返回鈕顏色不同(食譜是橘色、備忘錄是藍色)，所以只看左上角時不過濾顏色，靠位置排除主畫面左側的灰色任務箭頭；
+    # 其他情況沒有位置限制，仍要用顏色避免誤點外觀相似的灰色按鈕
+    coords, img, ox, oy, _ = _findInFullScreen(backend, config, BACK_BTN_TEMPLATE, threshold, colorTolerance=None if topLeftOnly else 60)
     if coords and topLeftOnly:
         rect = backend.getGameRect()  # 前景模式只看遊戲視窗的範圍，模擬器就是整張截圖
         gx, gy, gw, gh = (rect[0] - ox, rect[1] - oy, rect[2], rect[3]) if rect else (0, 0, img.shape[1], img.shape[0])

@@ -100,7 +100,7 @@ python main.py
 | `fishingSkipTail` | 水面有魚尾就不放誘魚器。背景定時用 `fishingAltSkipTail` |
 | `fishingUseBait` | 是否放誘魚器 |
 | `fishingUseRepair` / `fishingRepairMinutes` | 是否丟維修盒與間隔（分鐘） |
-| `fishingUseFood` / `fishingFoodUntil` / `fishingFoodName` / `fishingFoodStars` | 是否吃食物、吃到飽食度幾 %（預設 99）、食物名稱、星級（1~5 = 指定、14 = 1-4 星、0 = 全部） |
+| `fishingUseFood` / `fishingFoodUntil` / `fishingFoodName` / `fishingFoodStars` | 是否吃食物、吃到飽食度幾 %（預設 99）、食物名稱、星級（1~5 = 指定、14 = 0-4 星、0 = 不限（0-5 星）） |
 | `matchStrictness` | 整體比對嚴格度：`loose` / `normal` / `strict`。抓不到圖示選寬鬆，誤判太多選嚴格 |
 | `<名稱>Threshold` | 各圖示的比對閥值（0~1，越高越嚴格），沒填就用預設值 |
 

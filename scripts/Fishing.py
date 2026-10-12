@@ -14,6 +14,8 @@ from tools.ocr import isReady, readFraction
 from tools.finder import STAR_HSV_HIGH, STAR_HSV_LOW, clickBackButton, getBaseScale, matchBestAuto, resolveScale
 from tools.tools import getResourcePath, getThreshold, loadTemplate, matchBest
 
+BAG_OPEN_CHECKS = 12  # 點了背包圖示後，最多看幾次(每次隔 0.6 秒)背包有沒有打開；模擬器卡的時候要等比較久
+BAG_REOPEN_AT = (3, 7)  # 第幾次看還是主畫面時，再點一次背包圖示
 UI_WAIT_SECONDS = 4  # 等待某個畫面/按鈕出現的上限(秒)
 CAST_SETTLE_SECONDS = 3  # 按下拋竿後，最多等這麼久(秒)看介面有沒有隱藏(進入拋竿)，隱藏了就立刻往下
 UNKNOWN_AFTER_TASK_SECONDS = 4  # 剛做完定時項目(丟維修盒、噴香水...)就認不出畫面，多半是誤點到別的介面，不用等太久就處理
@@ -56,6 +58,10 @@ RESULT_STEP = 130
 RESULT_COLUMNS = 5
 RESULT_MAX_CELLS = 15
 # 星星在格子內的位置(相對格子中心，1600 寬為基準): 一顆約 14 寬，每多一顆再多約 9
+# 被鎖定的食物格子右下角(數量的上方)會有一個棕色的小鎖頭；吃鎖定的東西還會跳出警告視窗
+LOCK_REGION = (26, 9, 50, 32)  # 相對格子中心 x0, y0, x1, y1(1600 寬為基準)
+LOCK_MIN_PIXELS = 10  # 鎖頭範圍內棕色像素至少幾個才算(1600 寬為基準，隨縮放平方調整)；實測有鎖約 100、沒鎖約 3
+TILE_MIN_SATURATION = 25  # 有東西的格子底色是淡橘色(飽和度約 34~71)，空格是接近白色的背景(約 6~14)
 STAR_STRIP = (-54, 37, 8, 50)  # x0, y0, x1, y1
 STAR_FIRST_WIDTH = 14
 STAR_STEP = 9
@@ -125,7 +131,7 @@ PERFUME_SHAPE_SCORE = 0.7  # 圖示被灰色蓋住時，深綠色形狀的比對
 JOYSTICK_CENTER = (0.13, 0.77)  # 模擬器左下角移動搖桿的中心(佔畫面寬高的比例)
 JOYSTICK_PUSH = 0.08  # 往上推的距離(佔畫面高)
 SATIETY_SAMPLE_SECONDS = 2.5  # 收竿後最多花多久讀體力條
-STARS_NO5 = 14  # 食物星級選「1-4 星」(不限，但不吃 5 星)時存的值
+STARS_NO5 = 14  # 食物星級選「0-4 星」(不限，但不吃 5 星)時存的值
 FOOD_RETRY_SECONDS = 60  # 吃食物(不管成功或失敗)之後，這段時間內不再因為體力不足提示重複觸發，避免提示還沒消失就又去開背包
 NEW_FISH_CLICK_SECONDS = 25  # 偵測到新魚後這麼久(秒)內，介面被蓋住就點螢幕點掉對話框
 NEW_FISH_SETTLE_SECONDS = 7  # 偵測到新魚後，至少等這麼久(動畫還在播)才讓角色轉回正面
@@ -133,6 +139,8 @@ MAX_TASK_FAILURES = 3  # 噴香水、吃食物、放誘魚器連續失敗幾次�
 RETRACT_WAIT_SECONDS = 4  # 收竿後最多等這麼久(秒)才回到主畫面，還沒回來才會再按一次
 TOOL_BROKEN_RETRY = 40  # 丟完維修盒後，這麼久(秒)內提示還在畫面上也不再重複丟
 FACE_FRONT_HOLD = 0.6  # 按住 W 讓角色轉回正面的秒數(太短遊戲不一定吃)
+TYPED_WAIT = 8  # 模擬器貼上食物名稱後，最多等幾秒讓輸入框出現字
+TYPED_MIN_DARK = 40  # 輸入框裡至少有幾個深色像素才算有字(1600 寬為基準前的原始像素數)
 SEARCH_INPUT_OFFSET = -385  # 搜尋輸入框在「搜尋」按鈕左邊多遠
 
 
@@ -217,6 +225,7 @@ class Fishing(BaseTask):
         self._tailOff = False  # 魚尾偵測看起來沒作用，改回照間隔時間放誘魚器
         self._tailLogged = None  # 上次記到日誌的魚尾狀態(True 有、False 沒有、None 還沒到放誘魚器的時間)
         self._usesNotFoundLogged = False  # 這一輪吃食物已經寫過「看不到可用次數」了
+        self._eatStart = 0  # 吃食物從搜尋結果的哪一格開始找(記住上次吃的那一格，連續吃、下次體力耗盡都沿用)；那一格本身每次還是會重新檢查鎖定、是否只剩最後一次
         self._lockedEating = False  # 正在吃鎖定的搜尋結果(背包可能停在別的篩選，找不到時要重新搜尋)
         self._newFishAt = 0.0  # 偵測到新魚的時間
         self._newFish = False  # 剛釣到新圖鑑的魚，角色轉向鏡頭了，下次拋竿前要轉回正面
@@ -633,7 +642,8 @@ class Fishing(BaseTask):
         if roi.size == 0:
             return None
         hsv = cv2.cvtColor(np.ascontiguousarray(roi), cv2.COLOR_BGR2HSV)
-        white = ((hsv[:, :, 1] <= 60) & (hsv[:, :, 2] >= 225)).astype(np.uint8) * 255
+        # 手機版(模擬器)的提示字是半透明的，亮度只有約 223，達不到電腦版的 225，門檻要放低
+        white = ((hsv[:, :, 1] <= 60) & (hsv[:, :, 2] >= (205 if self.isAdb else 225))).astype(np.uint8) * 255
         # 提示文字大小跟遊戲畫面寬度成正比(模板是約 1250 寬的畫面上取的)，比對很吃縮放(差 3% 就掉分)，所以在附近細掃；
         # 掃太小的縮放會把小字誤認成提示，所以有下限
         center = gw / TOAST_BASE_WIDTH
@@ -1009,11 +1019,17 @@ class Fishing(BaseTask):
         wanted 是 "fishing" 時，已經停在釣魚用品清單就直接用；其餘情況一律先回到完整清單"""
         if not self._clickWhenVisible("bagBtn", stopEvent, 2):
             raise RuntimeError("找不到背包圖示")
-        for _ in range(6):
+        for i in range(BAG_OPEN_CHECKS):
             if stopEvent.wait(0.6):
                 return None, None
             img = self._shot()
             view = self._bagView(img)
+            if view is None and i in BAG_REOPEN_AT and self._find(img, "bagBtn"):
+                # 還在主畫面(背包圖示還看得到)就是點擊沒開成功或畫面太卡，再點一次；背包圖示看不到代表正在打開，不能再點
+                self._trace("背包沒有打開，再點一次背包圖示")
+                if not self._click(self._find(img, "bagBtn"), stopEvent):
+                    return None, None
+                continue
             if view == "fishing" and wanted == "fishing":
                 return img, view
             if view in ("fishing", "result"):
@@ -1275,6 +1291,10 @@ class Fishing(BaseTask):
         self.setLog("吃食物中..." if satiety is None else f"吃食物中...（飽食度 {satiety}%，吃到 {self._foodUntil()}%）")
         return True
 
+    def _onSearchResults(self, stopEvent):
+        """按下搜尋、搜尋結果出現之後的時機(「保持結果」開關在結果畫面左下角)，給子類別加料。回傳 False 代表已收到停止"""
+        return True
+
     def _onFoodTyped(self, stopEvent):
         """食物名稱輸入完、按搜尋之前的時機，給子類別加料。回傳 False 代表已收到停止"""
         return True
@@ -1345,14 +1365,39 @@ class Fishing(BaseTask):
             self.backend.endTextInput()
         if stopEvent.wait(0.4):
             return False
+        if self.isAdb and not self._waitTyped(inputPos, stopEvent):
+            return False
         if not self._onFoodTyped(stopEvent):
             return False
         if not self._click(submitPos, stopEvent):
             return False
         if stopEvent.wait(1.0):
             return False
+        if not self._onSearchResults(stopEvent):
+            return False
 
         return self._eatFromResults(self._shot(), searchPos, name, stars, stopEvent)
+
+    def _inputHasText(self, img, inputPos):
+        """搜尋輸入框裡有沒有字。沒輸入時是灰色的提示字(最暗的像素也有 166 左右)，輸入後的字是深色的"""
+        s = self._scale()
+        x, y = int(inputPos[0]), int(inputPos[1])
+        region = img[max(0, y - int(20 * s)) : y + int(20 * s), max(0, x - int(240 * s)) : x + int(170 * s)]
+        if region.size == 0:
+            return False
+        return int((cv2.cvtColor(region, cv2.COLOR_BGR2GRAY) < 110).sum()) >= TYPED_MIN_DARK
+
+    def _waitTyped(self, inputPos, stopEvent):
+        """模擬器卡的時候貼上的文字很晚才出現(甚至沒貼進去)，輸入框看到字了才繼續；最多等 TYPED_WAIT 秒，逾時照舊往下。
+        回傳 False 代表已收到停止"""
+        deadline = time.time() + TYPED_WAIT
+        while time.time() < deadline:
+            if self._inputHasText(self._shot(), inputPos):
+                return not stopEvent.wait(0.5)  # 字出現後，其他東西(保持結果開關等)還要一點時間畫出來
+            if stopEvent.wait(0.4):
+                return False
+        self.setLog("⚠️ 輸入框一直沒看到食物名稱，仍嘗試繼續")
+        return True
 
     def _onNoFood(self):
         """背包裡已經沒有可以吃的食物(找不到，或剩下的都只剩最後一次)。預設照舊: 這次不吃，等下個間隔再試；子類別可改成停止"""
@@ -1360,7 +1405,7 @@ class Fishing(BaseTask):
     def _eatFromResults(self, img, searchPos, name, stars, stopEvent):
         """吃搜尋結果裡的食物。吃完飽食度還低於設定值時，背包不關、搜尋結果也不重搜，直接接著吃下一份"""
         for meal in itertools.count():  # 不限份數，吃到達標、沒食物或按停止為止
-            result = self._eatPass(img, searchPos, name, stars, stopEvent, meal > 0)
+            result = self._eatPass(img, searchPos, name, stars, stopEvent, meal > 0, self._eatStart)
             if result != "again":
                 return result
             self.setLog(f"飽食度還沒到 {self._foodUntil()}%，再吃一份")
@@ -1369,31 +1414,76 @@ class Fishing(BaseTask):
             img = self._shot()
         return self._closeBag(stopEvent)
 
-    def _eatPass(self, img, searchPos, name, stars, stopEvent, ateBefore=False):
+    def _findColor(self, img, name):
+        """用彩色比對模板(紅色鎖頭和灰色開鎖形狀一樣，只差顏色，轉灰階會分不出來)，回傳座標，沒有回傳 None"""
+        template = loadTemplate(self._templatePath(name))
+        s = self._scale()
+        template = cv2.resize(template, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
+        if template.shape[0] > img.shape[0] or template.shape[1] > img.shape[1]:
+            return None
+        _, score, _, loc = cv2.minMaxLoc(np.nan_to_num(cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)))
+        if score < getThreshold(self.config, name):
+            return None
+        return loc[0] + template.shape[1] // 2, loc[1] + template.shape[0] // 2
+
+    def _cellLocked(self, img, pos, s):
+        """格子右下角有沒有棕色的鎖頭(被鎖定的食物不能吃)"""
+        x0, y0, x1, y1 = LOCK_REGION
+        cx, cy = pos
+        region = img[max(0, int(cy + y0 * s)) : int(cy + y1 * s), max(0, int(cx + x0 * s)) : int(cx + x1 * s)]
+        if region.size == 0:
+            return False
+        hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+        mask = (hsv[:, :, 0] >= 8) & (hsv[:, :, 0] <= 22) & (hsv[:, :, 1] >= 70) & (hsv[:, :, 1] <= 170) & (hsv[:, :, 2] >= 110) & (hsv[:, :, 2] <= 190)
+        return int(mask.sum()) >= LOCK_MIN_PIXELS * s * s
+
+    def _cellHasItem(self, img, pos, s):
+        """這一格有沒有東西(有東西的格子有淡橘色的底，空格是接近白色的背景)。取格子左邊中間的一點判斷"""
+        x, y = int(pos[0] - 46 * s), int(pos[1])
+        if not (0 <= y < img.shape[0] and 0 <= x < img.shape[1]):
+            return False
+        return int(cv2.cvtColor(img[y : y + 1, x : x + 1], cv2.COLOR_BGR2HSV)[0, 0, 1]) >= TILE_MIN_SATURATION
+
+    def _eatPass(self, img, searchPos, name, stars, stopEvent, ateBefore=False, start=0):
         """在搜尋結果裡依序找可以吃的那一格並食用。可使用多次的食物每一份各佔一格(各自有剩餘次數)，
         勾了「保留最後一次不吃」時，剩最後一次的那格就跳過、往下一格找，都沒有才放棄。
         ateBefore: 這一輪已經吃過了，這次找不到就是吃完了，不算錯誤。回傳 "again" 代表吃了一份、背包維持開著，飽食度還不夠"""
         scale = self._scale()
-        ban5 = stars == STARS_NO5  # 「1-4 星」: 不限星級，但 5 星的不吃
+        ban5 = stars == STARS_NO5  # 「0-4 星」: 不限星級，但 5 星的不吃
         if ban5:
             stars = 0
         seen = []
         tried = 0
-        for k in range(RESULT_MAX_CELLS):
+        locked = 0
+        for k in range(start, RESULT_MAX_CELLS):
             pos = self._foodCellPos(searchPos, k)
             count = self._countStars(img, pos, scale)
+            # 食物從第一格依序排下去，遇到空格就是搜尋結果的盡頭。第一格被判成空的時，再用星星、鎖頭確認一次，免得底色判斷失誤
+            if not self._cellHasItem(img, pos, scale) and not (k == 0 and (count or self._cellLocked(img, pos, scale))):
+                break
             seen.append(count)
-            if stars and count != stars:
+            if stars and count != stars:  # 指定星級(沒有星星的食物算 0 星，不會符合)
                 continue
-            if not stars and k and not count:  # 不限星級: 第一格一定試，後面只看有東西的格子
+            if ban5 and count >= MAX_STARS:  # 「0-4 星」: 5 星的不吃
                 continue
-            if not stars and ban5 and count >= MAX_STARS:  # 不限星級時，5 星的不吃
+            if self._cellLocked(img, pos, scale):
+                locked += 1
+                self.setLog(f"第 {k + 1} 格「{name}」被鎖定，跳過")
                 continue
             tried += 1
+            self._eatStart = k  # 吃了(或失敗)就從這一格接著找；這一格自己下次還是要重看(可能剛好變成最後一次)
             result = self._eatItem(pos, name, stopEvent)
+            if result == "locked":
+                locked += 1
+                tried -= 1
+                self.setLog(f"第 {k + 1} 格「{name}」被鎖定（點開後確認），跳過")
+                continue
             if result != "last":
                 return result
             self.setLog(f"第 {k + 1} 格「{name}」只剩最後一次，往下找")
+        if tried == 0 and start > 0:  # 記住的那一格之後都沒有能吃的(可能背包變動、前面的格子又能吃了)，從第一格重新找一遍
+            self._eatStart = 0
+            return self._eatPass(img, searchPos, name, stars, stopEvent, ateBefore, 0)
         self._closeBag(stopEvent)
         if tried == 0 and not ateBefore and self._lockedEating:
             self.setLog("鎖定的結果裡找不到食物，背包可能停在別的篩選，改用搜尋")
@@ -1406,7 +1496,8 @@ class Fishing(BaseTask):
         if tried == 0:
             self._onNoFood()
             which = f"{stars} 星的" if stars else ("非 5 星的" if ban5 else "")
-            self.setLog(f"背包找不到{which}「{name}」(搜尋結果各格星級: {seen})")
+            extra = f"，{locked} 格被鎖定" if locked else ""
+            self.setLog(f"背包找不到可以吃的{which}「{name}」(搜尋結果各格星級: {seen}{extra})")
             raise OutOfStock("食物")
         self.setLog(f"「{name}」的每一份都只剩最後一次，保留不吃")
         if not self._keepLastNotified:  # 食物快吃完了，通知一次就好
@@ -1439,9 +1530,13 @@ class Fishing(BaseTask):
         return last
 
     def _eatItem(self, itemPos, name, stopEvent):
-        """點選背包裡的食物並食用，最後關閉背包。回傳 "last" 代表這份只剩最後一次(保留不吃，背包維持開著)，"again" 代表吃了但飽食度還不夠(背包維持開著)，False 代表已收到停止"""
+        """點選背包裡的食物並食用，最後關閉背包。回傳 "last" 代表這份只剩最後一次(保留不吃，背包維持開著)，"locked" 代表這份被鎖定(說明視窗右上角是紅鎖頭，或吃的時候跳出警告視窗已按再想想；背包維持開著)，"again" 代表吃了但飽食度還不夠(背包維持開著)，False 代表已收到停止"""
         if not self._click(itemPos, stopEvent):
             return False
+        # 第二道鎖定判斷: 點開食物的說明視窗右上角，上鎖是紅色的鎖頭、沒鎖是灰色的開鎖(格子上的小鎖頭看不清楚時用)
+        panel, eatPos = self._waitFor("eatBtn", stopEvent, 2)
+        if eatPos and self._findColor(panel, "lockedIcon"):
+            return "locked"
         if self._flag("fishingFoodKeepLast") and self._checkLastUse(stopEvent):
             return "last"
         if not self._clickWhenVisible("eatBtn", stopEvent, 2):
@@ -1449,6 +1544,12 @@ class Fishing(BaseTask):
             raise RuntimeError(f"找不到「{name}」的食用按鈕")
         if stopEvent.wait(1.0):
             return False
+        # 吃到鎖定的食物會跳出警告視窗(「本次操作包含以下鎖定內容」)，按「再想想」取消，這一格跳過
+        warn = self._find(self._shot(), "thinkAgainBtn")
+        if warn:
+            if not self._click(warn, stopEvent):
+                return False
+            return "locked" if not stopEvent.wait(0.5) else False
         # 體力已滿時會跳出確認視窗，吃了也不會增加，直接取消
         if self._find(self._shot(), "cancelBtn"):
             self.setLog("體力已滿，略過吃食物")
@@ -1532,7 +1633,8 @@ class Fishing(BaseTask):
                     self._alert(f"{self.LABELS[name]}連續失敗 {fails} 次（{e}），不再嘗試，請確認畫面與設定後重新開始")
                     self.disabled.add(name)
                 else:
-                    self.setLog(f"⚠️ {self.LABELS[name]}失敗（第 {fails} 次）：{e}，下個間隔再試")
+                    retry = "下次體力不足時再試" if name == "food" else "下個間隔再試"  # 吃食物沒有固定間隔，是看到「體力不足」提示才吃
+                    self.setLog(f"⚠️ {self.LABELS[name]}失敗（第 {fails} 次）：{e}，{retry}")
                     self._markDone(name)
             self._closeBag(stopEvent)
             self._closeToolPanel(stopEvent)

@@ -46,6 +46,8 @@ const THRESHOLD_FIELDS = {
     ['bagBtn', '背包圖示'],
     ['closeBtn', '關閉按鈕'],
     ['cancelBtn', '取消按鈕'],
+    ['thinkAgainBtn', '鎖定警告的再想想按鈕'],
+    ['lockedIcon', '食物說明的紅色鎖頭'],
     ['toolBtn', '工具包按鈕'],
     ['repairBoxItem', '維修盒道具'],
     ['perfumeItem', '香水道具'],
@@ -378,7 +380,7 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
     <div class="row mb-8">
       <div class="col">
         <label for="${p}FoodName" class="label">食物名稱（背包搜尋用）</label>
-        <input type="text" class="setting input" id="${p}FoodName" placeholder="例如 沙拉" data-key="${p}FoodName" />
+        <input type="text" class="setting input" id="${p}FoodName" placeholder="例如：沙拉" data-key="${p}FoodName" />
         <span class="fs-12 text-danger food-warning" hidden>請輸入要吃的食物名稱</span>
       </div>
       <div class="col">
@@ -389,8 +391,8 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
           <option value="3">3 星</option>
           <option value="4">4 星</option>
           <option value="5">5 星</option>
-          <option value="14">1-4 星</option>
-          <option value="0">全部（含 5 星）</option>
+          <option value="14">0-4 星</option>
+          <option value="0">不限（0-5 星）</option>
         </select>
       </div>
     </div>
