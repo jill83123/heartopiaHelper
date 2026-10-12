@@ -118,7 +118,7 @@ class TimedTasks:
                 self._stepForward(stopEvent)
 
     def _throwRepairBox(self, stopEvent):
-        # 依畫面狀態重試: 工具箱沒開就點 T 鈕，開了就點維修盒，點完面板會自動關閉。
+        # 依畫面狀態重試: 工具欄沒開就點 T 鈕，開了就點維修盒，點完面板會自動關閉。
         # (視窗剛切到前景時第一下點擊會被吃掉，所以不能假設點了就一定開了)
         for _ in range(4):
             img = self._shot()
@@ -126,8 +126,8 @@ class TimedTasks:
             if not itemPos:
                 toolPos = self._find(img, "toolBtn")
                 if not toolPos and self.isAdb:
-                    raise RuntimeError("找不到工具箱圖示")
-                # 電腦版: 工具箱圖示是半透明的，在淺色沙灘上認不出來，改按鍵盤 T(圖示上寫的快捷鍵)
+                    raise RuntimeError("找不到工具欄圖示")
+                # 電腦版: 工具欄圖示是半透明的，在淺色沙灘上認不出來，改按鍵盤 T(圖示上寫的快捷鍵)
                 if toolPos:
                     if not self._click(toolPos, stopEvent) or stopEvent.wait(1.2):
                         return False
@@ -141,11 +141,11 @@ class TimedTasks:
             if not self._find(self._shot(), "repairBoxItem"):
                 return not stopEvent.wait(1.5)
         if not self._closeToolPanel(stopEvent):
-            self.setLog("⚠️ 工具箱無法關閉，請手動關閉")
-        raise RuntimeError("無法從工具箱丟出維修盒(可能還在冷卻或上一個還沒消失)")
+            self.setLog("⚠️ 工具欄無法關閉，請手動關閉")
+        raise RuntimeError("無法從工具欄丟出維修盒(可能還在冷卻或上一個還沒消失)")
 
     def _closeToolPanel(self, stopEvent):
-        """工具箱(T)沒有要用就要關起來，開著會擋住拋竿。回傳是否已關閉"""
+        """工具欄(T)沒有要用就要關起來，開著會擋住拋竿。回傳是否已關閉"""
         for _ in range(3):
             img = self._shot()
             if not self._find(img, "repairBoxItem"):
