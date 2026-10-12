@@ -288,8 +288,26 @@ class Api:
         button = FLOAT_START_BUTTONS.get(self._floatKey)
         if not button or self.isRunning():
             return False
+        probe = "document.querySelector('#dialog').hidden ? 'closed' : 'open'"
         try:
-            webview.windows[0].evaluate_js(f"document.querySelector('{button}').click()")
+            window = webview.windows[0]
+            if window.evaluate_js(probe) != "open":
+                window.evaluate_js(f"document.querySelector('{button}').click()")
+                for _ in range(10):  # 開始鈕會先做檢查才跳出確認框，最多等 2 秒看有沒有跳出來
+                    time.sleep(0.2)
+                    if window.evaluate_js(probe) == "open":
+                        break
+                else:
+                    return True
+            # 主視窗有提示框等著確認(浮動日誌看不到它)，明確告訴使用者
+            try:
+                window.restore()  # 主視窗可能縮小或被擋住，一併拉出來
+            except Exception:
+                pass
+            now = datetime.datetime.now().strftime("%H:%M:%S")
+            with self.logLock:
+                self.logCounts["float"] += 1
+                self.logs["float"].append({"index": self.logCounts["float"], "msg": f"[{now}] ⚠️ 主視窗跳出提示框，請先回主視窗確認後才會開始"})
         except Exception as e:
             print(f"浮動日誌無法開始任務: {e}")
             return False
