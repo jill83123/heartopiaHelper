@@ -225,7 +225,7 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
         """採集一輪: 連按設定的次數。回傳 False 代表已收到停止"""
         self.round += 1
         count = self._count()
-        self.setLog(f"第 {self.round} 輪採集，按 {count} 次")
+        self.setLog(f"第 {self.round} 輪，連按 {count} 次")
         if stopEvent.wait(random.uniform(*REACTION_RANGE)):
             return False
         # 連續快按: 按鍵之間只有人手連點的短停頓，不截圖、不比對(截圖很花時間，間隔會變很長)，按完才一次檢查

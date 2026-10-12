@@ -71,7 +71,7 @@ python main.py
 
 「採集」分頁選擇「採集（無工具）」或「採集（有工具）」，兩者設定與日誌各自獨立，同時只能跑一個。不需要框選範圍：讓角色站在採集點或樹前面，設定好後按「開始」。
 
-- **每輪採集次數**：每輪對著目標按幾次互動鍵。
+- **每輪連按次數**：每輪對著目標按幾次互動鍵。
 - **定時時間**：以重生時間為基準（預設 120 秒），每隔這麼久做一輪。
 - **吃食物、丟維修盒**：只有採集（有工具）有，說明見介面。丟維修盒預設開啟（工具耐久耗盡時丟），可另外勾選「定時丟」；「離開現在的位置後再丟」預設開啟，丟之前會先往後退一步（前景按 S、模擬器拉搖桿往下），丟完再走回原位。
 - **自動停止**：太久沒採到東西、工具壞掉卻沒維修盒（或沒勾丟維修盒）時，會通知並停止。
@@ -109,7 +109,7 @@ python main.py
 ## 打包
 
 ```powershell
-pyinstaller --noconsole --add-data "config.default.ini;." --add-data "ui;ui" --add-data "templates;templates" --add-data "tools/ADBKeyboard.apk;tools" main.py
+pyinstaller --noconsole --name heartopiaHelper --add-data "config.default.ini;." --add-data "ui;ui" --add-data "templates;templates" --add-data "tools/ADBKeyboard.apk;tools" main.py
 ```
 
 打包時內建的是預設範本 `config.default.ini`；打包後的 `config.ini` 會放在 exe 旁邊，第一次執行時由範本複製，重新打包不會蓋掉你的設定。
@@ -150,9 +150,9 @@ pyinstaller --noconsole --add-data "config.default.ini;." --add-data "ui;ui" --a
 - 該版本號的 Release 已經存在（請先調高版本號）。
 - `gh` 未安裝或尚未登入。
 
-也可以手動發佈：自行打包並壓縮 `dist/main`，到 GitHub 建立 Release、tag 設成 `v` 加版本號，再上傳 zip。
+也可以手動發佈：自行打包並壓縮 `dist/heartopiaHelper`，到 GitHub 建立 Release、tag 設成 `v` 加版本號，再上傳 zip。
 
-注意：zip 內須含 `main.exe`（可以直接放在最上層，或多包一層資料夾）。
+注意：zip 內須含 `heartopiaHelper.exe`（可以直接放在最上層，或多包一層資料夾）。
 
 ## 設計決策
 
