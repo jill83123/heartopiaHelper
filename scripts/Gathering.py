@@ -4,6 +4,7 @@ import time
 import cv2
 import numpy as np
 from scripts.Fishing import Fishing
+from tools.finder import clickBackButton
 from tools.tools import LOG_DIVIDER, getResourcePath, getThreshold, loadTemplate
 
 SCAN_SECONDS = 0.5  # 主迴圈每隔多久看一次(秒)
@@ -40,6 +41,11 @@ PICKUP_REGION = (0.15, 0.0, 0.85, 0.5)
 PICKUP_HEIGHT = (28, 52)  # 氣泡的高、寬(1600 寬為基準的像素)
 PICKUP_WIDTH = (100, 340)  # 物品名稱越長氣泡越寬
 SIGN_WAIT = 4.0  # 採完一輪後，最多等幾秒看有沒有出現倒數圖示或獲得物品的氣泡
+MISS_LOG_STREAK = 3  # 連續幾輪都沒看到倒數圖示和氣泡才在日誌提醒
+KEEP_WAIT_SECONDS = 8  # 搜尋後最多等幾秒讓結果畫面的「保持結果」開關出現(模擬器卡的時候很慢)
+LOCK_SETTLE_SECONDS = 4  # 開始時固定食物搜尋結果: 按下搜尋後再多等幾秒才關背包
+UNKNOWN_BACK_SECONDS = 3  # 畫面不是主畫面也不是背包超過這個秒數(多半是誤點到別的介面)，就點左上角的返回
+UNKNOWN_CHECK_SECONDS = 3  # 沒有定時項目要看畫面時，隔多久也要看一次畫面是不是被其他介面蓋住
 GAME_COVERED_RETRY = 2  # 遊戲視窗被蓋住時，隔多久再試一次(秒)
 
 
@@ -91,8 +97,12 @@ class GatherBase(Fishing):
         self._coveredLogged = False
         self._foodSearchPos = None  # 第一次搜尋食物時背包「搜尋」圖示的位置，鎖定後用來推算食物格子
         self._foodLocked = False  # 背包已經鎖在食物的搜尋結果
+        self._lockOnly = False  # 開始時只固定搜尋結果、不吃
         self._toolBroken = False  # 這一輪看到「工具耐久耗盡」的提示
         self._brokenStreak = 0
+        self._missStreak = 0  # 連續幾輪沒看到倒數圖示也沒看到氣泡
+        self._unknownSince = None  # 畫面開始認不出來(不是主畫面也不是背包)的時間
+        self._lastScreenCheck = 0.0
         self._lastIcon = time.time()  # 最近一次看到倒數圖示的時間
         self._lastBubble = time.time()  # 最近一次看到「獲得物品」氣泡的時間
 
@@ -200,17 +210,22 @@ class GatherBase(Fishing):
         return float(self.config.get(f"{self.prefix}NoPickupMinutes", 10))
 
     # ===== 吃食物(可鎖定) =====
-    def _onFoodTyped(self, stopEvent):
-        """要鎖定時，在搜尋視窗按下「保持結果」開關"""
+    def _onSearchResults(self, stopEvent):
+        """要鎖定時，在搜尋結果畫面(左下角)按下「保持結果」開關。模擬器卡的時候結果很晚才出現，所以反覆找一陣子"""
         if not self._flag("fishingFoodLock") or self._foodLocked:
             return True
-        keepPos = self._find(self._shot(), "keepOff")
+        deadline = time.time() + KEEP_WAIT_SECONDS
+        keepPos = None
+        while True:
+            keepPos = self._find(self._shot(), "keepOff")
+            if keepPos or time.time() >= deadline or stopEvent.wait(0.5):
+                break
         if keepPos:
             if not self._click(keepPos, stopEvent):
                 return False
             self._foodLocked = True
-            self.setLog("已鎖定食物搜尋結果，之後開背包就直接吃")
-        else:
+            self.setLog("✅ 已鎖定食物搜尋結果")
+        elif not stopEvent.is_set():
             self.setLog("⚠️ 找不到「保持結果」開關，這次沒有鎖定")
         return True
 
@@ -246,6 +261,34 @@ class GatherBase(Fishing):
             return None
         return result
 
+    def _shouldEat(self, bagImg):
+        if self._lockOnly:  # 開始時只是要把搜尋結果固定住，不管飽不飽都走完搜尋，但不吃
+            return True
+        return super()._shouldEat(bagImg)
+
+    def _eatFromResults(self, img, searchPos, name, stars, stopEvent):
+        if self._lockOnly:
+            # 搜尋剛按下去，模擬器卡的時候結果還沒套用，太早關背包可能固定不成功，多等一下
+            if stopEvent.wait(LOCK_SETTLE_SECONDS):
+                return False
+            return self._closeBag(stopEvent)
+        return super()._eatFromResults(img, searchPos, name, stars, stopEvent)
+
+    def _lockFoodAtStart(self, stopEvent):
+        """剛開始執行時先搜尋一次食物並開啟「保持結果」，之後要吃時就直接點，不用等到餓了才第一次搜尋。這次不吃"""
+        if not (self._flag("fishingUseFood") and self._flag("fishingFoodLock")) or "food" in self.disabled:
+            return
+        self.setLog("先鎖定食物搜尋結果")
+        self._lockOnly = True
+        try:
+            self._runTask("food", self._doFood, stopEvent)
+        finally:
+            self._lockOnly = False
+        self._failCount.pop("food", None)  # 開始時鎖定失敗不算吃食物失敗，不然真正要吃時少了一次機會
+        self.lastDone.pop("food", None)  # 不是真的吃過，不要擋住之後的「體力不足」判斷
+        self._hungry = False
+        self._closeBag(stopEvent)
+
     # ===== 操作 =====
     def _press(self, img, stopEvent):
         """按一次互動鍵。回傳 False 代表已收到停止"""
@@ -253,6 +296,11 @@ class GatherBase(Fishing):
             return self._click(self._castCenter(img)[0], stopEvent)  # 手機版的動作鈕和拋竿鈕同一個位置
         self.backend.pressKey("f")
         return not stopEvent.is_set()
+
+    def _checkHunger(self, img):
+        """體力見底時按互動鍵只會跳出「體力不足」提示，提示很快就消失，所以按完要立刻看，不能等到主迴圈"""
+        if self._flag("fishingUseFood") and "food" not in self.disabled:
+            self._noteHunger(img)
 
     def _gather(self, img, stopEvent):
         """採集一輪: 連按設定的次數。回傳 False 代表已收到停止"""
@@ -273,14 +321,16 @@ class GatherBase(Fishing):
         if self._hasToolBrokenToast(shot):  # 工具壞了，再按也沒用
             self._toolBroken = True
             return True
+        self._checkHunger(shot)
         seenIcon = self._countdownVisible(shot)
         seenBubble = self._pickupBubbleVisible(shot)
         # 倒數圖示、氣泡會晚一點才出現，採完後多等一下確認這輪有沒有採到東西
         deadline = time.time() + SIGN_WAIT
-        while not (seenIcon and seenBubble) and time.time() < deadline:
+        while not (seenIcon and seenBubble) and not self._hungry and time.time() < deadline:
             if stopEvent.wait(0.5):
                 return False
             shot = self._shot()
+            self._checkHunger(shot)
             seenIcon = seenIcon or self._countdownVisible(shot)
             seenBubble = seenBubble or self._pickupBubbleVisible(shot)
         now = time.time()
@@ -290,7 +340,8 @@ class GatherBase(Fishing):
             self._lastBubble = now
         if not seenIcon:  # 沒認到倒數圖示: 存下當時的畫面(debug/noicon_*)，用來檢查圖示在哪、為什麼沒比對到
             self._saveShot(self._shot(), "noicon")
-        if not (seenIcon or seenBubble):
+        self._missStreak = 0 if (seenIcon or seenBubble) else self._missStreak + 1
+        if self._missStreak >= MISS_LOG_STREAK:  # 偶爾一輪沒看到很正常，連續幾輪都沒有才提醒
             self.setLog(f"這輪沒看到倒數圖示，也沒看到獲得物品氣泡（圖示已 {int((now - self._lastIcon) // 60)} 分鐘、氣泡已 {int((now - self._lastBubble) // 60)} 分鐘沒出現）")
         return True
 
@@ -299,6 +350,22 @@ class GatherBase(Fishing):
         if random.random() < DISTRACT_CHANCE:
             delay += random.uniform(*DISTRACT_EXTRA)
         return delay
+
+    def _leaveOtherScreen(self, state, stopEvent):
+        """誤點到別的介面(畫面不是主畫面也不是背包)超過一段時間，就點左上角的返回。回傳這次有沒有點(點了要重新看畫面)。
+        只認左上角的返回鈕，主畫面左側的任務收合箭頭長得很像，不能點"""
+        if state != "unknown":
+            self._unknownSince = None
+            return False
+        self._unknownSince = self._unknownSince or time.time()
+        if time.time() - self._unknownSince < UNKNOWN_BACK_SECONDS:
+            return False
+        self._unknownSince = None
+        if clickBackButton(self.backend, self.config, topLeftOnly=True):
+            self.setLog("畫面停在其他介面，已點擊左上角返回")
+            stopEvent.wait(0.8)
+            return True
+        return False
 
     # ===== 主迴圈 =====
     def _mainLoop(self, stopEvent):
@@ -309,6 +376,9 @@ class GatherBase(Fishing):
             self._markDone("repair")
         self.backend.focusGame()
         self._wakeMouse(stopEvent)
+        self._lockFoodAtStart(stopEvent)
+        if stopEvent.is_set():
+            return
         self._lastIcon = self._lastBubble = time.time()
         nextAt = time.time()  # 開始後馬上採集第一輪
 
@@ -321,13 +391,16 @@ class GatherBase(Fishing):
                 self.setLog(LOG_DIVIDER)
                 return
             gatherDue = time.time() >= nextAt
-            if not gatherDue and not self._enabledTasks():
+            if not gatherDue and not self._enabledTasks() and time.time() - self._lastScreenCheck < UNKNOWN_CHECK_SECONDS:
                 continue
 
             img = self._shot()
+            self._lastScreenCheck = time.time()
             state = self._state(img)
             if state == "bag":
                 self._closeBag(stopEvent)
+                continue
+            if self._leaveOtherScreen(state, stopEvent):
                 continue
 
             if state == "idle":

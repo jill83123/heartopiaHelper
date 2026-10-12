@@ -246,7 +246,8 @@ def matchBest(screenImg, templatePath, threshold, scale):
         return None
     mask, offX, offY = None, 0, 0
     area = MASKED_TEMPLATES.get(os.path.basename(templatePath))
-    if area and "/adb/" not in str(templatePath).replace("\\", "/"):  # 手機版的圖沒驗證過，維持原本做法
+    # 手機版的圖沒驗證過，維持原本做法；背包鈕例外: 模擬器不限範圍時，樹葉等背景會比對出比真正背包鈕更高的分數(0.69 對 0.62)，點到別處背包就打不開
+    if area and (os.path.basename(templatePath) == "bagBtn.png" or "/adb/" not in str(templatePath).replace("\\", "/")):
         mask = _iconMask(templateColor)
         height, width = screenGray.shape
         x0, y0, x1, y1 = int(width * area[0]), int(height * area[1]), int(width * area[2]), int(height * area[3])
@@ -354,6 +355,8 @@ DEFAULT_THRESHOLDS = {
     "toolBtn": 0.75,
     "closeBtn": 0.75,
     "cancelBtn": 0.75,
+    "thinkAgainBtn": 0.8,
+    "lockedIcon": 0.88,  # 彩色比對；紅色鎖頭 1.0，同位置的灰色開鎖 0.74
     "searchBtn": 0.75,
     "searchSubmitBtn": 0.75,
     "searchCloseBtn": 0.75,
@@ -392,6 +395,7 @@ CONFIG_DEFAULTS = {
     "isSafeMode": "True",
     "stopAtFiveStar": "False",
     "debugMode": "False",
+    "autoCancelDialog": "True",  # 跳出確認視窗(誤點丟棄等)一律按取消，見 tools/guards.py；要關掉改成 False
     "safeModeQty": "3",
     "detectFrequency": "0.05",
     "clickFrequency": "0.05",
@@ -442,7 +446,7 @@ CONFIG_DEFAULTS = {
     "woodCount": "1",
     "woodNoPickupMinutes": "10",
     "woodIntervalSeconds": "120",
-    "woodUseFood": "False",
+    "woodUseFood": "True",
     "woodFoodKeepLast": "True",
     "woodFoodName": "",
     "woodFoodStars": "14",

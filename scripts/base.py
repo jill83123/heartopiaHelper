@@ -1,6 +1,7 @@
 import threading
 import traceback
 from tools.finder import matchAuto
+from tools.guards import runDialogGuard
 from tools.tools import LOG_DIVIDER, getThreshold
 
 
@@ -36,6 +37,8 @@ class BaseTask:
         notice = getattr(self.backend, "resolutionNotice", lambda config: None)(self.config)
         if notice:
             self.setLog(notice)
+        # 安全網: 跳出確認視窗(誤點丟棄等)一律按取消，不算在主流程的執行緒裡，出錯也不會讓主流程停止
+        threading.Thread(target=runDialogGuard, args=(self.backend, self.config, self.setLog, stopEvent), daemon=True).start()
         for t in self._threads:
             t.start()
 
