@@ -37,17 +37,20 @@ const setCoordStatus = ({ selector, text, isSuccess }) => {
 // 提示視窗: 顯示在腳本視窗正中央(原生 alert 的位置由系統決定，改用視窗內的對話框)。
 // title 是對話框的標題(例如「無法開始」)，message 是內文。
 // 回傳 Promise，按「確認」得到 true，按「取消」或 Esc 得到 false
-// 內文裡用 **文字** 標示粗體(只用 textContent 組出節點，不解析 HTML)
+// 內文裡用 **文字** 標示粗體、[+文字] 標示綠色、[-文字] 標示紅色(只用 textContent 組出節點，不解析 HTML)
 const setRichText = (el, text) => {
-  text.split('**').forEach((part, i) => {
+  text.split(/(\*\*.+?\*\*|\[[+-].+?\])/).forEach((part) => {
     if (!part) return;
-    if (i % 2 === 1) {
-      const strong = document.createElement('strong');
-      strong.textContent = part;
-      el.appendChild(strong);
-    } else {
-      el.appendChild(document.createTextNode(part));
+    let node = null;
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      node = document.createElement('strong');
+      node.textContent = part.slice(2, -2);
+    } else if (/^\[[+-].+\]$/.test(part)) {
+      node = document.createElement('strong');
+      node.className = part[1] === '+' ? 'text-on' : 'text-off';
+      node.textContent = part.slice(2, -1);
     }
+    el.appendChild(node || document.createTextNode(part));
   });
 };
 
@@ -627,10 +630,13 @@ adbPresets.forEach((preset) => {
 
 // 自動偵測模擬器的 ADB 位址: 找到就填進位址欄；找到多個時填第一個，並列出全部讓使用者確認
 const adbDetectButtons = [...document.querySelectorAll('.adb-detect')];
+let isAdbDetecting = false; // 偵測中: 狀態輪詢不能把按鈕又打開
 adbDetectButtons.forEach((btn) => {
   btn.addEventListener('click', async () => {
     const input = document.querySelector(`#${btn.dataset.input}`);
     const label = btn.textContent;
+    if (isAdbDetecting) return;
+    isAdbDetecting = true;
     adbDetectButtons.forEach((b) => (b.disabled = true));
     btn.textContent = '偵測中...';
     try {
@@ -662,6 +668,7 @@ adbDetectButtons.forEach((btn) => {
       await showDialog('自動偵測失敗', String(e));
     } finally {
       btn.textContent = label;
+      isAdbDetecting = false;
       adbDetectButtons.forEach((b) => (b.disabled = isAnyRunning));
     }
   });
@@ -682,9 +689,10 @@ document.addEventListener('change', (e) => {
   document.querySelectorAll('select[data-key="controlMode"]').forEach((other) => (other.value = select.value));
   syncCookAdbHint();
   syncAdbWarns();
-  // 換了操作模式後，先前框選的泡泡範圍是另一種畫面的座標，要重新選取
+  // 換了操作模式後，先前框選的泡泡範圍與記錄的菜品截圖是另一種畫面的，要重新選取、記錄
   hasBubbleRegion = false;
   setCoordStatus({ selector: '#bubbleRegionCoord', text: '尚未選取座標', isSuccess: false });
+  getApi().apiClearDish().then((ok) => ok && showDish(null));
 });
 
 // 前景定時的設定只有勾選「啟用」時才顯示
@@ -1290,7 +1298,7 @@ const setup = async () => {
     syncFoodOptionsDisabled();
     syncRepairOptionsDisabled();
     adbPresets.forEach((preset) => (preset.disabled = isAnyTaskRunning));
-    adbDetectButtons.forEach((btn) => (btn.disabled = isAnyTaskRunning));
+    adbDetectButtons.forEach((btn) => (btn.disabled = isAnyTaskRunning || isAdbDetecting));
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;
     if (fiveStarToggle) fiveStarToggle.disabled = isAnyTaskRunning;
     if (wildcardToggle) wildcardToggle.disabled = isAnyTaskRunning;
@@ -1344,12 +1352,22 @@ window.addEventListener('pywebviewready', init);
 // 開始料理
 document.querySelector('#startCookBtn').addEventListener('click', async () => {
   if (alertBlockers(getCookBlockers())) return;
-  // 有記錄過菜品時，顯示上次記錄的菜名請使用者確認是不是這次要煮的(沒記錄就不問)
+  // 每次開始前列出這次的設定請使用者確認；有記錄過菜品時一併顯示上次記錄的菜名(沒記錄就不顯示)
+  const onOff = (box) => (box.checked ? '[+開啟]' : '[-關閉]');
+  const lines = [
+    `．料理數量：${document.querySelector('#expectedCookQty').value}`,
+    `．安全模式：${safeModeToggle.checked ? `[+開啟]（煮滿 **${document.querySelector('#safeModeQty').value}** 份才收）` : '[-關閉]'}`,
+    `．五星停止：${onOff(fiveStarToggle)}`,
+    `．使用萬能食材：${onOff(wildcardToggle)}`
+  ];
+  let message = lines.join('\n');
+  let image = '';
   if (dishRecorded) {
-    const image = await getApi().apiGetDishImage();
-    const ok = await showDialog('確認菜品', '上次記錄的菜品如下，這次要煮的是這道嗎？\n若不是，請取消後清除或按「記錄菜名」更新。', { confirm: true, image: image || '' });
-    if (!ok) return;
+    image = (await getApi().apiGetDishImage()) || '';
+    message += '\n\n上次記錄的菜品如下，這次要煮的是這道嗎？\n若不是，請取消後清除或按「記錄菜名」更新。';
   }
+  const ok = await showDialog('確認料理設定', message, { confirm: true, image, okText: '開始料理' });
+  if (!ok) return;
   await startTask((confirmed) => getApi().startCooking(confirmed));
 });
 

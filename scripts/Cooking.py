@@ -6,7 +6,7 @@ import threading
 import time
 from scripts.common.base import BaseTask
 from tools.debug import DebugMixin
-from tools.finder import clickBackButton, countStarRow, findStartCookBtn, _findInFullScreen
+from tools.finder import clickBackButton, countStarRow, findStartCookBtn, matchBestAuto, _findInFullScreen
 from tools.tools import getThreshold, getUserDataPath
 
 IDLE_TIMEOUT = 1.5  # 泡泡區域內沒有任何圖示超過這個秒數，就點返回離開
@@ -75,6 +75,7 @@ class Cooking(DebugMixin, BaseTask):
         self.isNextStartCookBtn = False
         self.waitingSince = None
         self.startBtnWaitingSince = None
+        self.startBtnSeenAt = None
         self.potClickedAt = 0
         self.startClickedAt = 0
         self.potClickCoords = None  # 最近一次要點的鍋子位置，點擊前要確認它還在
@@ -108,7 +109,8 @@ class Cooking(DebugMixin, BaseTask):
             self.setLog(reason)
         else:
             # 同一段閒置期間只點一次，而且已經在主畫面(看得到背包圖示)就不點，否則會一直點到場景
-            tapped = not (logOnce and self.backMissingLogged) and not self._isMainScreen()
+            # 非閒置情況(例如等不到開始烹飪按鈕)多半是被「新星級料理」之類的提示蓋住，主畫面的背包圖示照樣看得到，所以直接點
+            tapped = not (logOnce and self.backMissingLogged) and (not logOnce or not self._isMainScreen())
             if tapped:
                 self._dismissPopup()
             if not (logOnce and self.backMissingLogged):
@@ -119,6 +121,15 @@ class Cooking(DebugMixin, BaseTask):
                 self.setLog(f"{missing}{note}")
         self.isNextStartCookBtn = False
         self.startBtnWaitingSince = None
+        self.startBtnSeenAt = None
+
+    def _isMainScreen(self):
+        """主畫面: 看得到背包圖示"""
+        adb = self.config.get("controlMode", "screen").lower() == "adb"
+        path = "templates/common/adb/bagBtn.png" if adb else "templates/common/bagBtn.png"
+        # 用遮罩+限定範圍的 matchBest；一般比對會把樹葉、草地誤認成背包圖示，提示蓋住畫面時就以為在主畫面
+        img, _, _ = self.backend.captureFull()
+        return bool(matchBestAuto(self.backend, self.config, img, path, getThreshold(self.config, "bagBtn")))
 
     def _dismissPopup(self):
         """點遊戲畫面上方中間的空白處。煮到新星級料理之類的提示要點任意處才會關閉，畫面上又沒有返回按鈕可點"""
@@ -172,6 +183,10 @@ class Cooking(DebugMixin, BaseTask):
             return False
         return any(abs(bx + fx - coords[0]) <= POT_POSITION_TOLERANCE and abs(by + fy - coords[1]) <= POT_POSITION_TOLERANCE for fx, fy in found)
 
+    def _fireVisible(self):
+        bx, by, bw, bh = self.bubbleRegionCoord
+        return bool(self._getMatchCords(self.backend.capture(bx, by, bw, bh), "fire"))
+
     def _loadDishImage(self):
         """讀取記錄的菜名截圖(灰階)，沒有記錄回傳 None。路徑可能含中文，用 numpy 解碼"""
         path = getUserDataPath("dish.png")
@@ -182,9 +197,9 @@ class Cooking(DebugMixin, BaseTask):
         except Exception:
             return None
 
-    def _isDishMatched(self):
+    def _isDishMatched(self, tries=DISH_CHECK_TRIES):
         """食譜畫面上找不找得到記錄的菜名(記錄和執行是同樣的解析度，直接比對)"""
-        for _ in range(DISH_CHECK_TRIES):
+        for _ in range(tries):
             img, _, _ = self.backend.captureFull()
             if self.backend.channelsSwapped:
                 img = np.ascontiguousarray(img[:, :, ::-1])
@@ -214,10 +229,13 @@ class Cooking(DebugMixin, BaseTask):
         btn = findStartCookBtn(self.backend, self.config)
         if btn:
             x, y, isEnabled = btn
+            if isEnabled and not self.startBtnSeenAt:
+                self.startBtnSeenAt = time.time()
             if not isEnabled:
                 if self.useWildcard and not self.wildcardTried:
                     self.wildcardTried = True
                     self._fillWithWildcard(stopEvent)
+                    self.startBtnSeenAt = None
                     self.startBtnWaitingSince = None  # 補食材花的時間不算在等按鈕的逾時裡
                     return  # 補完回到偵測，重新確認按鈕可不可以按
                 if not self.currentCookQty:  # 一份都還沒開始煮，沒有東西要等
@@ -245,7 +263,7 @@ class Cooking(DebugMixin, BaseTask):
                 self.dishVerified = True
                 if not self.dishLogged:
                     self.dishLogged = True
-                    self.setLog("菜品確認相符")
+                    self.setLog("✅ 菜品確認相符")
 
             with self.lock:
                 if self.isNextStartCookBtn:
@@ -364,12 +382,15 @@ class Cooking(DebugMixin, BaseTask):
                 isStartBtnClick = self.isStartBtnClick
 
             if isStartBtnClick:
-                stopEvent.wait(START_BTN_DELAY)
+                # 動畫從第一次看到按鈕就開始跑，偵測與確認菜品花掉的時間(模擬器截圖很慢)不用再等一次
+                seenAt = self.startBtnSeenAt or time.time()
+                stopEvent.wait(max(0.0, START_BTN_DELAY - (time.time() - seenAt)))
+                self.startBtnSeenAt = None
                 # 偵測到按鈕到真正點擊之間隔了一段時間(截圖也有延遲)，畫面可能已經變了。
                 # 點之前重新截圖確認「開始烹飪」還在，並用最新的座標點；菜品也再確認一次，有問題就取消這次點擊
                 if coords and not stopEvent.is_set():
                     fresh = findStartCookBtn(self.backend, self.config)
-                    stale = not fresh or not fresh[2] or (self.dishImage is not None and not self._isDishMatched())
+                    stale = not fresh or not fresh[2] or (self.dishImage is not None and not self._isDishMatched(tries=1))
                     if stale:
                         with self.lock:
                             if self.clickCoords == coords:
@@ -397,6 +418,15 @@ class Cooking(DebugMixin, BaseTask):
                 with self.lock:
                     if self.clickCoords == coords:
                         self.clickCoords = None
+                coords = None
+
+            if coords and coords == self.potClickCoords and self._fireVisible():
+                # 偵測時偶爾漏掉鍋鏟，點之前再看一次: 有鍋鏟就取消，交給偵測執行緒改點鍋鏟
+                with self.lock:
+                    if self.clickCoords == coords:
+                        self.clickCoords = None
+                        self.isNextStartCookBtn = False
+                        self.potClickedAt = 0
                 coords = None
 
             if coords and coords == self.potClickCoords and not self._isStillThere(coords, "startAction"):
