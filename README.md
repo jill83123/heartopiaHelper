@@ -161,8 +161,8 @@ pyinstaller --noconsole --add-data "config.default.ini;." --add-data "ui;ui" --a
 ```
 main.py            程式進入點、視窗與停止鍵
 api.py             前端呼叫的後端介面
-scripts/           料理、雪雕、釣魚、採集植物、砍木頭流程 (base.py 為共用基底，Gathering.py 為採集共用骨架)
+scripts/           料理、雪雕、釣魚、採集植物、砍木頭流程 (base.py 為共用基底，gameui.py 畫面與背包操作、tasks.py 定時項目、food.py 吃食物，釣魚與採集共用；Gathering.py 為採集共用骨架)
 tools/             畫面截取、模板比對、ADB 與設定檔
-templates/         比對用的圖片 (以 1600 寬為基準，其他解析度會自動縮放)
+templates/         比對用的圖片 (以 1600 寬為基準，其他解析度會自動縮放；common 各功能共用的按鈕、food 吃食物、各功能自己的圖放自己的資料夾，手機版不同的圖放各資料夾的 adb/)
 ui/                介面 (HTML / JS / CSS)
 ```
