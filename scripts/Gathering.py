@@ -3,9 +3,9 @@ import random
 import time
 import cv2
 import numpy as np
-from scripts.food import FoodMixin
-from scripts.gameui import COMMON_TEMPLATE_DIR, GameUI
-from scripts.tasks import TimedTasks
+from scripts.common.food import FoodMixin
+from scripts.common.gameui import COMMON_TEMPLATE_DIR, GameUI
+from scripts.common.tasks import TimedTasks
 from tools.finder import clickBackButton
 from tools.tools import LOG_DIVIDER, getResourcePath, getThreshold, loadTemplate
 
@@ -81,7 +81,7 @@ def findCountdownRing(part, scale=1.0):
 
 class GatherBase(FoodMixin, TimedTasks, GameUI):
     """定時採集的共同骨架: 每隔設定的時間，在原地按「互動鍵」(電腦版 F、手機版右下角的動作鈕)指定的次數，
-    並可定時或在看得到飽食度時去吃食物。吃食物(food.py)、定時項目(tasks.py)、背包等畫面操作(gameui.py)和釣魚共用，設定名稱在 api.py 換成這個功能自己的。
+    並可定時或在看得到飽食度時去吃食物。吃食物(common/food.py)、定時項目(common/tasks.py)、背包等畫面操作(common/gameui.py)和釣魚共用，設定名稱在 api.py 換成這個功能自己的。
     吃食物可以「鎖定」: 採集幾乎不會碰背包的其他東西，第一次搜尋食物時順便開啟遊戲的「下次開啟背包保持該結果」，
     之後打開背包就直接停在那份食物的搜尋結果，不用每次重新搜尋。
     子類別指定 prefix(設定名稱的開頭)、label(日誌用的名稱)與 pressGap(連按之間的停頓範圍，等採集動作做完)"""

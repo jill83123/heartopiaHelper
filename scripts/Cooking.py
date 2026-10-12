@@ -3,7 +3,7 @@ import numpy as np
 import os
 import threading
 import time
-from scripts.base import BaseTask
+from scripts.common.base import BaseTask
 from tools.finder import clickBackButton, countStarRow, findStartCookBtn, _findInFullScreen
 from tools.tools import getThreshold, getUserDataPath
 

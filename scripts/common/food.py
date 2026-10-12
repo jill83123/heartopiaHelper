@@ -13,7 +13,7 @@ from tools.notify import notify
 from tools.ocr import isReady, readFraction
 from tools.tools import getThreshold, loadTemplate, matchBest
 from tools.finder import resolveScale
-from scripts.tasks import OutOfStock
+from scripts.common.tasks import OutOfStock
 
 RESULT_FIRST_OFFSET = (-489, 113)
 RESULT_STEP = 130
