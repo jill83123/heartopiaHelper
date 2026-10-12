@@ -112,6 +112,12 @@ body {
 .m-0 {
   margin: 0 !important;
 }
+.update-ok {
+  color: var(--success);
+}
+.update-new {
+  color: var(--warn-text);
+}
 .ml-12 {
   margin-left: 16px !important;
 }
@@ -190,8 +196,8 @@ body {
 .hero {
   position: relative;
   overflow: hidden;
-  padding: 16px 24px 24px;
-  margin-bottom: 16px;
+  padding: 16px 24px 12px;
+  margin-bottom: 4px;
   background: linear-gradient(180deg, #6cbdee 0%, #a9dcf7 72%, var(--bg) 100%);
 }
 @media (prefers-color-scheme: dark) {
@@ -1103,7 +1109,7 @@ summary {
     padding: 0 16px 16px;
   }
   .hero {
-    padding: 16px 16px 16px;
+    padding: 16px 16px 12px;
   }
   .tab {
     padding: 8px 4px;
@@ -1320,6 +1326,34 @@ details.section > summary::after {
   width: 8px;
   height: 8px;
   margin: 0 4px 0 auto;
+/* 檢查更新: 外觀同群組標題，但不能摺疊 */
+.update-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  color: var(--text);
+  font-size: 1.15em;
+  font-weight: 700;
+}
+.update-line::before {
+  content: '';
+  flex: none;
+  align-self: stretch;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--sky);
+}
+.update-line .btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 104px;
+  height: 34px;
+  margin-left: auto;
+  padding: 0 16px;
+  font-size: 1rem;
+  white-space: nowrap;
+}
   border-right: 2px solid var(--text-3);
   border-bottom: 2px solid var(--text-3);
   transform: rotate(45deg);

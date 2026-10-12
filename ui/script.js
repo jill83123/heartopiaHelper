@@ -1047,6 +1047,13 @@ const renderMarkdown = (container, markdown) => {
   let list = null;
   let para = null;
   let code = null;
+// 顯示檢查結果；kind 為 update-ok(綠)或 update-new(橘)，不給就是一般顏色
+const setUpdateResult = (el, text, kind) => {
+  el.textContent = text;
+  el.classList.remove('update-ok', 'update-new');
+  if (kind) el.classList.add(kind);
+};
+
   const flush = () => {
     list = null;
     para = null;
@@ -1128,18 +1135,21 @@ const showUpdate = (info) => {
 // 自動檢查(啟動時)一天只提醒一次: 按過「暫時不更新」的當天不再跳出；手動檢查一律顯示
 const checkForUpdate = async (isManual) => {
   const result = document.querySelector('#updateResult');
-  if (isManual) result.textContent = '檢查中...';
+  if (isManual) {
+    setUpdateResult(result, '檢查中...');
+  }
   const info = await getApi().apiCheckUpdate();
   if (info.hasUpdate) {
     if (isManual) {
-      result.textContent = `有新版本 ${info.latest}`;
+      setUpdateResult(result, `🔔 有新版本 ${info.latest}`, 'update-new');
     } else {
       const settings = await getApi().apiReadSettings();
       if (settings.updateRemindDate === todayString()) return;
     }
     showUpdate(info);
   } else if (isManual) {
-    result.textContent = info.checkFailed ? '無法連線到 GitHub，請確認網路連線' : '已是最新版本';
+    if (info.checkFailed) setUpdateResult(result, '無法連線到 GitHub，請確認網路連線');
+    else setUpdateResult(result, '✅ 已是最新版本', 'update-ok');
   }
 };
 
@@ -1154,7 +1164,7 @@ const updateTick = async () => {
       lastUpdateFetch = Date.now();
       const info = await getApi().apiCheckUpdate();
       pendingUpdate = info.hasUpdate ? info : null;
-      if (pendingUpdate) document.querySelector('#updateResult').textContent = `有新版本 ${pendingUpdate.latest}`;
+      if (pendingUpdate) setUpdateResult(document.querySelector('#updateResult'), `🔔 有新版本 ${pendingUpdate.latest}`, 'update-new');
     }
     if (!pendingUpdate || isAnyRunning || notifiedVersion === pendingUpdate.latest) return;
     if (!updateDialog.hidden || !document.querySelector('#dialog').hidden) return; // 已有視窗開著就等下一輪
