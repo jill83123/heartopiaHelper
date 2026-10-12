@@ -746,54 +746,13 @@ hr {
   padding-bottom: 16px;
 }
 
-.advanced {
-  margin-top: 16px;
-}
-
 summary {
   cursor: pointer;
   font-weight: 600;
   margin-bottom: 0;
 }
-.advanced > summary,
 .group[open] > summary {
   margin-bottom: 12px;
-}
-
-.advanced .group {
-  margin-top: 12px;
-}
-
-/* 進階閥值: 群組與欄位間距 */
-.advanced > p {
-  margin-bottom: 16px !important;
-}
-
-/* 進階閥值區塊: 說明文字在左，一鍵重設按鈕在右側同一列 */
-.advanced-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.advanced-head .btn {
-  flex: none;
-  width: auto;
-  height: 32px;
-  padding: 0 16px;
-  white-space: nowrap;
-}
-
-.threshold-grid {
-  flex-wrap: wrap;
-  row-gap: 16px;
-  margin-bottom: 8px;
-}
-
-.threshold-grid .col {
-  flex: 0 0 calc(33.333% - 11px);
 }
 
 .howto {
@@ -1157,17 +1116,6 @@ summary {
   padding-left: 0;
 }
 
-/* 進階比對閥值: 欄位名稱旁邊的模板縮圖 */
-.tpl-thumb {
-  height: 22px;
-  max-width: 40px;
-  width: auto;
-  margin-right: 8px;
-  vertical-align: middle;
-  object-fit: contain;
-  border-radius: 4px;
-}
-
 /* Lucide 圖示: 跟著文字顏色與大小 */
 .icon {
   width: 1.1em;
@@ -1326,34 +1274,6 @@ details.section > summary::after {
   width: 8px;
   height: 8px;
   margin: 0 4px 0 auto;
-/* 檢查更新: 外觀同群組標題，但不能摺疊 */
-.update-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 0;
-  color: var(--text);
-  font-size: 1.15em;
-  font-weight: 700;
-}
-.update-line::before {
-  content: '';
-  flex: none;
-  align-self: stretch;
-  width: 4px;
-  border-radius: 2px;
-  background: var(--sky);
-}
-.update-line .btn {
-  flex: 0 0 auto;
-  width: auto;
-  min-width: 104px;
-  height: 34px;
-  margin-left: auto;
-  padding: 0 16px;
-  font-size: 1rem;
-  white-space: nowrap;
-}
   border-right: 2px solid var(--text-3);
   border-bottom: 2px solid var(--text-3);
   transform: rotate(45deg);
@@ -1405,6 +1325,34 @@ details.section[open] > summary {
 details.section > summary::before {
   align-self: stretch;
   height: auto;
+}
+/* 檢查更新: 外觀同群組標題，但不能摺疊 */
+.update-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  color: var(--text);
+  font-size: 1.15em;
+  font-weight: 700;
+}
+.update-line::before {
+  content: '';
+  flex: none;
+  align-self: stretch;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--sky);
+}
+.update-line .btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 104px;
+  height: 34px;
+  margin-left: auto;
+  padding: 0 16px;
+  font-size: 1rem;
+  white-space: nowrap;
 }
 .section-text {
   display: flex;
