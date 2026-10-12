@@ -1,6 +1,7 @@
 const bubbleRegionBtn = document.querySelector('#bubbleRegionBtn');
 const safeModeToggle = document.querySelector('#safeModeToggle');
 const fiveStarToggle = document.querySelector('#fiveStarToggle');
+const wildcardToggle = document.querySelector('#wildcardToggle');
 
 let hasBubbleRegion = false;
 let isSelectingRegion = false; // 框選視窗開啟中: 不能再框選，也不能開始任務
@@ -775,6 +776,15 @@ fiveStarToggle.addEventListener('change', (e) => {
   getApi().apiWriteSetting('stopAtFiveStar', e.target.checked);
 });
 
+// 萬能食材切換
+const syncWildcardTag = () => {
+  document.querySelector('#wildcardTag').hidden = !wildcardToggle.checked;
+};
+wildcardToggle.addEventListener('change', (e) => {
+  getApi().apiWriteSetting('cookUseWildcard', e.target.checked);
+  syncWildcardTag();
+});
+
 // 處理日誌訊息
 const handleCookingLogMessage = (log) => {
   currentCookingLogIndex = log.index;
@@ -903,6 +913,9 @@ const fillSettings = (settings) => {
   syncFloatLogRow();
   safeModeToggle.checked = String(settings.isSafeMode).toLowerCase() === 'true';
   fiveStarToggle.checked = String(settings.stopAtFiveStar).toLowerCase() === 'true';
+  wildcardToggle.checked = String(settings.cookUseWildcard).toLowerCase() === 'true';
+  syncWildcardTag();
+  if (wildcardToggle.checked) document.querySelector('#cookAdvanced').open = true; // 有開的設定藏在折疊裡看不到，開程式時先展開
 
   updateResetButtons();
 };
@@ -1280,6 +1293,7 @@ const setup = async () => {
     adbDetectButtons.forEach((btn) => (btn.disabled = isAnyTaskRunning));
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;
     if (fiveStarToggle) fiveStarToggle.disabled = isAnyTaskRunning;
+    if (wildcardToggle) wildcardToggle.disabled = isAnyTaskRunning;
     const resetBtn = document.querySelector('#resetSettingsBtn');
     if (resetBtn) resetBtn.disabled = isAnyTaskRunning;
     if (bubbleRegionBtn) bubbleRegionBtn.disabled = isAnyTaskRunning || isSelectingRegion;

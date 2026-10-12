@@ -87,9 +87,9 @@
             </div>
           </div>
 
-          <div class="row mb-16">
-            <div class="col">
-              <label for="expectedCookQty" class="label">料理數量</label>
+          <div class="setting-line">
+            <label for="expectedCookQty" class="label">料理數量</label>
+            <div class="check">
               <input
                 type="number"
                 min="1"
@@ -101,21 +101,37 @@
             </div>
           </div>
 
-          <div class="label">安全模式</div>
-          <div class="check mb-16">
-            <input type="checkbox" id="safeModeToggle" />
-            <label for="safeModeToggle">啟用</label>
-            <span class="muted fs-12">煮滿</span>
-            <input type="number" min="1" class="setting input qty" id="safeModeQty" data-key="safeModeQty" />
-            <span class="muted fs-12">份才收料理</span>
+          <div class="setting-line">
+            <div class="label">安全模式</div>
+            <div class="check">
+              <input type="checkbox" id="safeModeToggle" />
+              <label for="safeModeToggle">啟用</label>
+              <span class="muted fs-12">煮滿</span>
+              <input type="number" min="1" class="setting input qty" id="safeModeQty" data-key="safeModeQty" />
+              <span class="muted fs-12">份才收料理</span>
+            </div>
           </div>
 
-          <div class="label">五星停止</div>
-          <div class="check">
-            <input type="checkbox" id="fiveStarToggle" />
-            <label for="fiveStarToggle">啟用</label>
-            <span class="muted fs-12">收到五星料理就停止（依畫面右上角的星星判斷）</span>
+          <div class="setting-line">
+            <div class="label">五星停止</div>
+            <div class="check">
+              <input type="checkbox" id="fiveStarToggle" />
+              <label for="fiveStarToggle">啟用</label>
+              <span class="muted fs-12">做到五星就停止</span>
+            </div>
           </div>
+
+          <details class="group" id="cookAdvanced">
+            <summary>不常用<span class="section-tag outline" id="wildcardTag" hidden>已打開萬能食材</span></summary>
+            <div class="setting-line top">
+              <div class="label">使用萬能食材</div>
+              <div class="check">
+                <input type="checkbox" id="wildcardToggle" />
+                <label for="wildcardToggle">啟用</label>
+                <span class="muted fs-12">＊ 建議只使用一個鍋子</span>
+              </div>
+            </div>
+          </details>
 
           <hr />
 
