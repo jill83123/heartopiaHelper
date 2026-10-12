@@ -331,7 +331,6 @@ DEFAULT_THRESHOLDS = {
     "startAction": 0.65,
     "fire": 0.65,
     "completed": 0.65,
-    "failedFood": 0.8,
     "timer": 0.65,
     "startCookBtn": 0.7,
     "backBtn": 0.8,
