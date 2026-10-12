@@ -1519,7 +1519,7 @@ details.section > summary::before {
   display: block;
   max-width: 100%;
   max-height: 260px;
-  margin: 0 auto 16px;
+  margin: 0 auto 28px;
   border-radius: var(--r-md);
   border: 1px solid var(--border);
 }
@@ -1726,4 +1726,12 @@ details.section > summary::before {
 }
 .title-row:has(+ .title-warn) .title-toggle {
   transform: translateY(10px);
+}
+
+.text-on {
+  color: var(--success);
+}
+
+.text-off {
+  color: var(--danger);
 }
