@@ -584,9 +584,17 @@
 
           <details class="section">
             <summary>
+
+          <div class="update-line">
+            <span class="section-text">
+              <span class="section-name">檢查更新</span>
+              <span class="section-hint">目前版本 <span id="appVersion"></span><span id="updateResult" class="ml-12"></span></span>
+            </span>
+            <button type="button" id="checkUpdateBtn" class="btn">檢查更新</button>
+          </div>
               <span class="section-text">
-                <span class="section-name">除錯<span class="section-tag">進階</span></span>
-                <span class="section-hint">回報問題時才需要開啟</span>
+                <span class="section-name">其他</span>
+                <span class="section-hint">除錯、還原設定值</span>
               </span>
             </summary>
             <div class="section-body">
@@ -597,26 +605,6 @@
                 <div class="action-desc">開啟後會把程式判斷用的截圖與流程記錄存到 debug 資料夾（截圖左下角的玩家 ID 會被遮蓋），截圖最多保留最近 100 張（約佔 50～130MB），不需要時請關閉</div>
               </div>
               <input type="checkbox" class="setting-check" id="debugMode" data-key="debugMode" />
-            </div>
-          </div>
-            </div>
-          </details>
-
-          <details class="section" open>
-            <summary>
-              <span class="section-text">
-                <span class="section-name">其他</span>
-                <span class="section-hint">檢查更新、還原設定值</span>
-              </span>
-            </summary>
-            <div class="section-body">
-          <div class="action-list">
-            <div class="action-row">
-              <div>
-                <div class="action-name">檢查更新</div>
-                <div class="action-desc">目前版本 <span id="appVersion"></span><span id="updateResult" class="ml-12"></span></div>
-              </div>
-              <button type="button" id="checkUpdateBtn" class="btn">檢查更新</button>
             </div>
             <div class="action-row">
               <div>
