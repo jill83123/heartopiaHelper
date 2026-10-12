@@ -312,7 +312,6 @@ class Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI):
                     self._faceFront()
                     if stopEvent.wait(0.8):
                         return
-                self._wakeMouse(stopEvent)
                 self._traceChange(None)
                 self._trace(f"主畫面拋竿 perfume={self.lastDone.get('perfume')} baitChecked={self._baitChecked}")
                 self._cast(self._shot(), stopEvent, force=True)
