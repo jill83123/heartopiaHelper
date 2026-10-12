@@ -294,19 +294,19 @@ buildAltOptions();
 // 採集植物(無工具)不用吃食物、不用維修盒，只有砍木頭這類用工具的功能才有這些設定。
 // 採集植物、砍木頭: 兩個功能的設定、日誌與開始/停止按鈕各自獨立(設定名稱以 plant / wood 開頭)，只是版面一樣，所以用同一個函式產生
 const GATHER_KINDS = [
-  { prefix: 'plant', name: '採集植物', countLabel: '採集次數', hint: '每輪按 F 的次數' },
-  { prefix: 'wood', name: '砍木頭', countLabel: '砍的次數', hint: '每輪按 F 的次數', tool: '斧頭' },
+  { prefix: 'plant', name: '採集（無工具）', countLabel: '每輪採集次數' },
+  { prefix: 'wood', name: '採集（有工具）', countLabel: '每輪採集次數', tool: '斧頭' },
 ];
 const capitalize = (text) => text[0].toUpperCase() + text.slice(1);
 
 const resetIcon = (key) =>
   `<button type="button" class="reset-default" data-reset="${key}" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>`;
 
-const buildGatherBlock = ({ prefix: p, name, countLabel, hint, tool }) => {
+const buildGatherBlock = ({ prefix: p, name, countLabel, tool }) => {
   const P = capitalize(p);
   // 次數欄位放在上方「功能」同一行(共用列)，隨功能切換顯示
   document.querySelector(`#gather${P}Count`).innerHTML = `
-    <label for="${p}Count" class="label" title="${hint}">${countLabel}</label>
+    <label for="${p}Count" class="label">${countLabel}</label>
     <div class="count-field">
       <input type="number" min="1" step="1" class="setting input qty" id="${p}Count" data-key="${p}Count" />
       <span class="muted fs-12">次</span>

@@ -521,7 +521,7 @@ def fishingItemChecks(config, prefix, who):
 
 
 # 採集功能的設定名稱開頭 -> 訊息裡的稱呼
-GATHER_LABELS = {"plant": "採集植物", "wood": "砍木頭"}
+GATHER_LABELS = {"plant": "採集（無工具）", "wood": "採集（有工具）"}
 
 
 def validateConfig(config, task):

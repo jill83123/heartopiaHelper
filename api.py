@@ -686,7 +686,7 @@ class Api:
         if self.selectLock.locked():
             return {"ok": False, "error": "正在選取範圍，請先完成選取"}
         if self.isRunning():
-            return {"ok": False, "error": "已有任務運行中，採集植物與砍木頭只能擇一使用，請先停止"}
+            return {"ok": False, "error": "已有任務運行中，請先停止"}
 
         def gatherLog(msg):
             self.setLog(msg, kind)
