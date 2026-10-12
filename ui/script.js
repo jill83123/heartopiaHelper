@@ -10,77 +10,6 @@ let currentSnowLogIndex = 0;
 let currentFishLogIndex = 0;
 let currentFishAltLogIndex = 0;
 
-// 各項目比對閥值欄位，依群組產生在「進階」區塊（預設值由後端 config 提供）
-const THRESHOLD_FIELDS = {
-  cooking: [
-    ['startAction', '鍋子'],
-    ['fire', '鏟子'],
-    ['completed', '手套'],
-    ['failedFood', '做失敗提示'],
-    ['timer', '倒數計時器'],
-    ['startCookBtn', '開始烹飪按鈕'],
-    ['backBtn', '返回按鈕'],
-  ],
-  snowCarving: [
-    ['snowPut', '放雪按鈕'],
-    ['snowStartBtn', '開始按鈕'],
-    ['snowflake', '雕刻按鈕'],
-    ['snowCompleted', '完成按鈕'],
-  ],
-  gathering: [
-    ['toolBroken', '工具耐久耗盡提示'],
-    ['filterRepair', '背包篩選的維修盒分類'],
-    ['repairBoxCell', '背包裡的木頭維修盒'],
-    ['respawnPlant', '植物採完的倒數圖示'],
-    ['respawnWood', '木頭砍完的倒數圖示'],
-    ['respawnMushroom', '蘑菇採完的倒數圖示'],
-  ],
-  fishing: [
-    ['castBtn', '拋竿按鈕（手機版與自動記下的圖）'],
-    ['castBadge', '拋竿按鈕 F 標記（電腦版）'],
-    ['perfumeBuff', '香水效果圖示'],
-    ['biteMark', '咬鉤驚嘆號'],
-    ['newFishMark', '新圖鑑提示'],
-    ['noStamina', '體力不足提示'],
-    ['toolBroken', '工具耐久耗盡提示'],
-    ['bagBtn', '背包圖示'],
-    ['closeBtn', '關閉按鈕'],
-    ['cancelBtn', '取消按鈕'],
-    ['thinkAgainBtn', '鎖定警告的再想想按鈕'],
-    ['cellLock', '背包格子右下角的小鎖頭'],
-    ['lockedIcon', '食物說明的紅色鎖頭'],
-    ['toolBtn', '工具箱按鈕'],
-    ['repairBoxItem', '維修盒道具'],
-    ['perfumeItem', '香水道具'],
-    ['baitItem', '誘魚器道具'],
-    ['sprayBtn', '噴灑按鈕'],
-    ['useBtn', '使用按鈕'],
-    ['eatBtn', '食用按鈕'],
-    ['usesLabel', '可用次數標籤'],
-    ['staminaIcon', '飽食度圖示'],
-    ['searchBtn', '搜尋圖示'],
-    ['searchSubmitBtn', '搜尋視窗確認鈕'],
-    ['searchCloseBtn', '搜尋視窗關閉鈕'],
-    ['filterFishing', '釣魚用品分類'],
-    ['filterHeaderFishing', '釣魚用品清單標題'],
-    ['keepOff', '保持結果開關'],
-    ['endFilterBtn', '結束篩選按鈕'],
-    ['endSearchBtn', '結束搜尋按鈕'],
-  ],
-};
-
-document.querySelectorAll('.threshold-grid').forEach((grid) => {
-  THRESHOLD_FIELDS[grid.dataset.group].forEach(([name, label]) => {
-    const col = document.createElement('div');
-    col.className = 'col';
-    col.innerHTML = `
-      <label for="${name}Threshold" class="label"><img class="tpl-thumb" data-tpl="${name}" alt="" hidden />${label}</label>
-      <input type="number" min="0.1" max="1" step="0.01" class="setting input"
-        id="${name}Threshold" placeholder="0.1-1.0" data-key="${name}Threshold" />`;
-    grid.appendChild(col);
-  });
-});
-
 // 定時輪詢後端。關閉視窗前後端會先呼叫 markClosing()，之後就不再發出新的呼叫，
 // 避免視窗銷毀的瞬間還有呼叫在途中，結果要回傳給已釋放的 WebView2 而噴錯
 let isClosing = false;
@@ -992,14 +921,6 @@ document.querySelector('#resetSettingsBtn').addEventListener('click', async () =
   }
 });
 
-// 進階區塊的一鍵重設: 只把各項目的比對閥值還原成預設值，其他設定不動
-document.querySelector('#resetThresholdsBtn').addEventListener('click', async () => {
-  const confirmed = await showDialog('重設比對閥值', '確定要把所有項目的比對閥值還原成預設值嗎？\n（其他設定不會變動）', { confirm: true, danger: true, okText: '重設' });
-  if (!confirmed) return;
-  const settings = await getApi().apiResetThresholds();
-  if (settings) fillSettings(settings);
-});
-
 // ===== 更新 =====
 const updateDialog = document.querySelector('#updateDialog');
 const updateNowBtn = document.querySelector('#updateNowBtn');
@@ -1047,13 +968,6 @@ const renderMarkdown = (container, markdown) => {
   let list = null;
   let para = null;
   let code = null;
-// 顯示檢查結果；kind 為 update-ok(綠)或 update-new(橘)，不給就是一般顏色
-const setUpdateResult = (el, text, kind) => {
-  el.textContent = text;
-  el.classList.remove('update-ok', 'update-new');
-  if (kind) el.classList.add(kind);
-};
-
   const flush = () => {
     list = null;
     para = null;
@@ -1133,6 +1047,13 @@ const showUpdate = (info) => {
 };
 
 // 自動檢查(啟動時)一天只提醒一次: 按過「暫時不更新」的當天不再跳出；手動檢查一律顯示
+// 顯示檢查結果；kind 為 update-ok(綠)或 update-new(橘)，不給就是一般顏色
+const setUpdateResult = (el, text, kind) => {
+  el.textContent = text;
+  el.classList.remove('update-ok', 'update-new');
+  if (kind) el.classList.add(kind);
+};
+
 const checkForUpdate = async (isManual) => {
   const result = document.querySelector('#updateResult');
   if (isManual) {
@@ -1257,13 +1178,12 @@ const updateResetButtons = () => {
 const DEFAULT_LABEL_SELECTS = ['floatLogPosition', 'floatLogTheme', 'screenResolution', 'uiScale', 'matchStrictness'];
 
 // 只有「數值」欄位(份數、秒數、頻率...)需要還原預設值按鈕，沒有的自動補上。
-// 核取方塊、下拉選單、文字欄位(ADB、停止按鍵、食物名稱)不放；比對閥值已有「全部重設為預設值」。
+// 核取方塊、下拉選單、文字欄位(ADB、停止按鍵、食物名稱)不放。
 // 在一整排的設定列(.check)裡直接接在欄位(與單位)後面，獨立的欄位則把欄位與按鈕包成一列
 const addMissingResetButtons = () => {
   document.querySelectorAll('input[type="number"].setting[data-key]').forEach((el) => {
     if (!el.id || !(el.dataset.key in resetDefaults)) return;
     if (document.querySelector(`.reset-default[data-reset="${el.id}"]`)) return;
-    if (el.closest('.threshold-grid')) return;
     const holder = document.createElement('span');
     holder.innerHTML = resetIcon(el.id);
     const btn = holder.firstElementChild;
@@ -1362,8 +1282,6 @@ const setup = async () => {
     if (fiveStarToggle) fiveStarToggle.disabled = isAnyTaskRunning;
     const resetBtn = document.querySelector('#resetSettingsBtn');
     if (resetBtn) resetBtn.disabled = isAnyTaskRunning;
-    const resetThresholdsBtn = document.querySelector('#resetThresholdsBtn');
-    if (resetThresholdsBtn) resetThresholdsBtn.disabled = isAnyTaskRunning;
     if (bubbleRegionBtn) bubbleRegionBtn.disabled = isAnyTaskRunning || isSelectingRegion;
   }, 300);
 

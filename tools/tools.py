@@ -326,7 +326,7 @@ def matchTemplate(screenImg, templatePath, threshold=0.8, scales=(1.0,), colorTo
         return None
 
 
-# 各模板的預設比對閥值(0~1，越高越嚴格)。config.ini 有寫 <名稱>Threshold 就以設定檔為準
+# 各模板的比對閥值(0~1，越高越嚴格)，不開放使用者調整，只能用「比對嚴格度」整體加減
 DEFAULT_THRESHOLDS = {
     "startAction": 0.65,
     "fire": 0.65,
@@ -370,12 +370,9 @@ DEFAULT_THRESHOLDS = {
     "eatBtn": 0.75,
     "repairBoxItem": 0.75,
     "castBadge": 0.7,
-    "toolBroken": 0.7,
     "respawnPlant": 0.6,
     "respawnWood": 0.6,
     "respawnMushroom": 0.6,
-    "filterRepair": 0.75,
-    "repairBoxCell": 0.75,
 }
 
 # 整體嚴格度: 在各項閥值上統一加減，抓不到就選「寬鬆」，誤判太多就選「嚴格」
@@ -461,7 +458,6 @@ CONFIG_DEFAULTS = {
     "woodUseRepair": "False",
     "woodRepairLeave": "True",
     "woodRepairMinutes": "15",
-    **{f"{name}Threshold": str(value) for name, value in DEFAULT_THRESHOLDS.items()},
 }
 
 # 「還原設定值」不會動的項目: 跟使用者的環境有關(操作模式、ADB、解析度、停止鍵)，還原後還要重填很麻煩
@@ -469,13 +465,9 @@ RESET_EXCLUDED_KEYS = {"floatLogEnabled", "floatLogForeground", "floatLogBackgro
 
 
 def getThreshold(config, name):
-    """取得模板實際使用的閥值 = 該項閥值 + 整體嚴格度的調整，並限制在合理範圍。設定值無法解析時用預設值"""
-    try:
-        base = float(config.get(f"{name}Threshold"))
-    except (TypeError, ValueError):
-        base = DEFAULT_THRESHOLDS[name]
+    """取得模板實際使用的閥值 = 該項預設閥值 + 整體嚴格度的調整，並限制在合理範圍"""
     offset = STRICTNESS_OFFSETS.get(config.get("matchStrictness", "normal"), 0.0)
-    return min(0.99, max(0.3, base + offset))
+    return min(0.99, max(0.3, DEFAULT_THRESHOLDS[name] + offset))
 
 
 def _readConfigFile():
@@ -605,12 +597,7 @@ def _isValidLike(default, value):
 # 預設值有調整、但舊使用者的設定檔已經存了舊預設值時，靠這張表更新: {版本: {設定名稱: (舊預設值, 新預設值)}}
 # 只有使用者的值還是舊預設值才會換(自己調過的不動)。要新增時把 CONFIG_VERSION 加 1 並加一組
 CONFIG_VERSION = 4
-CONFIG_VALUE_MIGRATIONS = {
-    1: {"filterHeaderFishingThreshold": ("0.85", "0.93")},
-    2: {"staminaIconThreshold": ("0.7", "0.6")},
-    3: {"staminaIconThreshold": ("0.6", "0.5")},
-    4: {"staminaIconThreshold": ("0.5", "0.45")},
-}
+CONFIG_VALUE_MIGRATIONS = {}
 
 
 def _migrateDefaultValues(current):
@@ -686,10 +673,10 @@ def writeConfig(key, value):
     return writeConfigMany({key: value})
 
 
-def resetConfig(keys=None, includeExcluded=False):
+def resetConfig(includeExcluded=False):
     """把設定還原成預設值，回傳還原後的完整設定。預設不含 RESET_EXCLUDED_KEYS(操作模式、ADB 等)，
-    includeExcluded=True 時全部還原。給 keys 時只還原其中的項目(例如只還原比對閥值)"""
-    writeConfigMany({k: v for k, v in CONFIG_DEFAULTS.items() if (includeExcluded or k not in RESET_EXCLUDED_KEYS) and (keys is None or k in keys)})
+    includeExcluded=True 時全部還原"""
+    writeConfigMany({k: v for k, v in CONFIG_DEFAULTS.items() if includeExcluded or k not in RESET_EXCLUDED_KEYS})
     return readConfig()
 
 

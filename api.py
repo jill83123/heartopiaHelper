@@ -15,7 +15,7 @@ from tools.backend import AdbBackend, createBackend
 from tools import floatlog
 from tools.updater import Updater, checkUpdate, isReleasePage
 from version import VERSION
-from tools.tools import getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
+from tools.tools import getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
 from scripts.Cooking import Cooking
 from scripts.fishing import Fishing
 from scripts.PlantGathering import PlantGathering
@@ -489,13 +489,6 @@ class Api:
             return None
         self.config = resetConfig(includeExcluded=True)  # 全部還原，連操作模式、ADB、解析度、停止按鍵都一起
         self.apiClearDish()
-        return self.config
-
-    def apiResetThresholds(self):
-        """只把各項目的比對閥值還原成預設值(進階區塊的一鍵重設)，其他設定不動"""
-        if self.isRunning():
-            return None
-        self.config = resetConfig({f"{name}Threshold" for name in DEFAULT_THRESHOLDS})
         return self.config
 
     def apiGetTemplateImages(self):

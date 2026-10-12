@@ -104,7 +104,6 @@ python main.py
 | `fishingRepairLeave` | 丟維修盒前先往後退一步（採集預設開、釣魚預設關） |
 | `fishingUseFood` / `fishingFoodUntil` / `fishingFoodName` / `fishingFoodStars` | 是否吃食物、吃到飽食度幾 %（預設 99）、食物名稱、星級（1~5 = 指定、14 = 0-4 星、0 = 不限（0-5 星）） |
 | `matchStrictness` | 整體比對嚴格度：`loose` / `normal` / `strict`。抓不到圖示選寬鬆，誤判太多選嚴格 |
-| `<名稱>Threshold` | 各圖示的比對閥值（0~1，越高越嚴格），沒填就用預設值 |
 
 ## 打包
 
