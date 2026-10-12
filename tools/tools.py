@@ -356,6 +356,7 @@ DEFAULT_THRESHOLDS = {
     "closeBtn": 0.75,
     "cancelBtn": 0.75,
     "thinkAgainBtn": 0.8,
+    "cellLock": 0.7,  # 背包格子右下角的小鎖頭(形狀比對，有鎖約 1.0，沒鎖的格子最高約 0.5)
     "lockedIcon": 0.88,  # 彩色比對；紅色鎖頭 1.0，同位置的灰色開鎖 0.74
     "searchBtn": 0.75,
     "searchSubmitBtn": 0.75,

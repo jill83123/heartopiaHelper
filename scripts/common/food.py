@@ -19,8 +19,7 @@ RESULT_FIRST_OFFSET = (-489, 113)
 RESULT_STEP = 130
 RESULT_COLUMNS = 5
 RESULT_MAX_CELLS = 15
-LOCK_REGION = (26, 9, 50, 32)  # 相對格子中心 x0, y0, x1, y1(1600 寬為基準)
-LOCK_MIN_PIXELS = 10  # 鎖頭範圍內棕色像素至少幾個才算(1600 寬為基準，隨縮放平方調整)；實測有鎖約 100、沒鎖約 3
+LOCK_REGION = (14, 3, 62, 44)  # 鎖頭可能出現的範圍，相對格子中心 x0, y0, x1, y1(1600 寬為基準)
 TILE_MIN_SATURATION = 25  # 有東西的格子底色是淡橘色(飽和度約 34~71)，空格是接近白色的背景(約 6~14)
 STAR_STRIP = (-54, 37, 8, 50)  # x0, y0, x1, y1
 STAR_FIRST_WIDTH = 14
@@ -251,15 +250,14 @@ class FoodMixin:
         )
 
     def _cellLocked(self, img, pos, s):
-        """格子右下角有沒有棕色的鎖頭(被鎖定的食物不能吃)"""
+        """格子右下角(數量的上方)有沒有深棕色的小鎖頭。只用來輔助判斷第一格是不是空的，不拿來決定要不要吃(以點開後說明視窗裡的鎖頭為準)。
+        不看顏色: 食物圖案本身(例如盤子的木邊)也有棕色，會被當成鎖頭，所以用鎖頭的形狀(模板 cellLock)比對"""
         x0, y0, x1, y1 = LOCK_REGION
         cx, cy = pos
         region = img[max(0, int(cy + y0 * s)) : int(cy + y1 * s), max(0, int(cx + x0 * s)) : int(cx + x1 * s)]
         if region.size == 0:
             return False
-        hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
-        mask = (hsv[:, :, 0] >= 8) & (hsv[:, :, 0] <= 22) & (hsv[:, :, 1] >= 70) & (hsv[:, :, 1] <= 170) & (hsv[:, :, 2] >= 110) & (hsv[:, :, 2] <= 190)
-        return int(mask.sum()) >= LOCK_MIN_PIXELS * s * s
+        return matchBest(region, self._templatePath("cellLock"), getThreshold(self.config, "cellLock"), s) is not None
 
     def _cellHasItem(self, img, pos, s):
         """這一格有沒有東西(有東西的格子有淡橘色的底，空格是接近白色的背景)。取格子左邊中間的一點判斷"""
@@ -401,7 +399,7 @@ class FoodMixin:
             if not self._click(keepPos, stopEvent):
                 return False
             self._foodLocked = True
-            self.setLog("✅ 已鎖定食物搜尋結果")
+            self.setLog(f"✅ 已鎖定食物搜尋結果：{self.config.get('fishingFoodName', '').strip()}")
         elif not stopEvent.is_set():
             self.setLog("⚠️ 找不到「保持結果」開關，這次沒有鎖定")
         return True
@@ -485,30 +483,28 @@ class FoodMixin:
                 continue
             if ban5 and count >= MAX_STARS:  # 「0-4 星」: 5 星的不吃
                 continue
-            if self._cellLocked(img, pos, scale):
-                locked += 1
-                self.setLog(f"第 {k + 1} 格「{name}」被鎖定，跳過")
-                continue
+            # 格子上的小鎖頭只是參考(食物圖案的顏色、形狀可能干擾)，要不要跳過以點開後說明視窗裡的鎖頭為準(見 _eatItem)
             tried += 1
             self._eatStart = k  # 吃了(或失敗)就從這一格接著找；這一格自己下次還是要重看(可能剛好變成最後一次)
             result = self._eatItem(pos, name, stopEvent)
             if result == "locked":
                 locked += 1
                 tried -= 1
-                self.setLog(f"第 {k + 1} 格「{name}」被鎖定（點開後確認），跳過")
+                self._eatStart = k + 1  # 被鎖定的格子下次不用再點開看
+                self.setLog(f"第 {k + 1} 格被鎖定，跳過")
                 continue
             if result != "last":
                 return result
-            self.setLog(f"第 {k + 1} 格「{name}」只剩最後一次，往下找")
+            self.setLog(f"第 {k + 1} 格食物只剩最後一次，往下找")
         if tried == 0 and start > 0:  # 記住的那一格之後都沒有能吃的(可能背包變動、前面的格子又能吃了)，從第一格重新找一遍
             self._eatStart = 0
             return self._eatPass(img, searchPos, name, stars, stopEvent, ateBefore, 0)
         self._closeBag(stopEvent)
         if tried == 0 and not ateBefore and self._lockedEating:
-            self.setLog("鎖定的結果裡找不到食物，背包可能停在別的篩選，改用搜尋")
+            self.setLog("鎖定的結果裡找不到符合的食物，背包可能停在別的篩選，改用搜尋")
             return "retry"
         if tried == 0 and ateBefore:
-            self.setLog(f"「{name}」已經吃完了")
+            self.setLog("食物已經吃完了")
             self._noMoreFood = True
             self._onNoFood()
             return True
@@ -516,12 +512,12 @@ class FoodMixin:
             self._onNoFood()
             which = f"{stars} 星的" if stars else ("非 5 星的" if ban5 else "")
             extra = f"，{locked} 格被鎖定" if locked else ""
-            self.setLog(f"背包找不到可以吃的{which}「{name}」(搜尋結果各格星級: {seen}{extra})")
+            self.setLog(f"背包找不到可以吃的{which}食物(搜尋結果各格星級: {seen}{extra})")
             raise OutOfStock("食物")
-        self.setLog(f"「{name}」的每一份都只剩最後一次，保留不吃")
+        self.setLog("食物都只剩最後一次，已保留不吃")
         if not self._keepLastNotified:  # 食物快吃完了，通知一次就好
             self._keepLastNotified = True
-            notify(f"心動小鎮助手｜{self.roleName}", f"「{name}」只剩最後一次，已保留不吃", flash=False)
+            notify(f"心動小鎮助手｜{self.roleName}", "食物都只剩最後一次，已保留不吃", flash=False)
         self._onNoFood()
         return True
 
@@ -560,7 +556,7 @@ class FoodMixin:
             return "last"
         if not self._clickWhenVisible("eatBtn", stopEvent, 2):
             self._closeBag(stopEvent)
-            raise RuntimeError(f"找不到「{name}」的食用按鈕")
+            raise RuntimeError("找不到食物的食用按鈕")
         if stopEvent.wait(1.0):
             return False
         # 吃到鎖定的食物會跳出警告視窗(「本次操作包含以下鎖定內容」)，按「再想想」取消，這一格跳過
