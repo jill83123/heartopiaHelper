@@ -18,6 +18,8 @@ class SnowCarving(BaseTask):
         return [self._detectLoop]
 
     def _detectLoop(self, stopEvent):
+        self.backend.focusGame()  # 前景模式: 先把遊戲拉到最上層，再解除卡滑鼠(模擬器模式不做事)
+        self._wakeMouse(stopEvent)
         frequency = float(self.config.get("snowDetectFrequency"))
 
         while not stopEvent.wait(frequency):
