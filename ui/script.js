@@ -47,6 +47,7 @@ const THRESHOLD_FIELDS = {
     ['closeBtn', '關閉按鈕'],
     ['cancelBtn', '取消按鈕'],
     ['thinkAgainBtn', '鎖定警告的再想想按鈕'],
+    ['cellLock', '背包格子右下角的小鎖頭'],
     ['lockedIcon', '食物說明的紅色鎖頭'],
     ['toolBtn', '工具箱按鈕'],
     ['repairBoxItem', '維修盒道具'],
