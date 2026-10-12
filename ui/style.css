@@ -368,6 +368,39 @@ body {
   font-weight: 600;
   margin-bottom: var(--field-gap);
 }
+/* 設定列: 名稱在左、控制項接在同一行 */
+.setting-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.setting-line > .label {
+  flex: none;
+  width: 56px;
+  margin: 0;
+}
+.setting-line > .check {
+  flex: 1;
+  min-width: 0;
+}
+.setting-line > .check > label {
+  margin-right: 8px; /* 「啟用」和後面的說明拉開一點 */
+}
+.setting-line + .group {
+  margin-top: 20px;
+}
+.setting-line.top {
+  align-items: flex-start; /* 說明文字會換行時，名稱對齊第一行 */
+}
+.setting-line.top > .label {
+  width: auto; /* 名稱比其他列長，不要換行 */
+  white-space: nowrap;
+  line-height: 22px; /* 和第一行的勾選列等高 */
+}
+.group > .setting-line:last-child {
+  margin-bottom: 0;
+}
 .log-title {
   display: block;
   margin-bottom: 8px;
@@ -1378,6 +1411,12 @@ details.section > summary::before {
   vertical-align: middle;
 }
 
+.section-tag.outline {
+  border: 1px solid var(--sky);
+  background: transparent;
+  color: var(--sky-deep);
+}
+
 .section-tag.important {
   background: var(--sky);
   color: #fff;
@@ -1553,11 +1592,6 @@ details.section > summary::before {
   flex: none; /* 外層是 .field-reset(欄位 flex:1 撐滿)，要取消才會是固定寬度 */
   width: 64px;
   text-align: left;
-}
-
-/* 料理數量的標題只佔文字寬度(點空白處不會聚焦欄位) */
-label[for="expectedCookQty"] {
-  align-self: flex-start; /* .col 是縱向 flex，不指定的話標題會被撐成整列寬 */
 }
 
 /* 「上次執行」在日誌框左下，與右邊的停止 / 開始按鈕同一列 */

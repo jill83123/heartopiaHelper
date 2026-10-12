@@ -264,8 +264,19 @@ def matchBest(screenImg, templatePath, threshold, scale):
     return (loc[0] + offX + template.shape[1] // 2, loc[1] + offY + template.shape[0] // 2)
 
 
+# 用輪廓(邊緣)比對的模板: 半透明的氣泡圖示，背景會透出來，灰階比對的分數會跟著背景變(0.53~0.65)，輪廓比較不受影響
+EDGE_TEMPLATES = ("timer.png",)
+
+
+def _edges(gray):
+    return cv2.Canny(cv2.GaussianBlur(gray, (3, 3), 0), 50, 150)
+
+
 def matchTemplate(screenImg, templatePath, threshold=0.8, scales=(1.0,), colorTolerance=None):
     screenGray = cv2.cvtColor(screenImg, cv2.COLOR_BGR2GRAY)
+    useEdges = os.path.basename(str(templatePath)) in EDGE_TEMPLATES
+    if useEdges:
+        screenGray = _edges(screenGray)
     templateOrig = loadTemplate(templatePath)
 
     bestPoints = []
@@ -274,6 +285,8 @@ def matchTemplate(screenImg, templatePath, threshold=0.8, scales=(1.0,), colorTo
     for scale in scales:
         template = cv2.resize(templateOrig, (0, 0), fx=scale, fy=scale)
         template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+        if useEdges:
+            template_gray = _edges(template_gray)
         if template_gray.shape[0] > screenGray.shape[0] or template_gray.shape[1] > screenGray.shape[1]:
             continue  # 模板比畫面還大，無法比對
         tw, th = template_gray.shape[::-1]
@@ -331,9 +344,11 @@ DEFAULT_THRESHOLDS = {
     "startAction": 0.65,
     "fire": 0.65,
     "completed": 0.65,
-    "timer": 0.65,
+    "timer": 0.32,  # 輪廓比對(見 EDGE_TEMPLATES)。實測有圖示 0.41~0.46，沒有圖示最高約 0.21
     "startCookBtn": 0.7,
     "backBtn": 0.8,
+    "plusBadge": 0.85,  # 食材格右上角的 + 號(實測同畫面約 1.0)
+    "wildcardItem": 0.75,
     "snowPut": 0.7,
     "snowStartBtn": 0.7,
     "snowflake": 0.7,
@@ -391,6 +406,7 @@ CONFIG_DEFAULTS = {
     "expectedCookQty": "50",
     "isSafeMode": "True",
     "stopAtFiveStar": "False",
+    "cookUseWildcard": "False",  # 食材格有 + 號(食材不足)時改用萬能食材補上
     "debugMode": "False",
     "autoCancelDialog": "True",  # 跳出確認視窗(誤點丟棄等)一律按取消，見 tools/guards.py；要關掉改成 False
     "safeModeQty": "3",
