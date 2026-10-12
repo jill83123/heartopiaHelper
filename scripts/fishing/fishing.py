@@ -40,7 +40,7 @@ FACE_FRONT_HOLD = 0.6  # 按住 W 讓角色轉回正面的秒數(太短遊戲不
 
 
 class Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI):
-    """自動釣魚: 拋竿中背包與工具箱都打不開，所以定時項目到期後要等竿子收回來(魚釣起)才執行。
+    """自動釣魚: 拋竿中背包與工具欄都打不開，所以定時項目到期後要等竿子收回來(魚釣起)才執行。
     畫面狀態:
       idle    - 看得到背包圖示(沒拋竿)
       bag     - 背包開著
@@ -289,7 +289,7 @@ class Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI):
                 if "perfume" in self.disabled:  # 沒有香水效果又噴不了，不繼續釣魚
                     self._traceChange("香水已停用", "主畫面不拋竿")
                     if not self._noPerfumeLogged:
-                        self._alert("沒有香水效果，也無法噴香水，暫停釣魚(請補充香水後重新開始)")
+                        self._alert("沒有香水效果，也無法噴香水，暫停釣魚（請補充香水後重新開始）")
                         self._noPerfumeLogged = True
                     continue
                 if failedCasts >= MAX_FAILED_CASTS:
@@ -298,9 +298,9 @@ class Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI):
                     if stopEvent.wait(10):
                         return
                     continue
-                if self._find(img, "repairBoxItem"):  # 工具箱開著會擋住拋竿，先關掉
-                    self._trace("拋竿前發現工具箱開著，先關閉")
-                    self.setLog("工具箱開著，先關閉")
+                if self._find(img, "repairBoxItem"):  # 工具欄開著會擋住拋竿，先關掉
+                    self._trace("拋竿前發現工具欄開著，先關閉")
+                    self.setLog("工具欄開著，先關閉")
                     self._closeToolPanel(stopEvent)
                     continue
                 if not self._flag("fishingFaceFront"):  # 沒勾轉回正面: 只記新魚，不操作

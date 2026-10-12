@@ -322,8 +322,8 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
             if self._leaveOtherScreen(state, stopEvent):
                 continue
 
-            if state == "idle" and self._find(img, "repairBoxItem"):  # 工具箱開著會擋住採集，先關掉
-                self.setLog("工具箱開著，先關閉")
+            if state == "idle" and self._find(img, "repairBoxItem"):  # 工具欄開著會擋住採集，先關掉
+                self.setLog("工具欄開著，先關閉")
                 self._closeToolPanel(stopEvent)
                 continue
 

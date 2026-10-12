@@ -239,7 +239,7 @@ class GameUI(DebugMixin, BaseTask):
         return self._click(pos, stopEvent)
 
     def _closeBag(self, stopEvent):
-        """關閉背包(或工具箱)回到主畫面"""
+        """關閉背包(或工具欄)回到主畫面"""
         for _ in range(3):
             img = self._shot()
             cancelPos = self._find(img, "cancelBtn")
