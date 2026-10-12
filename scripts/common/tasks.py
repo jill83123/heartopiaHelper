@@ -165,7 +165,6 @@ class TimedTasks:
         if name != "food":  # 吃食物要等開了背包、確定不夠飽才寫(見 _shouldEat)
             self.setLog(f"{self.LABELS[name]}中...")
         self._trace(f"任務開始 {name}")
-        self._wakeMouse(stopEvent)
         self._meals = 0
         try:
             ok = fn(stopEvent)

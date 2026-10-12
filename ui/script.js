@@ -515,7 +515,7 @@ const FOOD_GROUPS = [
   { prefix: 'fishingAlt', label: '背景定時', isActive: () => isChecked('fishingAltEnabled') },
   ...GATHER_KINDS.filter(({ tool }) => tool).map(({ prefix, name }) => ({ prefix, label: name, isActive: () => document.querySelector('#gatherKind').value === prefix })),
 ];
-// 回傳缺少食物名稱的組別名稱（前景定時 / 背景定時），同時更新輸入框的紅框與警告
+// 回傳缺少食物名稱的組別（{ prefix, label }），同時更新所有輸入框的紅框與警告
 const getMissingFoodGroups = () =>
   FOOD_GROUPS.filter(({ prefix, isActive }) => {
     const nameInput = document.querySelector(`#${prefix}FoodName`);
@@ -524,7 +524,7 @@ const getMissingFoodGroups = () =>
     nameInput.classList.toggle('invalid', missing);
     nameInput.closest('.col').querySelector('.food-warning').hidden = !missing;
     return missing;
-  }).map(({ label }) => label);
+  });
 
 // 開始前的檢查: 回傳「為什麼不能開始」的簡短原因，空陣列代表可以開始。
 // 條件與後端 validateConfig / startFishing 的檢查一致，只是提早用彈跳窗說明
@@ -565,17 +565,18 @@ const getGatherBlockers = (prefix) => {
   else if (Number(noPickup) > 0 && Number(noPickup) * 60 < Number(document.querySelector(`#${prefix}IntervalSeconds`).value) * 2) {
     reasons.push('多久沒採到東西就停止，要大於定時時間的 2 倍');
   }
-  if (missingFood.includes(kind.name)) reasons.push('未設定食物名稱');
+  if (missingFood.some((g) => g.prefix === prefix)) reasons.push('未設定食物名稱');
   return [...reasons, ...getAdbBlockers(`${prefix}ControlMode`)];
 };
 
 const getFishBlockers = () => {
   const useMain = isChecked('fishingEnabled');
   const useAlt = isChecked('fishingAltEnabled');
-  const missingFood = getMissingFoodGroups(); // 同時更新食物名稱輸入框的紅框
+  // 同時更新食物名稱輸入框的紅框；釣魚只看前景/背景定時，採集的食物名稱由採集自己檢查
+  const missingFood = getMissingFoodGroups().filter(({ prefix }) => prefix === 'fishing' || prefix === 'fishingAlt');
   if (!useMain && !useAlt) return ['未啟用前景定時或背景定時'];
   const reasons = [];
-  if (missingFood.length) reasons.push(`${missingFood.join('、')}未設定食物名稱`);
+  if (missingFood.length) reasons.push(`${missingFood.map((g) => g.label).join('、')}未設定食物名稱`);
   if (useAlt) {
     if (isBlank('adbPathAlt')) reasons.push('背景定時未設定 ADB 路徑');
     if (isBlank('adbDeviceAlt')) reasons.push('背景定時未設定 ADB 裝置位址');

@@ -64,7 +64,9 @@ class FoodMixin:
         self._noMoreFood = False  # 這一輪吃到沒有食物了
         self._ate = False  # 這一輪有沒有真的吃下去
         self._keepLastNotified = False
+        self._usesMissing = False  # 上一次檢查可用次數時，看得到食用按鈕卻始終沒有「可用次數」這一行
         self._usesNotFoundLogged = False  # 這一輪吃食物已經寫過「看不到可用次數」了
+        self._oneShotCells = set()  # 已確認是一次性食物(沒有「可用次數」)的格子位置，下次不必再等 2 秒確認
         self._eatStart = 0  # 吃食物從搜尋結果的哪一格開始找(記住上次吃的那一格，連續吃、下次體力耗盡都沿用)；那一格本身每次還是會重新檢查鎖定、是否只剩最後一次
         self._lockedEating = False  # 正在吃鎖定的搜尋結果(背包可能停在別的篩選，找不到時要重新搜尋)
         self._foodSearchPos = None  # 搜尋食物時背包「搜尋」圖示的位置，用來推算食物格子
@@ -456,7 +458,7 @@ class FoodMixin:
             if result != "again":
                 return result
             self.setLog(f"飽食度還沒到 {self._foodUntil()}%，再吃一份")
-            if stopEvent.wait(0.8):
+            if stopEvent.wait(0.3):
                 return False
             img = self._shot()
         return self._closeBag(stopEvent)
@@ -525,6 +527,7 @@ class FoodMixin:
         """點了食物後看說明裡的「可用次數」是不是只剩 1。說明要等一下才出現，所以最多等 2 秒；
         回傳 True(最後一次)、False(還有多次)、None(沒有這一行，只能用一次的食物，或始終看不清楚)。
         看不到次數時回傳 None 但會寫進日誌，方便確認是不是辨識失敗"""
+        self._usesMissing = False
         deadline = time.time() + 2.0
         img = None
         while True:
@@ -535,9 +538,11 @@ class FoodMixin:
                 break
             if time.time() >= deadline:
                 # 看得到食用按鈕才是真的一次性食物；連按鈕都沒有，是點了食物卻沒開出說明(點擊沒吃到)，不能說成一次性食物
-                if not self._usesNotFoundLogged and self._find(img, "eatBtn"):
-                    self._usesNotFoundLogged = True
-                    self.setLog("當前為一次性食物")
+                if self._find(img, "eatBtn"):
+                    self._usesMissing = True
+                    if not self._usesNotFoundLogged:
+                        self._usesNotFoundLogged = True
+                        self.setLog("當前為一次性食物")
                 return None
         last = self._isLastUse(img)
         if last is None:
@@ -546,34 +551,48 @@ class FoodMixin:
 
     def _eatItem(self, itemPos, name, stopEvent):
         """點選背包裡的食物並食用，最後關閉背包。回傳 "last" 代表這份只剩最後一次(保留不吃，背包維持開著)，"locked" 代表這份被鎖定(說明視窗右上角是紅鎖頭，或吃的時候跳出警告視窗已按再想想；背包維持開著)，"again" 代表吃了但飽食度還不夠(背包維持開著)，False 代表已收到停止"""
+        t0 = time.time()
+        step = lambda label: self._trace(f"吃食物 {label} +{time.time() - t0:.2f}s")  # 除錯模式下記每一步花多久，找出連續吃食物慢在哪
         if not self._click(itemPos, stopEvent):
             return False
+        step("點食物")
         # 第二道鎖定判斷: 點開食物的說明視窗右上角，上鎖是紅色的鎖頭、沒鎖是灰色的開鎖(格子上的小鎖頭看不清楚時用)
         panel, eatPos = self._waitFor("eatBtn", stopEvent, 2)
+        step("說明視窗出現")
         if eatPos and self._findColor(panel, "lockedIcon"):
             return "locked"
-        if self._flag("fishingFoodKeepLast") and self._checkLastUse(stopEvent):
-            return "last"
+        cell = (round(itemPos[0]), round(itemPos[1]))
+        if self._flag("fishingFoodKeepLast") and cell not in self._oneShotCells:
+            if self._checkLastUse(stopEvent):
+                return "last"
+            if self._usesMissing:
+                self._oneShotCells.add(cell)
+        step("可用次數檢查完")
         if not self._clickWhenVisible("eatBtn", stopEvent, 2):
             self._closeBag(stopEvent)
             raise RuntimeError("找不到食物的食用按鈕")
-        if stopEvent.wait(1.0):
+        step("按下食用")
+        if stopEvent.wait(0.6):
             return False
         # 吃到鎖定的食物會跳出警告視窗(「本次操作包含以下鎖定內容」)，按「再想想」取消，這一格跳過
-        warn = self._find(self._shot(), "thinkAgainBtn")
+        shot = self._shot()
+        warn = self._find(shot, "thinkAgainBtn")
         if warn:
             if not self._click(warn, stopEvent):
                 return False
             return "locked" if not stopEvent.wait(0.5) else False
         # 體力已滿時會跳出確認視窗，吃了也不會增加，直接取消
-        if self._find(self._shot(), "cancelBtn"):
+        if self._find(shot, "cancelBtn"):
             self.setLog("體力已滿，略過吃食物")
         else:
             self._ate = True
             self._meals += 1
-            if stopEvent.wait(0.5):
+            if stopEvent.wait(0.2):
                 return False
-            satiety = self._readSatiety(stopEvent, tries=10)  # 背包開著也看得到體力條；還沒確認飽食度就不關背包，多等一下(特效、跳動的數字會擋住)
+            step("確認沒有警告")
+            # 背包開著也看得到體力條；還沒確認飽食度就不關背包，多等一下(特效、跳動的數字會擋住)
+            satiety = self._readSatiety(stopEvent, tries=10)
+            step("讀完飽食度")
             if satiety is not None and satiety < self._foodUntil():
                 return "again"
         return self._closeBag(stopEvent)
