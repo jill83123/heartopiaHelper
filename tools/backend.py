@@ -123,9 +123,20 @@ class ScreenBackend:
             focusWindow(hwnd)
             time.sleep(0.5)
 
+    def _glideTo(self, x, y, steps=30, interval=0.01):
+        """游標分成很多小步慢慢移過去。一次跳過去對遊戲來說是一大段滑鼠位移，卡在滑鼠控制視角時會跟著猛轉"""
+        try:
+            x0, y0 = win32api.GetCursorPos()
+        except Exception:
+            return
+        for i in range(1, steps + 1):
+            win32api.SetCursorPos((round(x0 + (x - x0) * i / steps), round(y0 + (y - y0) * i / steps)))
+            time.sleep(interval)
+
     def wakeMouse(self, x, y):
         """遊戲有時會卡住滑鼠、讓畫面跟著滑鼠轉視角，操作前先左右鍵各點兩下解除"""
         self._requireGame()
+        self._glideTo(x, y)
         self.moveTo(x, y)
         time.sleep(0.2)
         try:
