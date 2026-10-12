@@ -34,15 +34,13 @@ REEL_POLL_SECONDS = 0.05
 REEL_STATE_EVERY = 10  # 收線時每幾次偵測才確認一次是不是已經回到主畫面(確認比較花時間)
 REEL_END_SECONDS = 0.8  # 離開拋竿畫面超過這麼久才當作收線結束
 REEL_MAX_SECONDS = 120  # 收線最久多少秒，避免卡死
-JOYSTICK_CENTER = (0.13, 0.77)  # 模擬器左下角移動搖桿的中心(佔畫面寬高的比例)
-JOYSTICK_PUSH = 0.08  # 往上推的距離(佔畫面高)
 SATIETY_SAMPLE_SECONDS = 2.5  # 收竿後最多花多久讀體力條
 RETRACT_WAIT_SECONDS = 4  # 收竿後最多等這麼久(秒)才回到主畫面，還沒回來才會再按一次
 FACE_FRONT_HOLD = 0.6  # 按住 W 讓角色轉回正面的秒數(太短遊戲不一定吃)
 
 
 class Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI):
-    """自動釣魚: 拋竿中背包與工具包都打不開，所以定時項目到期後要等竿子收回來(魚釣起)才執行。
+    """自動釣魚: 拋竿中背包與工具箱都打不開，所以定時項目到期後要等竿子收回來(魚釣起)才執行。
     畫面狀態:
       idle    - 看得到背包圖示(沒拋竿)
       bag     - 背包開著
@@ -300,9 +298,9 @@ class Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI):
                     if stopEvent.wait(10):
                         return
                     continue
-                if self._find(img, "repairBoxItem"):  # 工具包開著會擋住拋竿，先關掉
-                    self._trace("拋竿前發現工具包開著，先關閉")
-                    self.setLog("工具包開著，先關閉")
+                if self._find(img, "repairBoxItem"):  # 工具箱開著會擋住拋竿，先關掉
+                    self._trace("拋竿前發現工具箱開著，先關閉")
+                    self.setLog("工具箱開著，先關閉")
                     self._closeToolPanel(stopEvent)
                     continue
                 if not self._flag("fishingFaceFront"):  # 沒勾轉回正面: 只記新魚，不操作
@@ -342,8 +340,12 @@ class Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI):
                     failedCasts = 0
                 elif toast is not None:
                     self._saveShot(toast, "toast")
-                    self.setLog("拋竿沒反應，提示工具耐久耗盡，先丟維修盒")
-                    self._toolBroken = True
+                    if self._repairEnabled():
+                        self.setLog("拋竿沒反應，提示工具耐久耗盡，先丟維修盒")
+                        self._toolBroken = True
+                    elif not self._repairOffNotified:
+                        self._repairOffNotified = True
+                        self._alert("工具耐久耗盡，但沒有勾選「丟維修盒」，無法繼續拋竿（請手動修復，或勾選丟維修盒）")
                     failedCasts = 0
                 else:
                     failedCasts += 1
@@ -413,12 +415,7 @@ class Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI):
             return False
 
     def _faceFront(self):
-        if not self.isAdb:
-            self.backend.pressKey("w", FACE_FRONT_HOLD)
-            return
-        h, w = self._shot().shape[:2]
-        x, y = w * JOYSTICK_CENTER[0], h * JOYSTICK_CENTER[1]
-        self.backend.swipe(x, y, x, y - h * JOYSTICK_PUSH, int(FACE_FRONT_HOLD * 1000))
+        self._walk("w", True, FACE_FRONT_HOLD)
 
     def _retract(self, img, stopEvent):
         """收竿: 按一下拋竿鈕，然後等到回到主畫面(最多等 RETRACT_WAIT_SECONDS 秒)。

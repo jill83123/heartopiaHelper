@@ -73,8 +73,8 @@ python main.py
 
 - **採集次數／砍的次數**：每輪對著目標按幾次互動鍵。
 - **定時時間**：以重生時間為基準（預設 120 秒），每隔這麼久做一輪。
-- **吃食物、丟維修盒**：只有砍木頭有，說明見介面。
-- **自動停止**：太久沒採到東西、工具壞掉卻沒維修盒時，會通知並停止。
+- **吃食物、丟維修盒**：只有砍木頭有，說明見介面。丟維修盒預設開啟（工具耐久耗盡時丟），可另外勾選「定時丟」；「離開現在的位置後再丟」預設開啟，丟之前會先往後退一步（前景按 S、模擬器拉搖桿往下），丟完再走回原位。
+- **自動停止**：太久沒採到東西、工具壞掉卻沒維修盒（或沒勾丟維修盒）時，會通知並停止。
 
 ### 浮動日誌
 
@@ -99,7 +99,9 @@ python main.py
 | `fishingFaceFront` | 釣到新魚後先轉回正面再拋竿（角色須面對水面，否則會往旁邊走）。背景定時用 `fishingAltFaceFront` |
 | `fishingSkipTail` | 水面有魚尾就不放誘魚器。背景定時用 `fishingAltSkipTail` |
 | `fishingUseBait` | 是否放誘魚器 |
-| `fishingUseRepair` / `fishingRepairMinutes` | 是否丟維修盒與間隔（分鐘） |
+| `fishingRepairEnabled` | 是否丟維修盒（工具耐久耗盡時丟；沒勾就不修） |
+| `fishingUseRepair` / `fishingRepairMinutes` | 是否定時丟維修盒與間隔（分鐘） |
+| `fishingRepairLeave` | 丟維修盒前先往後退一步（採集預設開、釣魚預設關） |
 | `fishingUseFood` / `fishingFoodUntil` / `fishingFoodName` / `fishingFoodStars` | 是否吃食物、吃到飽食度幾 %（預設 99）、食物名稱、星級（1~5 = 指定、14 = 0-4 星、0 = 不限（0-5 星）） |
 | `matchStrictness` | 整體比對嚴格度：`loose` / `normal` / `strict`。抓不到圖示選寬鬆，誤判太多選嚴格 |
 | `<名稱>Threshold` | 各圖示的比對閥值（0~1，越高越嚴格），沒填就用預設值 |

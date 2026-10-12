@@ -157,6 +157,8 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
 
     def _hasToolBrokenToast(self, img):
         """畫面上有沒有「工具耐久耗盡」的提示。提示出現在遊戲畫面的上方，只看上半部"""
+        if self.isAdb:  # 手機版的提示字是半透明的(亮度只有約 223)，達不到下面「三個通道都 >= 225」的白色，改用有針對手機版調過的提示辨識
+            return self._findToast(img, "toolBroken") is not None
         score = self._whiteGlyphScore(img, TOOL_BROKEN_TEMPLATE, (0, 0, 1, TOOL_TOAST_REGION))
         return score >= getThreshold(self.config, "toolBroken")
 
@@ -320,6 +322,11 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
             if self._leaveOtherScreen(state, stopEvent):
                 continue
 
+            if state == "idle" and self._find(img, "repairBoxItem"):  # 工具箱開著會擋住採集，先關掉
+                self.setLog("工具箱開著，先關閉")
+                self._closeToolPanel(stopEvent)
+                continue
+
             if state == "idle":
                 due = self._dueTasks(img)
                 if due:
@@ -350,11 +357,14 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
                 self._toolBroken = False
                 self._brokenStreak += 1
                 if "repair" in self.disabled or self._brokenStreak > BROKEN_MAX_STREAK:  # 沒勾定時丟維修盒也一樣，耐久耗盡就丟
-                    self._alert("工具耐久耗盡，無法繼續，已停止（請補充維修盒或檢查設定）")
+                    if self._repairEnabled():
+                        self._alert("工具耐久耗盡，無法繼續，已停止（請補充維修盒或檢查設定）")
+                    else:
+                        self._alert("工具耐久耗盡，但沒有勾選「丟維修盒」，已停止（請手動修復，或勾選丟維修盒）")
                     stopEvent.set()
                     self.setLog(LOG_DIVIDER)
                     return
-                self.setLog("工具耐久耗盡，馬上丟維修盒")
+                self.setLog("工具耐久耗盡，先丟維修盒")
                 self._runTask("repair", self._doRepair, stopEvent)
                 self._closeBag(stopEvent)
                 nextAt = time.time() + random.uniform(*BROKEN_RETRY_RANGE)

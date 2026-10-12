@@ -36,7 +36,9 @@ ALT_KEYS = (
     "FoodName",
     "FoodStars",
     "FoodUntil",
+    "RepairEnabled",
     "UseRepair",
+    "RepairLeave",
     "RepairNow",
     "RepairMinutes",
 )
@@ -49,7 +51,9 @@ GATHER_FOOD_KEYS = (
     "FoodStars",
     "FoodUntil",
     "FoodLock",
+    "RepairEnabled",
     "UseRepair",
+    "RepairLeave",
     "RepairMinutes",
 )
 GATHER_TASKS = ("plant", "wood")
