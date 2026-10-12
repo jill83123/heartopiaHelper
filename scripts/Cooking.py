@@ -1,11 +1,12 @@
 import cv2
 import numpy as np
 import os
+import random
 import threading
 import time
 from scripts.common.base import BaseTask
-from tools.finder import clickBackButton, countStarRow, findStartCookBtn, _findInFullScreen
-from tools.tools import getThreshold, getUserDataPath
+from tools.finder import clickBackButton, countStarRow, findStartCookBtn
+from tools.tools import getUserDataPath
 
 IDLE_TIMEOUT = 1.5  # 泡泡區域內沒有任何圖示超過這個秒數，就點返回離開
 START_BTN_TIMEOUT = 5  # 點了鍋子後，這麼久還沒看到「開始烹飪」按鈕，就點返回
@@ -13,14 +14,17 @@ POT_CLICK_GUARD = 3  # 點過鍋子後這段時間內不再點鍋子，避免舊
 START_BTN_DELAY = 1.4  # 點開始烹飪前等待選單動畫完成
 FINISH_CHECK_SECONDS = 10  # 達到數量後，連續這麼久沒有任何料理圖示才算全部完成
 POT_POSITION_TOLERANCE = 30  # 點擊前確認鍋子仍在原位置的容許誤差(像素)
+DISMISS_X = 0.5  # 找不到返回按鈕時點的位置(遊戲畫面上方中間的空白處)，用來關掉「新星級料理」之類點任意處關閉的提示
+DISMISS_Y = 0.12
+DISMISS_JITTER = 0.08  # 位置再隨機偏移的比例
 DISH_MATCH_SCORE = 0.85  # 食譜畫面上找得到記錄的菜名截圖的相似度門檻
 DISH_MISMATCH_LIMIT = 3  # 連續幾次菜品不符就停止運行
 DISH_CHECK_TRIES = 3  # 食譜畫面剛開時還在動畫，多截幾次再判定不同
-FAIL_WATCH_SECONDS = 4  # 收料理後這麼久內，留意畫面上方有沒有「詭異的…」(做失敗)的獲得提示
-FAIL_CHECK_INTERVAL = 0.4  # 留意期間，每隔多久看一次整個畫面
+STAR_WATCH_SECONDS = 4  # 收料理後這麼久內，留意提示卡上的星星
+STAR_CHECK_INTERVAL = 0.4  # 留意期間，每隔多久看一次整個畫面
 FIVE_STAR_COUNT = 5  # 提示卡上同一排金色星星達到這個數量就是五星
 FINISH_GRACE = 1.5  # 安全模式收料理途中，偵測偶爾漏掉手套，這段時間內仍視為收菜中，不重新開始煮
-FAIL_COOLDOWN = 2.5  # 算過一次做失敗後，提示還掛在畫面上，這段時間內不重複計算
+FINISH_TIMEOUT = 6  # 收菜開始後，這麼久都沒再看到手套，不管鍋子有沒有都空出來，就當作收完了(避免卡住)
 
 
 class Cooking(BaseTask):
@@ -39,17 +43,14 @@ class Cooking(BaseTask):
         self.isSafeMode = config.get("isSafeMode").lower() == "true"
         self.safeModeQty = int(config.get("safeModeQty"))
         self.isFinish = False
+        self.finishTarget = 0  # 這一輪收菜開始時看到幾個手套，收完後就會有這麼多個空鍋子
         self.lastCompletedAt = 0
         self.backMissingLogged = False
 
         # 五星停止: 收料理後留意提示卡上的星星，煮到五星就停止
         self.stopAtFiveStar = (config.get("stopAtFiveStar") or "").lower() == "true"
 
-        # 做失敗統計: 做失敗的料理，獲得提示的物品名稱會是「詭異的…」
-        self.failedCount = 0
-        self.failWatchUntil = 0
-        self.lastFailCheck = 0
-        self.lastFailAt = 0
+        self.starWatchUntil = 0
         self.lastStarCheck = 0
 
         # 菜品檢查: 有記錄菜名截圖時，每次打開食譜畫面都要確認選的是同一道菜(中途被點到別的菜就停止)
@@ -63,7 +64,8 @@ class Cooking(BaseTask):
         self.waitingSince = None
         self.startBtnWaitingSince = None
         self.potClickedAt = 0
-        self.potClickCoords = None
+        self.potClickCoords = None  # 最近一次要點的鍋子位置，點擊前要確認它還在
+        self.gloveClickCoords = None  # 最近一次要點的手套位置，點擊前要確認它還在
 
         # 偵測與點擊兩個執行緒共用
         self.lock = threading.Lock()
@@ -80,16 +82,28 @@ class Cooking(BaseTask):
         if clicked:
             self.backMissingLogged = False
             self.setLog(f"{reason}，已點擊返回按鈕")
-        elif not (logOnce and self.backMissingLogged):
-            self.backMissingLogged = True
-            self.setLog(f"{reason}，但找不到返回按鈕（可能已在主畫面）" if logOnce else f"{reason}，但找不到返回按鈕")
+        else:
+            self._dismissPopup()
+            if not (logOnce and self.backMissingLogged):
+                self.backMissingLogged = True
+                self.setLog(f"{reason}，但找不到返回按鈕，已點擊畫面上方空白處" if logOnce else f"{reason}，但找不到返回按鈕")
         self.isNextStartCookBtn = False
         self.startBtnWaitingSince = None
 
-    def _isPotStillThere(self, coords):
-        """點擊前重新截圖，確認鍋子仍在要點擊的位置"""
+    def _dismissPopup(self):
+        """點遊戲畫面上方中間的空白處。煮到新星級料理之類的提示要點任意處才會關閉，畫面上又沒有返回按鈕可點"""
+        rect = self.backend.getGameRect()  # 前景模式取遊戲視窗，模擬器模式是整張截圖
+        if rect:
+            x, y, w, h = rect
+        else:
+            img, ox, oy = self.backend.captureFull()
+            x, y, w, h = ox, oy, img.shape[1], img.shape[0]
+        self.backend.click(round(x + w * (DISMISS_X + random.uniform(-DISMISS_JITTER, DISMISS_JITTER))), round(y + h * (DISMISS_Y + random.uniform(-DISMISS_JITTER, DISMISS_JITTER))))
+
+    def _isStillThere(self, coords, name):
+        """點擊前重新截圖，確認圖示(startAction 鍋子、completed 手套)仍在要點擊的位置"""
         bx, by, bw, bh = self.bubbleRegionCoord
-        found = self._getMatchCords(self.backend.capture(bx, by, bw, bh), "startAction")
+        found = self._getMatchCords(self.backend.capture(bx, by, bw, bh), name)
         if not found:
             return False
         return any(abs(bx + fx - coords[0]) <= POT_POSITION_TOLERANCE and abs(by + fy - coords[1]) <= POT_POSITION_TOLERANCE for fx, fy in found)
@@ -118,33 +132,15 @@ class Cooking(BaseTask):
             time.sleep(0.3)
         return False
 
-    def _checkFailedFood(self):
-        """收料理後一小段時間內，找畫面上有沒有「詭異的」字樣的獲得提示，有就記一份做失敗"""
-        now = time.time()
-        if now > self.failWatchUntil or now - self.lastFailCheck < FAIL_CHECK_INTERVAL or now - self.lastFailAt < FAIL_COOLDOWN:
-            return
-        self.lastFailCheck = now
-        coords, _, _, _, _ = _findInFullScreen(self.backend, self.config, f"{self.templateDir}/failedFood.png", getThreshold(self.config, "failedFood"))
-        if coords:
-            self.failedCount += len(coords)
-            self.lastFailAt = time.time()
-            self.setLog(f"⚠️ 有料理做失敗（詭異的食物），累計 {self.failedCount} 份")
-
     def _checkFiveStar(self):
         """收料理後一小段時間內，看提示卡上有沒有五顆星，有就停止"""
         now = time.time()
-        if not self.stopAtFiveStar or now > self.failWatchUntil or now - self.lastStarCheck < FAIL_CHECK_INTERVAL:
+        if not self.stopAtFiveStar or now > self.starWatchUntil or now - self.lastStarCheck < STAR_CHECK_INTERVAL:
             return
         self.lastStarCheck = now
         if countStarRow(self.backend) >= FIVE_STAR_COUNT:
             self.setLog("🌟 煮到五星料理，停止運行")
             self.stop()
-
-    def stop(self):
-        """結束前先把統計寫進日誌"""
-        if self.isStart:
-            self.setLog(f"統計：共烹飪 {self.currentCookQty} 份，做失敗 {self.failedCount} 份")
-        super().stop()
 
     def _handleStartCookBtn(self):
         # 用區域變數保存，避免點擊執行緒同時清空計時
@@ -216,32 +212,39 @@ class Cooking(BaseTask):
                     self.stop()
 
             if completedCords:
-                self.failWatchUntil = time.time() + FAIL_WATCH_SECONDS
-            self._checkFailedFood()
+                self.starWatchUntil = time.time() + STAR_WATCH_SECONDS
             self._checkFiveStar()
 
             # 優先順序: 控制火侯 > 點擊完成 > 開始料理
             if fireCords:
                 with self.lock:
                     self.clickCoords = self._getRelCords((bx, by), fireCords[0])
+                    self.potClickCoords = self.gloveClickCoords = None
                     continue
 
             if completedCords:
                 self.lastCompletedAt = time.time()
                 if not self.isSafeMode:
                     with self.lock:
-                        self.clickCoords = self._getRelCords((bx, by), completedCords[0])
+                        self.clickCoords = self.gloveClickCoords = self._getRelCords((bx, by), completedCords[0])
+                        self.potClickCoords = None
                     continue
                 else:
-                    if len(completedCords) >= self.safeModeQty or self.waitingCheckQtySince:
+                    if not self.isFinish and (len(completedCords) >= self.safeModeQty or self.waitingCheckQtySince):
                         self.isFinish = True
+                        self.finishTarget = len(completedCords)
 
                     if self.isFinish:
                         with self.lock:
-                            self.clickCoords = self._getRelCords((bx, by), completedCords[0])
+                            self.clickCoords = self.gloveClickCoords = self._getRelCords((bx, by), completedCords[0])
+                            self.potClickCoords = None
                         continue
-            elif time.time() - self.lastCompletedAt > FINISH_GRACE:
-                self.isFinish = False
+            elif self.isFinish:
+                # 收一個後，畫面可能被獲得提示或動畫蓋住、或視角移動而暫時看不到其他手套，這時空出來的鍋子已經看得到了，
+                # 不能就此結束收菜(剩下的手套不到安全模式的數量，不會再收，反而又開始煮)。要等空鍋子的數量和收菜開始時的手套數一樣多才算收完
+                idle = time.time() - self.lastCompletedAt
+                if (idle > FINISH_GRACE and len(startActionCords or []) >= self.finishTarget) or idle > FINISH_TIMEOUT:
+                    self.isFinish = False
 
             # 已點過鍋子、正在等開始烹飪按鈕時，不再點鍋子，避免舊畫面造成重複點擊而點到食譜選單；
             # 超過 3 秒選單還沒打開才視為沒點到，允許重點
@@ -255,6 +258,7 @@ class Cooking(BaseTask):
                     self.potClickedAt = time.time()
                     self.dishVerified = self.dishImage is None
                     self.potClickCoords = self.clickCoords
+                    self.gloveClickCoords = None
                 continue
 
             if self.isNextStartCookBtn:
@@ -299,7 +303,14 @@ class Cooking(BaseTask):
                     else:
                         coords = (fresh[0], fresh[1])
 
-            if coords and coords == self.potClickCoords and not self._isPotStillThere(coords):
+            if coords and coords == self.gloveClickCoords and not self._isStillThere(coords, "completed"):
+                # 手套已經被收走了(偵測用的是舊畫面)，原位置現在是空鍋子，再點下去會打開食譜選單，所以取消
+                with self.lock:
+                    if self.clickCoords == coords:
+                        self.clickCoords = None
+                coords = None
+
+            if coords and coords == self.potClickCoords and not self._isStillThere(coords, "startAction"):
                 # 畫面已變化(選單已打開或鍋子已不在)，取消這次點擊，避免點到選單裡的食譜
                 with self.lock:
                     if self.clickCoords == coords:
@@ -322,5 +333,9 @@ class Cooking(BaseTask):
                         self.setLog(f"烹飪 {self.currentCookQty} / {self.expectedCookQty} 份")
                     self.clickCoords = None
                     self.isStartBtnClick = False
+                    if coords == self.potClickCoords:
+                        self.potClickCoords = None  # 點過了，之後同位置出現手套時不能再拿鍋子的條件來檢查
+                    if coords == self.gloveClickCoords:
+                        self.gloveClickCoords = None
 
             stopEvent.wait(clickFrequency)
