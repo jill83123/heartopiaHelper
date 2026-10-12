@@ -3,7 +3,9 @@ import random
 import time
 import cv2
 import numpy as np
-from scripts.Fishing import Fishing
+from scripts.food import FoodMixin
+from scripts.gameui import COMMON_TEMPLATE_DIR, GameUI
+from scripts.tasks import TimedTasks
 from tools.finder import clickBackButton
 from tools.tools import LOG_DIVIDER, getResourcePath, getThreshold, loadTemplate
 
@@ -17,7 +19,6 @@ REACTION_RANGE = (0.3, 1.2)  # 時間到後隔多久才開始按(秒)，像真�
 # 工具耐久耗盡時畫面會跳出白字的提示(「工具耐久耗盡，請使用維修盒」)，背景是遊戲場景、每次都不同，
 # 所以只比對白色的字形(三個色彩通道都夠亮的像素)
 TOOL_BROKEN_TEMPLATE = "templates/gather/toolBroken.png"
-GATHER_TEMPLATES = {"toolBroken"}  # 採集專用的模板(放在 templates/gather)
 TOOL_WHITE_MIN = 225
 TOOL_TOAST_REGION = 0.4  # 提示會出現在遊戲畫面的上方，只看最上面這個比例
 TOOL_CHECK_DELAY = 0.7  # 按下互動鍵後，等提示出現再看畫面的時間(秒)
@@ -42,8 +43,6 @@ PICKUP_HEIGHT = (28, 52)  # 氣泡的高、寬(1600 寬為基準的像素)
 PICKUP_WIDTH = (100, 340)  # 物品名稱越長氣泡越寬
 SIGN_WAIT = 4.0  # 採完一輪後，最多等幾秒看有沒有出現倒數圖示或獲得物品的氣泡
 MISS_LOG_STREAK = 3  # 連續幾輪都沒看到倒數圖示和氣泡才在日誌提醒
-KEEP_WAIT_SECONDS = 8  # 搜尋後最多等幾秒讓結果畫面的「保持結果」開關出現(模擬器卡的時候很慢)
-LOCK_SETTLE_SECONDS = 4  # 開始時固定食物搜尋結果: 按下搜尋後再多等幾秒才關背包
 UNKNOWN_BACK_SECONDS = 3  # 畫面不是主畫面也不是背包超過這個秒數(多半是誤點到別的介面)，就點左上角的返回
 UNKNOWN_CHECK_SECONDS = 3  # 沒有定時項目要看畫面時，隔多久也要看一次畫面是不是被其他介面蓋住
 GAME_COVERED_RETRY = 2  # 遊戲視窗被蓋住時，隔多久再試一次(秒)
@@ -80,9 +79,9 @@ def findCountdownRing(part, scale=1.0):
     return None
 
 
-class GatherBase(Fishing):
+class GatherBase(FoodMixin, TimedTasks, GameUI):
     """定時採集的共同骨架: 每隔設定的時間，在原地按「互動鍵」(電腦版 F、手機版右下角的動作鈕)指定的次數，
-    並可定時或在看得到飽食度時去吃食物。吃食物、背包等操作沿用釣魚已驗證的流程，只是設定名稱換成這個功能自己的。
+    並可定時或在看得到飽食度時去吃食物。吃食物(food.py)、定時項目(tasks.py)、背包等畫面操作(gameui.py)和釣魚共用，設定名稱在 api.py 換成這個功能自己的。
     吃食物可以「鎖定」: 採集幾乎不會碰背包的其他東西，第一次搜尋食物時順便開啟遊戲的「下次開啟背包保持該結果」，
     之後打開背包就直接停在那份食物的搜尋結果，不用每次重新搜尋。
     子類別指定 prefix(設定名稱的開頭)、label(日誌用的名稱)與 pressGap(連按之間的停頓範圍，等採集動作做完)"""
@@ -90,21 +89,25 @@ class GatherBase(Fishing):
     prefix = ""
     label = ""
     pressGap = (1.2, 2.2)
+    foodLockSupported = True
+    templateDir = "templates/gather"
+    templateDirs = ("templates/gather", "templates/food", COMMON_TEMPLATE_DIR)
 
     def __init__(self, setLog, backend, config, roleName=None):
         super().__init__(setLog, backend, config, roleName or self.label)
+        self._initTasks()
+        self._initFood()
         self.round = 0
         self._coveredLogged = False
-        self._foodSearchPos = None  # 第一次搜尋食物時背包「搜尋」圖示的位置，鎖定後用來推算食物格子
-        self._foodLocked = False  # 背包已經鎖在食物的搜尋結果
-        self._lockOnly = False  # 開始時只固定搜尋結果、不吃
-        self._toolBroken = False  # 這一輪看到「工具耐久耗盡」的提示
         self._brokenStreak = 0
         self._missStreak = 0  # 連續幾輪沒看到倒數圖示也沒看到氣泡
         self._unknownSince = None  # 畫面開始認不出來(不是主畫面也不是背包)的時間
         self._lastScreenCheck = 0.0
         self._lastIcon = time.time()  # 最近一次看到倒數圖示的時間
         self._lastBubble = time.time()  # 最近一次看到「獲得物品」氣泡的時間
+
+    def _threadTargets(self):
+        return [self._mainLoop]
 
     # ===== 設定 =====
     def _count(self):
@@ -122,10 +125,6 @@ class GatherBase(Fishing):
             tasks.append(("food", self._doFood))
         return [t for t in tasks if t[0] not in self.disabled]
 
-    def _templatePath(self, name):
-        if name in GATHER_TEMPLATES:
-            return f"templates/gather/{name}.png"
-        return super()._templatePath(name)
 
     def _shot(self):
         """前景模式只取遊戲視窗的範圍(不比對整個螢幕)，視窗外的東西不會被誤判，比對也比較快。
@@ -209,98 +208,16 @@ class GatherBase(Fishing):
     def _noPickupMinutes(self):
         return float(self.config.get(f"{self.prefix}NoPickupMinutes", 10))
 
-    # ===== 吃食物(可鎖定) =====
-    def _onSearchResults(self, stopEvent):
-        """要鎖定時，在搜尋結果畫面(左下角)按下「保持結果」開關。模擬器卡的時候結果很晚才出現，所以反覆找一陣子"""
-        if not self._flag("fishingFoodLock") or self._foodLocked:
-            return True
-        deadline = time.time() + KEEP_WAIT_SECONDS
-        keepPos = None
-        while True:
-            keepPos = self._find(self._shot(), "keepOff")
-            if keepPos or time.time() >= deadline or stopEvent.wait(0.5):
-                break
-        if keepPos:
-            if not self._click(keepPos, stopEvent):
-                return False
-            self._foodLocked = True
-            self.setLog("✅ 已鎖定食物搜尋結果")
-        elif not stopEvent.is_set():
-            self.setLog("⚠️ 找不到「保持結果」開關，這次沒有鎖定")
-        return True
 
-    def _eatOnce(self, stopEvent):
-        if self._foodLocked and self._foodSearchPos and self._flag("fishingFoodLock"):
-            done = self._eatLocked(stopEvent)
-            if done is not None:
-                return done
-        return super()._eatOnce(stopEvent)
-
-    def _eatLocked(self, stopEvent):
-        """背包已鎖在食物的搜尋結果: 開背包直接點食物。畫面不是預期的搜尋結果時回傳 None，改走完整的搜尋流程"""
-        if not self._clickWhenVisible("bagBtn", stopEvent, 2):
-            raise RuntimeError("找不到背包圖示")
-        if stopEvent.wait(0.9):
-            return False
-        img = self._shot()
-        if not (self._find(img, "endFilterBtn") or self._find(img, "endSearchBtn")):
-            self.setLog("背包沒有停在食物的搜尋結果，改用搜尋")
-            self._foodLocked = False
-            return None if self._closeBag(stopEvent) else False
-        if not self._shouldEat(img):
-            return self._closeBag(stopEvent)
-        name = self.config.get("fishingFoodName", "").strip()
-        stars = int(self.config.get("fishingFoodStars", 0))
-        self._lockedEating = True
-        try:
-            result = self._eatFromResults(img, self._foodSearchPos, name, stars, stopEvent)
-        finally:
-            self._lockedEating = False
-        if result == "retry":  # 背包停在別的篩選(例如園藝用品): 取消鎖定，背包已關，改走完整搜尋
-            self._foodLocked = False
-            return None
-        return result
-
-    def _shouldEat(self, bagImg):
-        if self._lockOnly:  # 開始時只是要把搜尋結果固定住，不管飽不飽都走完搜尋，但不吃
-            return True
-        return super()._shouldEat(bagImg)
-
-    def _eatFromResults(self, img, searchPos, name, stars, stopEvent):
-        if self._lockOnly:
-            # 搜尋剛按下去，模擬器卡的時候結果還沒套用，太早關背包可能固定不成功，多等一下
-            if stopEvent.wait(LOCK_SETTLE_SECONDS):
-                return False
-            return self._closeBag(stopEvent)
-        return super()._eatFromResults(img, searchPos, name, stars, stopEvent)
-
-    def _lockFoodAtStart(self, stopEvent):
-        """剛開始執行時先搜尋一次食物並開啟「保持結果」，之後要吃時就直接點，不用等到餓了才第一次搜尋。這次不吃"""
-        if not (self._flag("fishingUseFood") and self._flag("fishingFoodLock")) or "food" in self.disabled:
-            return
-        self.setLog("先鎖定食物搜尋結果")
-        self._lockOnly = True
-        try:
-            self._runTask("food", self._doFood, stopEvent)
-        finally:
-            self._lockOnly = False
-        self._failCount.pop("food", None)  # 開始時鎖定失敗不算吃食物失敗，不然真正要吃時少了一次機會
-        self.lastDone.pop("food", None)  # 不是真的吃過，不要擋住之後的「體力不足」判斷
-        self._hungry = False
-        self._closeBag(stopEvent)
 
     # ===== 操作 =====
     def _press(self, img, stopEvent):
         """按一次互動鍵。回傳 False 代表已收到停止"""
         if self.isAdb:
-            return self._click(self._castCenter(img)[0], stopEvent)  # 手機版的動作鈕和拋竿鈕同一個位置
+            return self._click(self._actionCenter(img)[0], stopEvent)  # 手機版的動作鈕在右下角
         self.backend.pressKey("f")
         return not stopEvent.is_set()
 
-    def _checkHunger(self, img):
-        """體力見底時按互動鍵只會跳出「體力不足」提示，提示很快就消失，所以按完要立刻看，不能等到主迴圈"""
-        if self._flag("fishingUseFood") and "food" not in self.disabled:
-            self._noteHunger(img)
 
     def _gather(self, img, stopEvent):
         """採集一輪: 連按設定的次數。回傳 False 代表已收到停止"""

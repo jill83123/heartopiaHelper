@@ -18,7 +18,7 @@ CANCEL_BUTTONS = {  # 取消鈕的模板 -> 同一個視窗裡右邊「確定」
     "cancelBtn": (200, 340),
     "thinkAgainBtn": (200, 340),
 }
-CANCEL_TEMPLATE_DIR = "templates/fishing"
+CANCEL_TEMPLATE_DIR = "templates/common"
 TEAL_HSV = ((80, 120, 100), (100, 255, 255))  # 青綠色確定鈕的色相、飽和度、亮度(OpenCV 的 HSV)
 TEAL_MIN_PIXELS = 400  # 取消鈕右邊的範圍內，青綠色像素至少要有幾個(1600 寬為基準)
 
