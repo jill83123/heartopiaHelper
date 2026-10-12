@@ -845,7 +845,7 @@ document.addEventListener(
     box.checked = true;
     const ok = await showDialog(
       '關閉丟維修盒',
-      '關閉後，工具耐久耗盡時不會自動丟維修盒：\n．採集會直接停止\n．釣魚會一直拋不出去\n\n確定要關閉嗎？',
+      '關閉後，工具耐久耗盡時不會自動丟維修盒。\n確定要關閉嗎？',
       { confirm: true, danger: true, okText: '關閉' }
     );
     if (!ok) return;
