@@ -250,6 +250,7 @@ class AdbBackend:
         self.adbPath = adbPath or "adb"
         self.device = (device or "").strip()
         self._size = None
+        self._rawOk = True
         self.scaleResolver = ScaleResolver()
         # 大於 0 時，點擊改成按住這麼久(毫秒)再放開。遊戲的按鈕有時吃不到瞬間的 tap
         self.pressMs = 0
@@ -278,9 +279,31 @@ class AdbBackend:
             self._run(["connect", self.device], useDevice=False)
         self._screencap()
 
+    def _screencapRaw(self):
+        """不壓成 PNG 直接取原始像素(省掉裝置端壓縮，實測約快四成)。檔頭是寬、高、格式(1 = RGBA)，Android 版本不同檔頭長度也不同，
+        用「總長度減掉像素資料」推出來。格式不符就回傳 None，改走 PNG"""
+        data = self._run(["exec-out", "screencap"], timeout=15)
+        if len(data) < 12:
+            return None
+        w, h, fmt = np.frombuffer(data[:12], dtype="<u4")
+        offset = len(data) - int(w) * int(h) * 4
+        if fmt != 1 or w == 0 or h == 0 or offset not in (12, 16):
+            return None
+        rgba = np.frombuffer(data, np.uint8, offset=offset).reshape(int(h), int(w), 4)
+        return np.ascontiguousarray(rgba[:, :, 2::-1])  # RGBA -> BGR
+
     def _screencap(self):
-        data = self._run(["exec-out", "screencap", "-p"], timeout=15)
-        img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        img = None
+        if self._rawOk:
+            try:
+                img = self._screencapRaw()
+            except (ValueError, RuntimeError):
+                img = None
+            if img is None:
+                self._rawOk = False  # 這個裝置的原始格式不符，之後都用 PNG
+        if img is None:
+            data = self._run(["exec-out", "screencap", "-p"], timeout=15)
+            img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             raise RuntimeError("無法解析 adb 截圖")
         self._size = (img.shape[1], img.shape[0])
