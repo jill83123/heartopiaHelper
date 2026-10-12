@@ -8,7 +8,7 @@ import random
 import time
 import cv2
 import numpy as np
-from scripts.base import BaseTask
+from scripts.common.base import BaseTask
 from tools.finder import getBaseScale, matchBestAuto, resolveScale
 from tools.debug import DebugMixin
 from tools.notify import notify

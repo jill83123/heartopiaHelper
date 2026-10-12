@@ -1,6 +1,6 @@
 import random
 import time
-from scripts.base import BaseTask
+from scripts.common.base import BaseTask
 from tools.finder import clickBackButton
 
 CLICK_DELAY_RANGE = (0.02, 0.1)  # 點擊前隨機多等一小段時間(秒)，不要每次都一樣的節奏

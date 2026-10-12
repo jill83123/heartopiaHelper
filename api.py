@@ -17,7 +17,7 @@ from tools.updater import Updater, checkUpdate, isReleasePage
 from version import VERSION
 from tools.tools import getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
 from scripts.Cooking import Cooking
-from scripts.Fishing import Fishing
+from scripts.fishing import Fishing
 from scripts.PlantGathering import PlantGathering
 from scripts.WoodCutting import WoodCutting
 from scripts.SnowCarving import SnowCarving
