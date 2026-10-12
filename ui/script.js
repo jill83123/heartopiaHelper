@@ -294,8 +294,8 @@ buildAltOptions();
 // 採集植物(無工具)不用吃食物、不用維修盒，只有砍木頭這類用工具的功能才有這些設定。
 // 採集植物、砍木頭: 兩個功能的設定、日誌與開始/停止按鈕各自獨立(設定名稱以 plant / wood 開頭)，只是版面一樣，所以用同一個函式產生
 const GATHER_KINDS = [
-  { prefix: 'plant', name: '採集（無工具）', countLabel: '每輪採集次數' },
-  { prefix: 'wood', name: '採集（有工具）', countLabel: '每輪採集次數', tool: '斧頭' },
+  { prefix: 'plant', name: '採集（無工具）', countLabel: '每輪連按次數' },
+  { prefix: 'wood', name: '採集（有工具）', countLabel: '每輪連按次數', tool: '斧頭' },
 ];
 const capitalize = (text) => text[0].toUpperCase() + text.slice(1);
 
