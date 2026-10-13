@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import sys
+import threading
 import time
 from functools import lru_cache
 import tkinter as tk
@@ -392,7 +393,7 @@ DEFAULT_THRESHOLDS = {
 # 整體嚴格度: 在各項閥值上統一加減，抓不到就選「寬鬆」，誤判太多就選「嚴格」
 STRICTNESS_OFFSETS = {"loose": -0.1, "normal": 0.0, "strict": 0.05}
 
-LOG_DIVIDER = " "  # 任務停止後在日誌空一行(用不換行空格，浮動日誌的空 div 才不會縮掉)，setLog 看到整行就是它時不加時間
+LOG_DIVIDER = " "  # 任務停止後在日誌空一行(用不換行空格，懸浮日誌的空 div 才不會縮掉)，setLog 看到整行就是它時不加時間
 
 CONFIG_DEFAULTS = {
     "controlMode": "screen",
@@ -454,6 +455,10 @@ CONFIG_DEFAULTS = {
     "fishingAltRepairNow": "False",
     "fishingAltRepairMinutes": "15",
     # 採集(植物、砍木頭各自獨立的一組設定)
+    # 農作物長草提醒
+    "cropHours": "0",
+    "cropMinutes": "15",
+    "cropLeadSeconds": "5",
     "gatherKind": "plant",
     "plantCount": "1",
     "plantNoPickupMinutes": "10",
@@ -611,8 +616,8 @@ def _isValidLike(default, value):
 
 # 預設值有調整、但舊使用者的設定檔已經存了舊預設值時，靠這張表更新: {版本: {設定名稱: (舊預設值, 新預設值)}}
 # 只有使用者的值還是舊預設值才會換(自己調過的不動)。要新增時把 CONFIG_VERSION 加 1 並加一組
-CONFIG_VERSION = 4
-CONFIG_VALUE_MIGRATIONS = {}
+CONFIG_VERSION = 6
+CONFIG_VALUE_MIGRATIONS = {5: {"cropLeadSeconds": ("10", "3")}, 6: {"cropLeadSeconds": ("3", "5")}}
 
 
 def _migrateDefaultValues(current):
@@ -695,13 +700,17 @@ def resetConfig(includeExcluded=False):
     return readConfig()
 
 
-def writeConfigMany(values):
-    config = _readConfigFile()
-    config.update({k: str(v) for k, v in values.items()})
+_configWriteLock = threading.Lock()  # 介面可能同時送出好幾個設定(例如一次還原小時與分鐘)，讀、改、寫要一起做完，不然後寫的會蓋掉先寫的
 
-    with open(getConfigPath(), "w", encoding="utf-8") as f:
-        for k, v in config.items():
-            f.write(f"{k}={v}\n")
+
+def writeConfigMany(values):
+    with _configWriteLock:
+        config = _readConfigFile()
+        config.update({k: str(v) for k, v in values.items()})
+
+        with open(getConfigPath(), "w", encoding="utf-8") as f:
+            for k, v in config.items():
+                f.write(f"{k}={v}\n")
 
     return True
 

@@ -3,8 +3,8 @@ import win32api
 import win32con
 import win32gui
 
-# 置頂的浮動日誌視窗。標題不能含主程式標題或遊戲視窗標題的文字，否則 findWindow 會找錯視窗
-LOG_TITLE = "浮動日誌"
+# 置頂的懸浮日誌視窗。標題不能含主程式標題或遊戲視窗標題的文字，否則 findWindow 會找錯視窗
+LOG_TITLE = "懸浮日誌"
 LOG_SIZE = (360, 132)
 MIN_HEIGHT = 80  # 拖拉調整高度的範圍(96 dpi 的像素)
 MAX_HEIGHT = 700
@@ -65,7 +65,7 @@ def clampToScreen(x, y, width, height):
 
 
 def targetPosition(hwnd, mode, config, collapsed=False):
-    """浮動日誌視窗左上角要放的位置(螢幕座標)。mode: screen(螢幕左下角，舊設定沿用這個名稱)、topLeft、topRight、bottomRight(螢幕四個角)、custom(上次拖曳的位置)"""
+    """懸浮日誌視窗左上角要放的位置(螢幕座標)。mode: screen(螢幕左下角，舊設定沿用這個名稱)、topLeft、topRight、bottomRight(螢幕四個角)、custom(上次拖曳的位置)"""
     scale = dpiScale(hwnd)
     width, height = round(LOG_SIZE[0] * scale), round((COLLAPSED_HEIGHT if collapsed else heightOf(config)) * scale)
     margin = round(MARGIN * scale)
@@ -109,7 +109,7 @@ def setHeight(hwnd, heightCss, anchor="bottom"):
 
 
 def visibleRect():
-    """浮動日誌視窗目前在螢幕上的範圍(左、上、右、下)，沒有顯示回傳 None。點擊遊戲畫面時要避開，不然會點到它的按鈕(例如停止)"""
+    """懸浮日誌視窗目前在螢幕上的範圍(左、上、右、下)，沒有顯示回傳 None。點擊遊戲畫面時要避開，不然會點到它的按鈕(例如停止)"""
     try:
         hwnd = win32gui.FindWindow(None, LOG_TITLE)
         if hwnd and win32gui.IsWindowVisible(hwnd):
@@ -120,7 +120,7 @@ def visibleRect():
 
 
 def setPassThrough(on):
-    """讓浮動日誌暫時變成「滑鼠點擊會穿透」(on=True)或恢復正常。程式要點的位置剛好被它蓋住時，點擊才會落在下面的遊戲上"""
+    """讓懸浮日誌暫時變成「滑鼠點擊會穿透」(on=True)或恢復正常。程式要點的位置剛好被它蓋住時，點擊才會落在下面的遊戲上"""
     try:
         hwnd = win32gui.FindWindow(None, LOG_TITLE)
         if not hwnd:

@@ -8,6 +8,7 @@ let isSelectingRegion = false; // 框選視窗開啟中: 不能再框選，也�
 
 let currentCookingLogIndex = 0;
 let currentSnowLogIndex = 0;
+let currentCropLogIndex = 0;
 let currentFishLogIndex = 0;
 let currentFishAltLogIndex = 0;
 
@@ -466,7 +467,7 @@ document.addEventListener('click', (e) => {
   if (help) showDialog(help.title, help.message, { image: help.image || '' });
 });
 
-// 沒有開啟浮動日誌就不顯示位置選單
+// 沒有開啟懸浮日誌就不顯示位置選單
 const syncFloatLogRow = () => {
   document.querySelector('#floatLogPositionRow').hidden = !document.querySelector('#floatLogEnabled').checked;
 };
@@ -801,6 +802,12 @@ const handleCookingLogMessage = (log) => {
   logContainer.value += log.msg + '\n';
   logContainer.scrollTop = logContainer.scrollHeight;
 };
+const handleCropLogMessage = (log) => {
+  currentCropLogIndex = log.index;
+  const logContainerCrop = document.querySelector('#logContainerCrop');
+  logContainerCrop.value += log.msg + '\n';
+  logContainerCrop.scrollTop = logContainerCrop.scrollHeight;
+};
 const handleSnowLogMessage = (log) => {
   currentSnowLogIndex = log.index;
   const logContainerSnow = document.querySelector('#logContainerSnow');
@@ -920,6 +927,7 @@ const fillSettings = (settings) => {
   syncFgVisibility();
   syncGatherKind();
   syncFloatLogRow();
+  renderCrop(null);
   safeModeToggle.checked = String(settings.isSafeMode).toLowerCase() === 'true';
   fiveStarToggle.checked = String(settings.stopAtFiveStar).toLowerCase() === 'true';
   wildcardToggle.checked = String(settings.cookUseWildcard).toLowerCase() === 'true';
@@ -1192,7 +1200,10 @@ const updateResetButtons = () => {
   document.querySelectorAll('.reset-default').forEach((btn) => {
     const input = resetField(btn.dataset.reset);
     if (!input) return;
-    btn.disabled = isAnyRunning || isDefaultValue(input, resetDefaults[input.dataset.key]);
+    // 作物時間的小時、分鐘共用分鐘旁邊那一顆，兩個都回到預設才算預設
+    const hours = input.id === 'cropMinutes' ? document.querySelector('#cropHours') : null;
+    const isDefault = isDefaultValue(input, resetDefaults[input.dataset.key]) && (!hours || isDefaultValue(hours, resetDefaults.cropHours));
+    btn.disabled = isAnyRunning || isDefault || (!!hours && cropRunning);
   });
 };
 
@@ -1204,7 +1215,7 @@ const DEFAULT_LABEL_SELECTS = ['floatLogPosition', 'floatLogTheme', 'screenResol
 // 在一整排的設定列(.check)裡直接接在欄位(與單位)後面，獨立的欄位則把欄位與按鈕包成一列
 const addMissingResetButtons = () => {
   document.querySelectorAll('input[type="number"].setting[data-key]').forEach((el) => {
-    if (!el.id || !(el.dataset.key in resetDefaults)) return;
+    if (!el.id || !(el.dataset.key in resetDefaults) || el.id === 'cropHours') return;
     if (document.querySelector(`.reset-default[data-reset="${el.id}"]`)) return;
     const holder = document.createElement('span');
     holder.innerHTML = resetIcon(el.id);
@@ -1236,8 +1247,13 @@ const bindResetButtons = async () => {
     const unit = input.nextElementSibling?.textContent.trim() || '';
     const value = defaults[key];
     const shown = input.type === 'checkbox' ? (String(value).toLowerCase() === 'true' ? '勾選' : '不勾選') : value === '' ? '空白' : `${value} ${unit}`.trim();
-    btn.title = `預設 ${shown}，點一下還原`;
+    btn.title = `預設 ${input.id === 'cropMinutes' ? `${defaults.cropHours} 小時 ${shown}` : shown}，點一下還原`;
     btn.addEventListener('click', () => {
+      if (input.id === 'cropMinutes') {
+        const hours = document.querySelector('#cropHours');
+        hours.value = defaults.cropHours;
+        hours.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       if (input.type === 'checkbox') input.checked = String(value).toLowerCase() === 'true';
       else input.value = value;
       input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1245,6 +1261,7 @@ const bindResetButtons = async () => {
     input.addEventListener('input', updateResetButtons);
     input.addEventListener('change', updateResetButtons);
   });
+  ['input', 'change'].forEach((type) => document.querySelector('#cropHours').addEventListener(type, updateResetButtons));
   updateResetButtons();
 };
 
@@ -1277,8 +1294,16 @@ const setup = async () => {
     if (stopFishBtn) stopFishBtn.disabled = !status.fishing;
 
     renderRunTimes(status.runs);
+    renderCrop(await getApi().apiCropStatus());
+    renderHeroRunning([
+      ['料理', 'i-chef-hat', status.cooking],
+      ['雪雕', 'i-snowflake', status.snowCarving],
+      ['釣魚', 'i-fish', status.fishing],
+      ['採集', 'i-sprout', status.plant || status.wood],
+      ['拔草提醒', 'i-alarm-clock', cropRunning]
+    ]);
 
-    // 拖曳浮動日誌後後端會把位置切到「自訂」，讓設定頁的選單跟著變(正在操作選單時不動)
+    // 拖曳懸浮日誌後後端會把位置切到「自訂」，讓設定頁的選單跟著變(正在操作選單時不動)
     const floatPos = document.querySelector('#floatLogPosition');
     if (status.floatLogPosition && floatPos && document.activeElement !== floatPos) floatPos.value = status.floatLogPosition;
 
@@ -1292,7 +1317,7 @@ const setup = async () => {
     // 只要有任務在執行，設定欄位、泡泡範圍選取按鈕都設為 disabled
     const isAnyTaskRunning = status.cooking || status.snowCarving || status.fishing || status.plant || status.wood;
     document.querySelectorAll('.setting, .setting-check').forEach((input) => {
-      input.disabled = isAnyTaskRunning || input.dataset.locked === '1';
+      input.disabled = (isAnyTaskRunning && !input.dataset.always) || input.dataset.locked === '1' || (input.dataset.always && cropRunning);
     });
     isAnyRunning = isAnyTaskRunning;
     updateResetButtons();
@@ -1341,6 +1366,12 @@ const setup = async () => {
     logs.forEach(handleCookingLogMessage);
   }, 100);
 
+  // 定時拉取拔草提醒日誌
+  poll(async () => {
+    const logs = await getApi().apiGetNextLogs(currentCropLogIndex, 'crop');
+    logs.forEach(handleCropLogMessage);
+  }, 100);
+
   // 定時拉取雪雕日誌
   poll(async () => {
     const logs = await getApi().apiGetNextLogs(currentSnowLogIndex, 'snowCarving');
@@ -1356,7 +1387,7 @@ document.querySelector('#startCookBtn').addEventListener('click', async () => {
   // 每次開始前列出這次的設定請使用者確認；有記錄過菜品時一併顯示上次記錄的菜名(沒記錄就不顯示)
   const onOff = (box) => (box.checked ? '[+開啟]' : '[-關閉]');
   const lines = [
-    `．料理數量：${document.querySelector('#expectedCookQty').value}`,
+    `．料理數量：**${document.querySelector('#expectedCookQty').value}** 份`,
     `．安全模式：${safeModeToggle.checked ? `[+開啟]（煮滿 **${document.querySelector('#safeModeQty').value}** 份才收）` : '[-關閉]'}`,
     `．五星停止：${onOff(fiveStarToggle)}`,
     `．使用萬能食材：${onOff(wildcardToggle)}`
@@ -1411,15 +1442,131 @@ GATHER_KINDS.forEach(({ prefix }) => {
   });
 });
 
+// 頁首右側的「xx 運行中」標籤，有變動才重畫
+let heroRunningKey = '';
+const renderHeroRunning = (items) => {
+  const running = items.filter(([, , on]) => on);
+  const key = running.map(([name]) => name).join();
+  if (key === heroRunningKey) return;
+  heroRunningKey = key;
+  document.querySelector('#heroRunning').replaceChildren(
+    ...running.map(([name, icon]) => {
+      const badge = document.createElement('span');
+      badge.className = 'hero-badge';
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'icon');
+      svg.setAttribute('aria-hidden', 'true');
+      const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', `#${icon}`);
+      svg.append(use);
+      const state = document.createElement('small');
+      state.textContent = '運行中';
+      badge.append(svg, name, state);
+      return badge;
+    })
+  );
+};
+
+// ===== 農作物拔草提醒 =====
+// 時間表與後端 scripts/CropReminder.py 的 buildSchedule 相同: 時期長度 = 作物時間 / 3
+let cropRunning = false;
+const cropSchedule = (seconds) => {
+  const stage = seconds / 3;
+  const list = [
+    { at: stage, name: '成長期' },
+    { at: stage * 2, name: '成熟期' }
+  ];
+  if (seconds - 30 > stage * 2) list.push({ at: seconds - 30, name: '倒數 30 秒' });
+  return list;
+};
+const cropClock = (sec) => {
+  const s = Math.max(Math.round(sec), 0);
+  const h = Math.floor(s / 3600);
+  const mmss = `${pad2(Math.floor((s % 3600) / 60))}:${pad2(s % 60)}`;
+  return h ? `${h}:${mmss}` : mmss;
+};
+// 沒在運行時依設定預覽長草時間(從開始算起)；運行中顯示還有多久長草
+// 剩餘時間(選填，中途加入用): 空白就是從頭開始，不存進設定，運行結束後清空
+const cropRemainSeconds = () => {
+  const hour = document.querySelector('#cropRemainHour').value;
+  const min = document.querySelector('#cropRemainMin').value;
+  return hour === '' && min === '' ? null : Number(hour) * 3600 + Number(min) * 60;
+};
+const renderCrop = (status) => {
+  const wasRunning = cropRunning;
+  cropRunning = !!(status && status.running);
+  if (wasRunning && !cropRunning) document.querySelectorAll('#cropRemainHour, #cropRemainMin').forEach((el) => (el.value = ''));
+  document.querySelectorAll('#cropRemainHour, #cropRemainMin').forEach((el) => (el.disabled = cropRunning));
+  const minutes = Number(document.querySelector('#cropHours').value) * 60 + Number(document.querySelector('#cropMinutes').value);
+  const list = document.querySelector('#cropList');
+  const badge = document.querySelector('#cropBadge');
+  const valid = minutes > 0;
+  document.querySelector('#startCropBtn').disabled = cropRunning || !valid;
+  document.querySelector('#stopCropBtn').disabled = !cropRunning;
+  badge.classList.toggle('on', cropRunning);
+  badge.textContent = cropRunning ? '運行中' : '未運行';
+  const total = minutes * 60;
+  const remain = cropRemainSeconds();
+  const elapsed = remain === null ? 0 : Math.max(total - remain, 0); // 中途加入時已經過的時間
+  document.querySelector('#cropCountdown').textContent = cropClock(cropRunning ? status.remaining : valid ? Math.min(remain ?? total, total) : 0);
+  const rows = cropRunning
+    ? status.events.map((e) => ({ name: e.name, text: e.done ? '已長草' : `${cropClock(e.weedIn)} 後長草`, done: e.done }))
+    : valid
+      ? cropSchedule(total).map((e) =>
+          e.at <= elapsed
+            ? { name: e.name, text: '已長草', done: true }
+            : { name: e.name, text: elapsed ? `${cropClock(e.at - elapsed)} 後長草` : `開始後 ${cropClock(e.at)} 長草`, done: false }
+        )
+      : [];
+  const nextIndex = cropRunning ? rows.findIndex((r) => !r.done) : -1;
+  list.replaceChildren(
+    ...rows.map((r, i) => {
+      const li = document.createElement('li');
+      li.className = r.done ? 'done' : i === nextIndex ? 'next' : '';
+      const name = document.createElement('span');
+      name.textContent = r.name;
+      const text = document.createElement('span');
+      text.textContent = r.text;
+      li.append(name, text);
+      return li;
+    })
+  );
+};
+['#cropHours', '#cropMinutes', '#cropLeadSeconds', '#cropRemainHour', '#cropRemainMin'].forEach((sel) => document.querySelector(sel).addEventListener('input', () => !cropRunning && renderCrop(null)));
+document.querySelector('#startCropBtn').addEventListener('click', async () => {
+  const res = await getApi().apiCropStart(cropRemainSeconds());
+  if (!res.ok) await showDialog('無法開始', res.error);
+});
+document.querySelector('#stopCropBtn').addEventListener('click', () => getApi().apiCropStop());
+
 // Tab 切換
-document.querySelectorAll('.tab').forEach((btn) => {
-  btn.addEventListener('click', function () {
-    document.querySelectorAll('.tab').forEach((l) => l.classList.remove('active'));
-    document.querySelectorAll('.pane').forEach((p) => p.classList.remove('show', 'active'));
-    this.classList.add('active');
-    const pane = document.querySelector(this.getAttribute('data-target'));
-    if (pane) pane.classList.add('show', 'active');
+const toolWrap = document.querySelector('.tool-wrap');
+const toolsTab = document.querySelector('#toolsTab');
+const showPane = (tab, target) => {
+  document.querySelectorAll('.tab').forEach((l) => l.classList.remove('active'));
+  document.querySelectorAll('.pane').forEach((p) => p.classList.remove('show', 'active'));
+  tab.classList.add('active');
+  document.querySelectorAll('.tool-item').forEach((item) => item.classList.toggle('active', tab === toolsTab && item.dataset.target === target));
+  const pane = document.querySelector(target);
+  if (pane) pane.classList.add('show', 'active');
+  toolWrap.classList.remove('open');
+};
+document.querySelectorAll('.tab[data-target]').forEach((btn) => {
+  btn.addEventListener('click', () => showPane(btn, btn.dataset.target));
+});
+// 小工具: 點擊開關選單(滑鼠移上去由 CSS 展開)，選了項目才切換分頁
+toolsTab.addEventListener('click', () => {
+  const open = toolWrap.classList.toggle('open');
+  toolsTab.setAttribute('aria-expanded', open);
+});
+document.querySelectorAll('.tool-item').forEach((item) => {
+  item.addEventListener('click', () => {
+    showPane(toolsTab, item.dataset.target);
+    item.blur();
   });
+});
+document.addEventListener('click', (e) => {
+  if (!toolWrap.contains(e.target)) toolWrap.classList.remove('open');
 });
 
 // 數字欄位超過上限(max)就自動改回上限，例如吃食物的飽食度最多 99。用捕獲階段先處理，後面儲存設定時拿到的就是修正後的值
