@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import sys
+import threading
 import time
 from functools import lru_cache
 import tkinter as tk
@@ -246,7 +247,8 @@ def matchBest(screenImg, templatePath, threshold, scale):
         return None
     mask, offX, offY = None, 0, 0
     area = MASKED_TEMPLATES.get(os.path.basename(templatePath))
-    if area and "/adb/" not in str(templatePath).replace("\\", "/"):  # 手機版的圖沒驗證過，維持原本做法
+    # 手機版的圖沒驗證過，維持原本做法；背包鈕例外: 模擬器不限範圍時，樹葉等背景會比對出比真正背包鈕更高的分數(0.69 對 0.62)，點到別處背包就打不開
+    if area and (os.path.basename(templatePath) == "bagBtn.png" or "/adb/" not in str(templatePath).replace("\\", "/")):
         mask = _iconMask(templateColor)
         height, width = screenGray.shape
         x0, y0, x1, y1 = int(width * area[0]), int(height * area[1]), int(width * area[2]), int(height * area[3])
@@ -263,8 +265,19 @@ def matchBest(screenImg, templatePath, threshold, scale):
     return (loc[0] + offX + template.shape[1] // 2, loc[1] + offY + template.shape[0] // 2)
 
 
+# 用輪廓(邊緣)比對的模板: 半透明的氣泡圖示，背景會透出來，灰階比對的分數會跟著背景變(0.53~0.65)，輪廓比較不受影響
+EDGE_TEMPLATES = ("timer.png",)
+
+
+def _edges(gray):
+    return cv2.Canny(cv2.GaussianBlur(gray, (3, 3), 0), 50, 150)
+
+
 def matchTemplate(screenImg, templatePath, threshold=0.8, scales=(1.0,), colorTolerance=None):
     screenGray = cv2.cvtColor(screenImg, cv2.COLOR_BGR2GRAY)
+    useEdges = os.path.basename(str(templatePath)) in EDGE_TEMPLATES
+    if useEdges:
+        screenGray = _edges(screenGray)
     templateOrig = loadTemplate(templatePath)
 
     bestPoints = []
@@ -273,6 +286,8 @@ def matchTemplate(screenImg, templatePath, threshold=0.8, scales=(1.0,), colorTo
     for scale in scales:
         template = cv2.resize(templateOrig, (0, 0), fx=scale, fy=scale)
         template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+        if useEdges:
+            template_gray = _edges(template_gray)
         if template_gray.shape[0] > screenGray.shape[0] or template_gray.shape[1] > screenGray.shape[1]:
             continue  # 模板比畫面還大，無法比對
         tw, th = template_gray.shape[::-1]
@@ -325,15 +340,16 @@ def matchTemplate(screenImg, templatePath, threshold=0.8, scales=(1.0,), colorTo
         return None
 
 
-# 各模板的預設比對閥值(0~1，越高越嚴格)。config.ini 有寫 <名稱>Threshold 就以設定檔為準
+# 各模板的比對閥值(0~1，越高越嚴格)，不開放使用者調整，只能用「比對嚴格度」整體加減
 DEFAULT_THRESHOLDS = {
     "startAction": 0.65,
     "fire": 0.65,
     "completed": 0.65,
-    "failedFood": 0.8,
-    "timer": 0.65,
+    "timer": 0.32,  # 輪廓比對(見 EDGE_TEMPLATES)。實測有圖示 0.41~0.46，沒有圖示最高約 0.21
     "startCookBtn": 0.7,
     "backBtn": 0.8,
+    "plusBadge": 0.85,  # 食材格右上角的 + 號(實測同畫面約 1.0)
+    "wildcardItem": 0.75,
     "snowPut": 0.7,
     "snowStartBtn": 0.7,
     "snowflake": 0.7,
@@ -354,6 +370,9 @@ DEFAULT_THRESHOLDS = {
     "toolBtn": 0.75,
     "closeBtn": 0.75,
     "cancelBtn": 0.75,
+    "thinkAgainBtn": 0.8,
+    "cellLock": 0.7,  # 背包格子右下角的小鎖頭(形狀比對，有鎖約 1.0，沒鎖的格子最高約 0.5)
+    "lockedIcon": 0.88,  # 彩色比對；紅色鎖頭 1.0，同位置的灰色開鎖 0.74
     "searchBtn": 0.75,
     "searchSubmitBtn": 0.75,
     "searchCloseBtn": 0.75,
@@ -366,18 +385,15 @@ DEFAULT_THRESHOLDS = {
     "eatBtn": 0.75,
     "repairBoxItem": 0.75,
     "castBadge": 0.7,
-    "toolBroken": 0.7,
     "respawnPlant": 0.6,
     "respawnWood": 0.6,
     "respawnMushroom": 0.6,
-    "filterRepair": 0.75,
-    "repairBoxCell": 0.75,
 }
 
 # 整體嚴格度: 在各項閥值上統一加減，抓不到就選「寬鬆」，誤判太多就選「嚴格」
 STRICTNESS_OFFSETS = {"loose": -0.1, "normal": 0.0, "strict": 0.05}
 
-LOG_DIVIDER = " "  # 任務停止後在日誌空一行(用不換行空格，浮動日誌的空 div 才不會縮掉)，setLog 看到整行就是它時不加時間
+LOG_DIVIDER = " "  # 任務停止後在日誌空一行(用不換行空格，懸浮日誌的空 div 才不會縮掉)，setLog 看到整行就是它時不加時間
 
 CONFIG_DEFAULTS = {
     "controlMode": "screen",
@@ -391,7 +407,9 @@ CONFIG_DEFAULTS = {
     "expectedCookQty": "50",
     "isSafeMode": "True",
     "stopAtFiveStar": "False",
+    "cookUseWildcard": "False",  # 食材格有 + 號(食材不足)時改用萬能食材補上
     "debugMode": "False",
+    "autoCancelDialog": "True",  # 跳出確認視窗(誤點丟棄等)一律按取消，見 tools/guards.py；要關掉改成 False
     "safeModeQty": "3",
     "detectFrequency": "0.05",
     "clickFrequency": "0.05",
@@ -415,7 +433,9 @@ CONFIG_DEFAULTS = {
     "fishingFoodName": "",
     "fishingFoodStars": "14",
     "fishingFoodUntil": "99",
-    "fishingUseRepair": "False",
+    "fishingRepairEnabled": "True",  # 丟維修盒(工具耐久耗盡時丟)；沒勾就不修
+    "fishingUseRepair": "False",  # 定時丟維修盒(每 fishingRepairMinutes 分鐘)，名稱沿用舊版
+    "fishingRepairLeave": "False",  # 丟之前先往後退一步
     "fishingRepairNow": "False",
     "fishingRepairMinutes": "15",
     # 背景定時(模擬器)
@@ -429,10 +449,16 @@ CONFIG_DEFAULTS = {
     "fishingAltFoodName": "",
     "fishingAltFoodStars": "14",
     "fishingAltFoodUntil": "99",
+    "fishingAltRepairEnabled": "True",
     "fishingAltUseRepair": "False",
+    "fishingAltRepairLeave": "False",
     "fishingAltRepairNow": "False",
     "fishingAltRepairMinutes": "15",
     # 採集(植物、砍木頭各自獨立的一組設定)
+    # 農作物長草提醒
+    "cropHours": "0",
+    "cropMinutes": "15",
+    "cropLeadSeconds": "5",
     "gatherKind": "plant",
     "plantCount": "1",
     "plantNoPickupMinutes": "10",
@@ -442,15 +468,15 @@ CONFIG_DEFAULTS = {
     "woodCount": "1",
     "woodNoPickupMinutes": "10",
     "woodIntervalSeconds": "120",
-    "woodUseFood": "False",
+    "woodUseFood": "True",
     "woodFoodKeepLast": "True",
     "woodFoodName": "",
     "woodFoodStars": "14",
     "woodFoodUntil": "99",
-    "woodFoodLock": "True",
+    "woodRepairEnabled": "True",
     "woodUseRepair": "False",
+    "woodRepairLeave": "True",
     "woodRepairMinutes": "15",
-    **{f"{name}Threshold": str(value) for name, value in DEFAULT_THRESHOLDS.items()},
 }
 
 # 「還原設定值」不會動的項目: 跟使用者的環境有關(操作模式、ADB、解析度、停止鍵)，還原後還要重填很麻煩
@@ -458,13 +484,9 @@ RESET_EXCLUDED_KEYS = {"floatLogEnabled", "floatLogForeground", "floatLogBackgro
 
 
 def getThreshold(config, name):
-    """取得模板實際使用的閥值 = 該項閥值 + 整體嚴格度的調整，並限制在合理範圍。設定值無法解析時用預設值"""
-    try:
-        base = float(config.get(f"{name}Threshold"))
-    except (TypeError, ValueError):
-        base = DEFAULT_THRESHOLDS[name]
+    """取得模板實際使用的閥值 = 該項預設閥值 + 整體嚴格度的調整，並限制在合理範圍"""
     offset = STRICTNESS_OFFSETS.get(config.get("matchStrictness", "normal"), 0.0)
-    return min(0.99, max(0.3, base + offset))
+    return min(0.99, max(0.3, DEFAULT_THRESHOLDS[name] + offset))
 
 
 def _readConfigFile():
@@ -510,7 +532,7 @@ def fishingItemChecks(config, prefix, who):
 
 
 # 採集功能的設定名稱開頭 -> 訊息裡的稱呼
-GATHER_LABELS = {"plant": "採集植物", "wood": "砍木頭"}
+GATHER_LABELS = {"plant": "採集（無工具）", "wood": "採集（有工具）"}
 
 
 def validateConfig(config, task):
@@ -593,13 +615,8 @@ def _isValidLike(default, value):
 
 # 預設值有調整、但舊使用者的設定檔已經存了舊預設值時，靠這張表更新: {版本: {設定名稱: (舊預設值, 新預設值)}}
 # 只有使用者的值還是舊預設值才會換(自己調過的不動)。要新增時把 CONFIG_VERSION 加 1 並加一組
-CONFIG_VERSION = 4
-CONFIG_VALUE_MIGRATIONS = {
-    1: {"filterHeaderFishingThreshold": ("0.85", "0.93")},
-    2: {"staminaIconThreshold": ("0.7", "0.6")},
-    3: {"staminaIconThreshold": ("0.6", "0.5")},
-    4: {"staminaIconThreshold": ("0.5", "0.45")},
-}
+CONFIG_VERSION = 6
+CONFIG_VALUE_MIGRATIONS = {5: {"cropLeadSeconds": ("10", "3")}, 6: {"cropLeadSeconds": ("3", "5")}}
 
 
 def _migrateDefaultValues(current):
@@ -675,20 +692,24 @@ def writeConfig(key, value):
     return writeConfigMany({key: value})
 
 
-def resetConfig(keys=None, includeExcluded=False):
+def resetConfig(includeExcluded=False):
     """把設定還原成預設值，回傳還原後的完整設定。預設不含 RESET_EXCLUDED_KEYS(操作模式、ADB 等)，
-    includeExcluded=True 時全部還原。給 keys 時只還原其中的項目(例如只還原比對閥值)"""
-    writeConfigMany({k: v for k, v in CONFIG_DEFAULTS.items() if (includeExcluded or k not in RESET_EXCLUDED_KEYS) and (keys is None or k in keys)})
+    includeExcluded=True 時全部還原"""
+    writeConfigMany({k: v for k, v in CONFIG_DEFAULTS.items() if includeExcluded or k not in RESET_EXCLUDED_KEYS})
     return readConfig()
 
 
-def writeConfigMany(values):
-    config = _readConfigFile()
-    config.update({k: str(v) for k, v in values.items()})
+_configWriteLock = threading.Lock()  # 介面可能同時送出好幾個設定(例如一次還原小時與分鐘)，讀、改、寫要一起做完，不然後寫的會蓋掉先寫的
 
-    with open(getConfigPath(), "w", encoding="utf-8") as f:
-        for k, v in config.items():
-            f.write(f"{k}={v}\n")
+
+def writeConfigMany(values):
+    with _configWriteLock:
+        config = _readConfigFile()
+        config.update({k: str(v) for k, v in values.items()})
+
+        with open(getConfigPath(), "w", encoding="utf-8") as f:
+            for k, v in config.items():
+                f.write(f"{k}={v}\n")
 
     return True
 

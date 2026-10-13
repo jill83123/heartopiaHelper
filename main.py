@@ -102,7 +102,7 @@ _closing = False
 
 def shutdown():
     """先讓兩個視窗的頁面停止輪詢(避免視窗銷毀的瞬間還有呼叫在途中，噴出 WebView2 已釋放的錯誤)，
-    關掉浮動日誌(它沒有關閉鈕，不關的話程式不會結束)，再真正關閉主視窗"""
+    關掉懸浮日誌(它沒有關閉鈕，不關的話程式不會結束)，再真正關閉主視窗"""
     try:
         mainWindow.evaluate_js("markClosing()")
     except Exception:

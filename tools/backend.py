@@ -56,7 +56,7 @@ class ScreenBackend:
     def __init__(self, gameWindowTitle=""):
         self.scaleResolver = ScaleResolver()
         self.gameWindowTitle = gameWindowTitle
-        self._floatPassing = False  # 浮動日誌目前是不是處於「點擊穿透」
+        self._floatPassing = False  # 懸浮日誌目前是不是處於「點擊穿透」
         self._floatTimer = None
 
     def _findGame(self):
@@ -81,7 +81,7 @@ class ScreenBackend:
             raise GameWindowLostError(f"找不到遊戲視窗「{self.gameWindowTitle}」，遊戲可能已關閉")
 
     def _passThroughFloatLog(self, x, y):
-        """要操作的位置被浮動日誌蓋住時，讓它暫時不吃滑鼠(不然會點到它的按鈕，例如停止)；沒蓋住就維持正常"""
+        """要操作的位置被懸浮日誌蓋住時，讓它暫時不吃滑鼠(不然會點到它的按鈕，例如停止)；沒蓋住就維持正常"""
         rect = floatlog.visibleRect()
         covered = bool(rect) and rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]
         if covered != self._floatPassing:
@@ -123,9 +123,20 @@ class ScreenBackend:
             focusWindow(hwnd)
             time.sleep(0.5)
 
+    def _glideTo(self, x, y, steps=30, interval=0.01):
+        """游標分成很多小步慢慢移過去。一次跳過去對遊戲來說是一大段滑鼠位移，卡在滑鼠控制視角時會跟著猛轉"""
+        try:
+            x0, y0 = win32api.GetCursorPos()
+        except Exception:
+            return
+        for i in range(1, steps + 1):
+            win32api.SetCursorPos((round(x0 + (x - x0) * i / steps), round(y0 + (y - y0) * i / steps)))
+            time.sleep(interval)
+
     def wakeMouse(self, x, y):
         """遊戲有時會卡住滑鼠、讓畫面跟著滑鼠轉視角，操作前先左右鍵各點兩下解除"""
         self._requireGame()
+        self._glideTo(x, y)
         self.moveTo(x, y)
         time.sleep(0.2)
         try:
@@ -250,6 +261,7 @@ class AdbBackend:
         self.adbPath = adbPath or "adb"
         self.device = (device or "").strip()
         self._size = None
+        self._rawOk = True
         self.scaleResolver = ScaleResolver()
         # 大於 0 時，點擊改成按住這麼久(毫秒)再放開。遊戲的按鈕有時吃不到瞬間的 tap
         self.pressMs = 0
@@ -278,9 +290,31 @@ class AdbBackend:
             self._run(["connect", self.device], useDevice=False)
         self._screencap()
 
+    def _screencapRaw(self):
+        """不壓成 PNG 直接取原始像素(省掉裝置端壓縮，實測約快四成)。檔頭是寬、高、格式(1 = RGBA)，Android 版本不同檔頭長度也不同，
+        用「總長度減掉像素資料」推出來。格式不符就回傳 None，改走 PNG"""
+        data = self._run(["exec-out", "screencap"], timeout=15)
+        if len(data) < 12:
+            return None
+        w, h, fmt = np.frombuffer(data[:12], dtype="<u4")
+        offset = len(data) - int(w) * int(h) * 4
+        if fmt != 1 or w == 0 or h == 0 or offset not in (12, 16):
+            return None
+        rgba = np.frombuffer(data, np.uint8, offset=offset).reshape(int(h), int(w), 4)
+        return np.ascontiguousarray(rgba[:, :, 2::-1])  # RGBA -> BGR
+
     def _screencap(self):
-        data = self._run(["exec-out", "screencap", "-p"], timeout=15)
-        img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        img = None
+        if self._rawOk:
+            try:
+                img = self._screencapRaw()
+            except (ValueError, RuntimeError):
+                img = None
+            if img is None:
+                self._rawOk = False  # 這個裝置的原始格式不符，之後都用 PNG
+        if img is None:
+            data = self._run(["exec-out", "screencap", "-p"], timeout=15)
+            img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             raise RuntimeError("無法解析 adb 截圖")
         self._size = (img.shape[1], img.shape[0])

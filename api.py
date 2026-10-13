@@ -15,12 +15,13 @@ from tools.backend import AdbBackend, createBackend
 from tools import floatlog
 from tools.updater import Updater, checkUpdate, isReleasePage
 from version import VERSION
-from tools.tools import getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, DEFAULT_THRESHOLDS, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
+from tools.tools import getResourcePath, getUserDataPath, writeConfigMany, CONFIG_DEFAULTS, LOG_DIVIDER, RegionTooSmallError, readConfig, resetConfig, validateConfig, writeConfig
 from scripts.Cooking import Cooking
-from scripts.Fishing import Fishing
+from scripts.fishing import Fishing
 from scripts.PlantGathering import PlantGathering
 from scripts.WoodCutting import WoodCutting
 from scripts.SnowCarving import SnowCarving
+from scripts.CropReminder import CropReminder
 
 
 LOG_LIMIT = 500
@@ -36,7 +37,9 @@ ALT_KEYS = (
     "FoodName",
     "FoodStars",
     "FoodUntil",
+    "RepairEnabled",
     "UseRepair",
+    "RepairLeave",
     "RepairNow",
     "RepairMinutes",
 )
@@ -48,13 +51,14 @@ GATHER_FOOD_KEYS = (
     "FoodName",
     "FoodStars",
     "FoodUntil",
-    "FoodLock",
+    "RepairEnabled",
     "UseRepair",
+    "RepairLeave",
     "RepairMinutes",
 )
 GATHER_TASKS = ("plant", "wood")
-FLOAT_START_BUTTONS = {"cooking": "#startCookBtn", "snowCarving": "#startSnowBtn", "fishing": "#startFishBtn", "plant": "#startPlantBtn", "wood": "#startWoodBtn"}  # 浮動日誌「開始」要按主視窗哪一顆
-FLOAT_TASK_NAMES = {"cooking": "料理", "snowCarving": "雪雕", "fishing": "釣魚", "plant": "採集", "wood": "採集"}  # 浮動日誌標題顯示目前(上次)執行的內容
+FLOAT_START_BUTTONS = {"cooking": "#startCookBtn", "snowCarving": "#startSnowBtn", "fishing": "#startFishBtn", "plant": "#startPlantBtn", "wood": "#startWoodBtn"}  # 懸浮日誌「開始」要按主視窗哪一顆
+FLOAT_TASK_NAMES = {"cooking": "料理", "snowCarving": "雪雕", "fishing": "釣魚", "plant": "採集", "wood": "採集"}  # 懸浮日誌標題顯示目前(上次)執行的內容
 RUN_KEYS = ("cooking", "snowCarving", "fishing", "plant", "wood")  # 要記錄執行時間的任務(釣魚的前景、背景定時算同一個)
 
 REGION_HINTS = {
@@ -81,28 +85,32 @@ class Api:
         self.plantTask = None
         self.woodTask = None
 
+        # 農作物長草提醒: 只跳通知，和其他任務互不影響，可以同時運行
+        self.cropTask = None
+
         self.updater = Updater()
 
         # logs: 各來源一個固定長度的佇列，index 持續遞增供前端判斷已讀到哪
         self.logs = {
             "cooking": deque(maxlen=LOG_LIMIT),
             "snowCarving": deque(maxlen=LOG_LIMIT),
+            "crop": deque(maxlen=LOG_LIMIT),
             "fishing": deque(maxlen=LOG_LIMIT),
             "fishingAlt": deque(maxlen=LOG_LIMIT),
             "plant": deque(maxlen=LOG_LIMIT),
             "wood": deque(maxlen=LOG_LIMIT),
-            "float": deque(maxlen=LOG_LIMIT),  # 浮動日誌: 只放目前這一次運行的任務訊息
+            "float": deque(maxlen=LOG_LIMIT),  # 懸浮日誌: 只放目前這一次運行的任務訊息
         }
-        self.logCounts = {"cooking": 0, "snowCarving": 0, "fishing": 0, "fishingAlt": 0, "plant": 0, "wood": 0, "float": 0}
-        self.floatSources = set()  # 這次運行有哪些任務的訊息要送進浮動日誌
-        self.floatRun = 0  # 每次按「開始」加 1，浮動日誌視窗看到變了就清空
+        self.logCounts = {"cooking": 0, "snowCarving": 0, "crop": 0, "fishing": 0, "fishingAlt": 0, "plant": 0, "wood": 0, "float": 0}
+        self.floatSources = set()  # 這次運行有哪些任務的訊息要送進懸浮日誌
+        self.floatRun = 0  # 每次按「開始」加 1，懸浮日誌視窗看到變了就清空
         self._logWindow = None
         self._logHwnd = None
         self._logShown = False
-        self._floatDestroying = False  # 程式要結束了，浮動日誌才可以真的被關掉
-        self._floatKey = None  # 浮動日誌目前在看哪一個任務(RUN_KEYS 之一)
+        self._floatDestroying = False  # 程式要結束了，懸浮日誌才可以真的被關掉
+        self._floatKey = None  # 懸浮日誌目前在看哪一個任務(RUN_KEYS 之一)
         self.runInfo = {key: {"start": None, "end": None} for key in RUN_KEYS}
-        self._floatPlaced = None  # 最近一次把浮動日誌放在哪個位置，拖曳後和它比較才知道有沒有移動
+        self._floatPlaced = None  # 最近一次把懸浮日誌放在哪個位置，拖曳後和它比較才知道有沒有移動
         self.logLock = threading.Lock()
         self.backendError = None
         self.backendIsAdb = False
@@ -135,12 +143,12 @@ class Api:
         with self.logLock:
             return [log for log in self.logs[source] if log["index"] > currentIndex]
 
-    # ===== 浮動日誌(置頂的小視窗) =====
+    # ===== 懸浮日誌(置頂的小視窗) =====
     def _floatEnabled(self):
         return str(self.config.get("floatLogEnabled", "True")).lower() == "true"
 
     def _floatShowFor(self, sources):
-        """這次運行有沒有該顯示浮動日誌: 依任務實際的操作模式(前景/背景)對照設定，同時含前景與背景時任一邊開著就顯示"""
+        """這次運行有沒有該顯示懸浮日誌: 依任務實際的操作模式(前景/背景)對照設定，同時含前景與背景時任一邊開著就顯示"""
         if not self._floatEnabled():
             return False
         for source in sources:
@@ -183,7 +191,7 @@ class Api:
         return None
 
     def _onFloatClosing(self):
-        """浮動日誌被從工作列、Alt+F4 等系統途徑關閉時: 運行中不讓關，沒運行就只是隱藏(視窗要留著，下次才能再顯示)。只有程式結束時才真的關"""
+        """懸浮日誌被從工作列、Alt+F4 等系統途徑關閉時: 運行中不讓關，沒運行就只是隱藏(視窗要留著，下次才能再顯示)。只有程式結束時才真的關"""
         if self._floatDestroying:
             return None
         if not self.isRunning():
@@ -191,15 +199,15 @@ class Api:
         return False
 
     def _prepareFloatLog(self):
-        """程式啟動後先把浮動日誌視窗建好(隱藏)。建立視窗的當下一定會取得焦點，所以不能等到按「開始」才建"""
+        """程式啟動後先把懸浮日誌視窗建好(隱藏)。建立視窗的當下一定會取得焦點，所以不能等到按「開始」才建"""
         if self._floatEnabled():
             try:
                 self._floatHwnd()
             except Exception as e:
-                print(f"浮動日誌無法建立: {e}")
+                print(f"懸浮日誌無法建立: {e}")
 
     def _beginRun(self, sources):
-        """按「開始」時記下開始時間，並顯示浮動日誌(只收這一次運行的任務 sources 的訊息)。浮動日誌出任何問題都不影響任務本身"""
+        """按「開始」時記下開始時間，並顯示懸浮日誌(只收這一次運行的任務 sources 的訊息)。懸浮日誌出任何問題都不影響任務本身"""
         key = "fishing" if any(source.startswith("fishing") for source in sources) else sources[0]
         self._floatKey = key
         self.runInfo[key] = {"start": time.time(), "end": None}
@@ -208,6 +216,7 @@ class Api:
             self.logs["float"].clear()
             self.floatRun += 1
         if not self._floatShowFor(sources):
+            self.apiHideFloatLog()  # 上一次運行留下的懸浮日誌，這次的模式不顯示就收起來
             return
         try:
             hwnd = self._floatHwnd()
@@ -218,10 +227,10 @@ class Api:
             floatlog.placeAndShow(hwnd, *self._floatPlaced, floatlog.COLLAPSED_HEIGHT if collapsed else floatlog.heightOf(self.config))
             self._logShown = True
         except Exception as e:
-            print(f"浮動日誌無法顯示: {e}")
+            print(f"懸浮日誌無法顯示: {e}")
 
     def _closeFloatLog(self):
-        """主視窗關閉時一併關掉浮動日誌(它沒有標題列的關閉鈕，不關的話程式不會結束)"""
+        """主視窗關閉時一併關掉懸浮日誌(它沒有標題列的關閉鈕，不關的話程式不會結束)"""
         try:
             if self._logWindow is not None:
                 try:
@@ -280,14 +289,32 @@ class Api:
             return {"run": self.floatRun, "logs": logs, "running": snapshot["running"], "elapsed": snapshot["elapsed"], "stopKey": str(self.config.get("stopKey", "")), "position": str(self.config.get("floatLogPosition", "screen")), "autoClose": str(self.config.get("floatLogAutoClose", "True")).lower() == "true", "theme": str(self.config.get("floatLogTheme", "dark")), "canStart": self._floatKey in FLOAT_START_BUTTONS, "task": FLOAT_TASK_NAMES.get(self._floatKey, "")}
 
     def apiFloatStart(self):
-        """浮動日誌的「開始」: 替主視窗按下上一次運行那個任務的開始鈕，檢查與提示窗都沿用主視窗的流程"""
+        """懸浮日誌的「開始」: 替主視窗按下上一次運行那個任務的開始鈕，檢查與提示窗都沿用主視窗的流程"""
         button = FLOAT_START_BUTTONS.get(self._floatKey)
         if not button or self.isRunning():
             return False
+        probe = "document.querySelector('#dialog').hidden ? 'closed' : 'open'"
         try:
-            webview.windows[0].evaluate_js(f"document.querySelector('{button}').click()")
+            window = webview.windows[0]
+            if window.evaluate_js(probe) != "open":
+                window.evaluate_js(f"document.querySelector('{button}').click()")
+                for _ in range(10):  # 開始鈕會先做檢查才跳出確認框，最多等 2 秒看有沒有跳出來
+                    time.sleep(0.2)
+                    if window.evaluate_js(probe) == "open":
+                        break
+                else:
+                    return True
+            # 主視窗有提示框等著確認(懸浮日誌看不到它)，明確告訴使用者
+            try:
+                window.restore()  # 主視窗可能縮小或被擋住，一併拉出來
+            except Exception:
+                pass
+            now = datetime.datetime.now().strftime("%H:%M:%S")
+            with self.logLock:
+                self.logCounts["float"] += 1
+                self.logs["float"].append({"index": self.logCounts["float"], "msg": f"[{now}] ⚠️ 主視窗跳出提示框，請先回主視窗確認後才會開始"})
         except Exception as e:
-            print(f"浮動日誌無法開始任務: {e}")
+            print(f"懸浮日誌無法開始任務: {e}")
             return False
         return True
 
@@ -298,7 +325,7 @@ class Api:
         return True
 
     def apiSetFloatCollapsed(self, collapsed):
-        """浮動日誌縮小成只剩標題列，或還原"""
+        """懸浮日誌縮小成只剩標題列，或還原"""
         self._logCollapsed = bool(collapsed)
         if self._logHwnd and win32gui.IsWindow(self._logHwnd):
             height = floatlog.COLLAPSED_HEIGHT if self._logCollapsed else floatlog.heightOf(self.config)
@@ -306,7 +333,7 @@ class Api:
         return True
 
     def apiResizeFloat(self, height, anchor="bottom"):
-        """拖拉調整浮動日誌的高度(縮小成標題列時不處理)。anchor 是不動的那一邊: bottom(下緣)或 top(上緣)"""
+        """拖拉調整懸浮日誌的高度(縮小成標題列時不處理)。anchor 是不動的那一邊: bottom(下緣)或 top(上緣)"""
         if getattr(self, "_logCollapsed", False) or not (self._logHwnd and win32gui.IsWindow(self._logHwnd)):
             return False
         height = min(floatlog.MAX_HEIGHT, max(floatlog.MIN_HEIGHT, int(height)))
@@ -320,7 +347,7 @@ class Api:
         return True
 
     def apiSaveFloatLogPos(self):
-        """使用者拖曳浮動日誌後，記住新位置並切到「自訂」位置"""
+        """使用者拖曳懸浮日誌後，記住新位置並切到「自訂」位置"""
         if not (self._logHwnd and win32gui.IsWindow(self._logHwnd)):
             return False
         left, top, right, bottom = win32gui.GetWindowRect(self._logHwnd)
@@ -487,13 +514,6 @@ class Api:
         self.apiClearDish()
         return self.config
 
-    def apiResetThresholds(self):
-        """只把各項目的比對閥值還原成預設值(進階區塊的一鍵重設)，其他設定不動"""
-        if self.isRunning():
-            return None
-        self.config = resetConfig({f"{name}Threshold" for name in DEFAULT_THRESHOLDS})
-        return self.config
-
     def apiGetTemplateImages(self):
         """回傳所有比對模板的圖片，{檔名(不含副檔名): data URL}，讓介面在設定旁邊顯示小圖。
         介面是用本機小型網頁伺服器載入的，讀不到 ui 資料夾以外的檔案，所以經由 API 傳圖。
@@ -557,7 +577,18 @@ class Api:
     def apiWriteSetting(self, key, value):
         writeConfig(key, value)
         self.apiReadSettings()
+        if key in ("controlMode", "floatLogEnabled", "floatLogForeground", "floatLogBackground"):
+            self._hideFloatIfNotWanted()
         return True
+
+    def _hideFloatIfNotWanted(self):
+        """沒有任務運行時，操作模式或懸浮日誌設定改了: 目前的操作模式不顯示懸浮日誌(例如從背景改回前景，而前景沒勾)，就把留著的懸浮日誌收起來"""
+        if self.isRunning() or not self._logShown:
+            return
+        isAdb = self.config.get("controlMode") == "adb"
+        key = "floatLogBackground" if isAdb else "floatLogForeground"
+        if not self._floatEnabled() or str(self.config.get(key, "False")).lower() != "true":
+            self.apiHideFloatLog()
 
     def startCooking(self, confirmed=False):
         if self.isRunning():
@@ -682,7 +713,7 @@ class Api:
         if self.selectLock.locked():
             return {"ok": False, "error": "正在選取範圍，請先完成選取"}
         if self.isRunning():
-            return {"ok": False, "error": "已有任務運行中，採集植物與砍木頭只能擇一使用，請先停止"}
+            return {"ok": False, "error": "已有任務運行中，請先停止"}
 
         def gatherLog(msg):
             self.setLog(msg, kind)
@@ -706,6 +737,39 @@ class Api:
             self.woodTask = WoodCutting(gatherLog, backend, config)
             self.woodTask.start()
         return {"ok": True}
+
+    def apiCropStart(self, remainingSeconds=None):
+        """用設定裡的作物時間與提早秒數開始計時提醒。remainingSeconds: 中途加入時作物還剩幾秒，沒給(或 0)就從頭開始"""
+        self.config = readConfig()
+        try:
+            minutes = float(self.config.get("cropHours", "")) * 60 + float(self.config.get("cropMinutes", ""))
+            lead = float(self.config.get("cropLeadSeconds", ""))
+        except ValueError:
+            return {"ok": False, "error": "請輸入作物時間（小時、分鐘）與提早提醒秒數"}
+        if minutes <= 0:
+            return {"ok": False, "error": "作物時間要大於 0"}
+        if lead < 0:
+            return {"ok": False, "error": "提早提醒秒數不能是負數"}
+        remaining = float(remainingSeconds) if remainingSeconds else None
+        if remaining is not None and remaining > minutes * 60:
+            return {"ok": False, "error": "剩餘時間不能超過作物時間"}
+        if self.cropTask:
+            self.cropTask.stop()
+        self.cropTask = CropReminder(minutes * 60, lead, lambda msg: self.setLog(msg, "crop"), remaining)
+        self.cropTask.start()
+        return {"ok": True}
+
+    def apiCropStop(self):
+        if self.cropTask and self.cropTask.isStart:
+            self.cropTask.stop()
+            self.setLog("已停止拔草提醒", "crop")
+        return True
+
+    def apiCropStatus(self):
+        task = self.cropTask
+        if not task:
+            return {"running": False}
+        return {"running": bool(task.isStart), **task.snapshot()}
 
     def stop(self):
         if self.plantTask:
@@ -735,7 +799,7 @@ class Api:
     def apiGetStatus(self):
         status = {"cooking": False, "snowCarving": False, "fishing": False, "plant": False, "wood": False}
         status["runs"] = {key: self._runSnapshot(key) for key in RUN_KEYS}
-        status["floatLogPosition"] = self.config.get("floatLogPosition", "screen")  # 拖曳浮動日誌會自動切到「自訂」，讓設定頁跟著變
+        status["floatLogPosition"] = self.config.get("floatLogPosition", "screen")  # 拖曳懸浮日誌會自動切到「自訂」，讓設定頁跟著變
 
         if self.plantTask and getattr(self.plantTask, "isStart", False):
             status["plant"] = True
