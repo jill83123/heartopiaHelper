@@ -250,7 +250,7 @@ body {
   width: 90px;
   height: 24px;
   right: calc(max(24px, (100% - 504px) / 2) + 56px); /* 避開右上角的設定齒輪 */
-  top: 16px;
+  top: 28px; /* 上面的圓凸出 18px，要留夠位置才不會被切到 */
 }
 .cloud.a::before {
   width: 36px;
@@ -267,8 +267,8 @@ body {
 .cloud.b {
   width: 60px;
   height: 16px;
-  right: calc(max(24px, (100% - 504px) / 2) + 170px);
-  top: 40px;
+  right: calc(max(24px, (100% - 504px) / 2) + 156px);
+  top: 46px;
   opacity: 0.6;
 }
 .cloud.b::before {
@@ -347,8 +347,8 @@ body {
 .hero-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px 6px 8px;
+  gap: 0; /* 名稱與「運行中」緊接，不空一格 */
+  padding: 6px 12px;
   border-radius: var(--r-pill);
   background: var(--surface);
   color: var(--text);
@@ -363,13 +363,21 @@ body {
   flex: none;
   width: 14px;
   height: 14px;
-  color: var(--sky-deep);
+  margin-right: 6px;
+  color: var(--text-3);
 }
 .hero-badge small {
   color: var(--success);
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
+}
+.hero-badge small {
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--success); /* 綠色狀態燈，代表運行中 */
 }
 .hero-running:empty {
   display: none;
@@ -1927,8 +1935,26 @@ details.section > summary::before {
 }
 
 /* 食物名稱、星級那一列直接接在「吃食物」後面時，也和子選項對齊同一條線 */
+.check.no-icon:not(.sub) + .row,
 .options > .check.no-icon:not(.sub) + .row {
   padding-left: 46px;
+}
+
+/* 採集的食物設定(名稱、星級、保留最後一次)用虛線框成一組，縮進到「吃食物」的子層 */
+.food-group {
+  margin: 16px 0 24px 30px; /* 30 + 內距 16 = 46，裡面的欄位和上面的子選項對齊同一條線；下方 24px 讓框到分隔線的距離和上方「吃食物」到分隔線一樣 */
+  padding: 16px; /* 左右留一樣寬 */
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 10px;
+}
+.food-group > .row {
+  padding-left: 0 !important;
+  margin-top: 0 !important;
+}
+.food-group > .check {
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
 }
 
 /* 釣魚項目上下排列的間距統一 8px: 母選項、子選項、食物名稱那一列之間都一樣，不另外加上下留白 */

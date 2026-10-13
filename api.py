@@ -51,7 +51,6 @@ GATHER_FOOD_KEYS = (
     "FoodName",
     "FoodStars",
     "FoodUntil",
-    "FoodLock",
     "RepairEnabled",
     "UseRepair",
     "RepairLeave",

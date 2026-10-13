@@ -473,7 +473,6 @@ CONFIG_DEFAULTS = {
     "woodFoodName": "",
     "woodFoodStars": "14",
     "woodFoodUntil": "99",
-    "woodFoodLock": "True",
     "woodRepairEnabled": "True",
     "woodUseRepair": "False",
     "woodRepairLeave": "True",
