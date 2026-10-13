@@ -56,7 +56,7 @@ class ScreenBackend:
     def __init__(self, gameWindowTitle=""):
         self.scaleResolver = ScaleResolver()
         self.gameWindowTitle = gameWindowTitle
-        self._floatPassing = False  # 浮動日誌目前是不是處於「點擊穿透」
+        self._floatPassing = False  # 懸浮日誌目前是不是處於「點擊穿透」
         self._floatTimer = None
 
     def _findGame(self):
@@ -81,7 +81,7 @@ class ScreenBackend:
             raise GameWindowLostError(f"找不到遊戲視窗「{self.gameWindowTitle}」，遊戲可能已關閉")
 
     def _passThroughFloatLog(self, x, y):
-        """要操作的位置被浮動日誌蓋住時，讓它暫時不吃滑鼠(不然會點到它的按鈕，例如停止)；沒蓋住就維持正常"""
+        """要操作的位置被懸浮日誌蓋住時，讓它暫時不吃滑鼠(不然會點到它的按鈕，例如停止)；沒蓋住就維持正常"""
         rect = floatlog.visibleRect()
         covered = bool(rect) and rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]
         if covered != self._floatPassing:

@@ -2,7 +2,7 @@
 <html lang="zh-TW">
   <head>
     <meta charset="UTF-8" />
-    <title>浮動日誌</title>
+    <title>懸浮日誌</title>
     <style>
       /* 字體和主視窗相同，隨程式一起打包，不依賴網路 (授權見 fonts/OFL-*.txt) */
       @font-face {
@@ -317,7 +317,7 @@
         startBtn.disabled = res.running || !res.canStart;
         dotEl.classList.toggle('on', res.running);
         dotEl.title = res.running ? '運行中' : '未運行';
-        // 停止運行就把浮動視窗一併關掉(設定頁可關閉這個行為)
+        // 停止運行就把懸浮視窗一併關掉(設定頁可關閉這個行為)
         if (wasRunning && !res.running && res.autoClose) window.pywebview.api.apiHideFloatLog();
         wasRunning = res.running;
       };
