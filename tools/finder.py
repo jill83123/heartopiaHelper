@@ -18,14 +18,8 @@ NO_LOCK_TEMPLATES = ("repairBoxItem.png", "castBadge.png")  # 背景稍微亂一
 
 
 def getBaseScale(backend, config):
-    """模板的基準縮放: 依解析度換算；前景模式再乘上遊戲內介面縮放比例(模擬器畫面固定，不適用)"""
-    scale = getScaleWithResolution(backend.getScaleWidth(config))
-    if config.get("controlMode", "screen").lower() != "adb":
-        try:
-            scale *= float(config.get("uiScale", "100")) / 100
-        except ValueError:
-            pass
-    return scale
+    """模板的基準縮放: 依解析度換算(遊戲內的介面縮放須為 100%)"""
+    return getScaleWithResolution(backend.getScaleWidth(config))
 
 
 def resolveScale(backend, config, img, templatePath):

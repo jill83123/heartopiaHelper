@@ -1577,6 +1577,16 @@ details.section[open] > summary {
 .section-body > .title-note:first-child {
   margin-top: 0;
 }
+/* 前景設定: 欄位下方的小字和下拉選單拉開一點；內容上下的留白一樣(上方是標題列的 16px + 2px，下方不再疊加欄位列的 16px) */
+.setting-note {
+  margin-top: 10px;
+}
+.section-body.foreground-body {
+  padding-bottom: 18px;
+}
+.section-body.foreground-body > .row:last-child {
+  margin-bottom: 0;
+}
 
 /* 設定頁的懸浮日誌: 和釣魚頁一樣是「標題＋啟用開關」，關閉時下面的設定收起來，開啟後用分隔線區隔 */
 .check.float-log-head {
@@ -1967,6 +1977,12 @@ details.section > summary::before {
 .options > .row {
   margin-top: 0;
   padding-top: 0;
+}
+/* 子選項裡的數字輸入框(例如「定時丟，每 15 分鐘」)比一般列高 10px，會把開關往下推，和上下其他子選項的間距不一樣；
+   上下各縮 5px，讓這一列的高度和其他子選項一樣(框本身仍是原本的大小) */
+.options > .check.sub .qty {
+  margin-top: -5px;
+  margin-bottom: -5px;
 }
 
 /* 前景定時各區塊內距加大: 分隔線上下留白、母子選項之間拉開 */
