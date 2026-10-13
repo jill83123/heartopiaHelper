@@ -279,7 +279,7 @@ class Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI):
                     continue
                 if self._baitUnchecked():
                     self._traceChange("還沒確認魚尾", "主畫面不拋竿")
-                    continue  # 還沒確認水面有沒有魚尾(有的話不放誘魚器，沒有就要放)，確認前不拋竿
+                    continue  # 還沒確認水面有沒有魚尾(有的話不丟誘魚器，沒有就要丟)，確認前不拋竿
                 if self._missingSince is not None and "perfume" not in self.disabled:
                     self._traceChange("看不到香水圖示，等反應時間", "主畫面不拋竿")
                     continue  # 看不到香水圖示，正在等一兩秒的反應時間再補噴；這時不能拋竿，否則一拋竿計時就重來，永遠噴不到

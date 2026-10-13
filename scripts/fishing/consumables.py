@@ -1,6 +1,6 @@
-"""釣魚的消耗品: 香水（噴到有效果、補噴）與誘魚器（依水面的魚尾光柱判斷要不要放）。
+"""釣魚的消耗品: 香水（噴到有效果、補噴）與誘魚器（依水面的魚尾光柱判斷要不要丟）。
 要搭配 GameUI、TimedTasks 使用。香水是固定時效（120 秒），圖示會被灰色逐漸蓋住，從蓋住的角度可以估剩餘量；
-誘魚器放下去水面會出現魚尾光柱，看不到光柱就是效果結束了。道具在「釣魚用品」分類裡，開背包後要先切到那個分類"""
+誘魚器丟下去水面會出現魚尾光柱，看不到光柱就是效果結束了。道具在「釣魚用品」分類裡，開背包後要先切到那個分類"""
 
 import random
 import time
@@ -11,7 +11,7 @@ from scripts.common.tasks import MAX_TASK_FAILURES, OutOfStock
 from tools.tools import loadTemplate
 
 ITEM_DURATION = {"perfume": 120, "bait": 60}
-ITEM_INTERVAL = {"perfume": 123, "bait": 63}  # 道具是固定時效，間隔不開放設定(誘魚器只在沒勾「水面有了就不放」時照這個間隔放)
+ITEM_INTERVAL = {"perfume": 123, "bait": 63}  # 道具是固定時效，間隔不開放設定(誘魚器只在沒勾「水面有了就不丟」時照這個間隔丟)
 PERFUME_REACTION_RANGE = (6.0, 9.0)  # 圖示要「連續」消失這麼久(秒)才補噴，避免閃爍、被遮住或偶爾認不出來就誤噴。香水很珍貴，寧可慢一點
 CASTING_LOOK_SECONDS = 40  # 拋竿中看不到圖示；有香水魚很快上鉤，連續拋竿超過這麼久都沒釣到魚，就收竿回主畫面看看香水還在不在
 START_PERFUME_CHECKS = 8  # 剛開始運行時，主畫面連續這麼多次看不到香水圖示才噴(約 2 秒)，避免漏看
@@ -22,12 +22,12 @@ PERFUME_EXPIRED_REACTION_RANGE = (1.5, 3.0)  # 自己噴的香水，已超過持
 PERFUME_EXPIRED_MISS_FRAMES = 5  # 同上，補噴前至少連續這麼多次偵測都看不到圖示
 PERFUME_MISS_FRAMES = 10  # 補噴前，至少要連續這麼多次偵測都看不到圖示
 PERFUME_RECHECK = 3  # 決定要噴之前，最後再各隔 0.4 秒重新截圖確認的次數
-BAIT_PLACED_GRACE = 15  # 放完誘魚器後，水面的魚尾光柱要多久內出現(秒)；這段時間不重複判斷
-BAIT_MISS_READS_EXPIRED = 3  # 放下去已經超過誘魚器的時效，要連續這麼多次看不到魚尾就算結束
-BAIT_MISS_READS = 8  # 水面連續這麼多次都看不到魚尾，才算誘魚器沒效果了、需要再放
-BAIT_CAST_MISS_SECONDS = 10  # 拋竿中看不到魚尾，要連續這麼久(秒)才收竿去放誘魚器
-BAIT_NOT_SEEN_LIMIT = 2  # 連續放了這麼多次都看不到魚尾，就不再靠魚尾判斷，改回照間隔時間放
-TAIL_BEAM_SIZE = (35, 200, 35, 220)  # 魚尾光柱的寬、高範圍: 最小寬、最大寬、最小高、最大高(1600 寬為基準)
+BAIT_PLACED_GRACE = 15  # 丟完誘魚器後，水面的魚尾光柱要多久內出現(秒)；這段時間不重複判斷
+BAIT_MISS_READS_EXPIRED = 3  # 丟下去已經超過誘魚器的時效，要連續這麼多次看不到魚尾就算結束
+BAIT_MISS_READS = 8  # 水面連續這麼多次都看不到魚尾，才算誘魚器沒效果了、需要再丟
+BAIT_CAST_MISS_SECONDS = 10  # 拋竿中看不到魚尾，要連續這麼久(秒)才收竿去丟誘魚器
+BAIT_NOT_SEEN_LIMIT = 2  # 連續丟了這麼多次都看不到魚尾，就不再靠魚尾判斷，改回照間隔時間丟
+TAIL_BEAM_SIZE = (30, 200, 26, 220)  # 魚尾光柱的寬、高範圍: 最小寬、最大寬、最小高、最大高(1600 寬為基準)。光柱上半段會淡出，白青色的部分實測約 38x33，高度太嚴會剛好差一點而認不出來(形狀另外有高寬比限制)
 TAIL_BEAM_FILL = 0.74  # 光柱的方框裡至少要有多少比例是白青色(實測光柱 0.82~0.85，容易誤判的海浪、水圈在 0.73 以下)
 TAIL_BEAM_MIN_TOP = 0.12  # 光柱的上緣至少要在畫面高度的這個比例以下(實測光柱都在 0.25 以下)
 TAIL_BEAM_FILL_LOW = 0.68  # 光柱被遮住或閃爍時的最低填滿比例(要搭配更高的亮度)
@@ -58,12 +58,12 @@ class ConsumablesMixin:
         self._tailHits = []  # 最近幾次偵測有沒有魚尾光柱
         self._baitChecked = False  # 依魚尾判斷誘魚器時，這次運行有沒有確認過水面的魚尾(確認前不能拋竿)
         self._ownSpray = False  # 目前的香水是不是這次運行自己噴的(才知道它什麼時候會到期)
-        self._baitSeen = False  # 放完誘魚器後有沒有看過水面的魚尾
+        self._baitSeen = False  # 丟完誘魚器後有沒有看過水面的魚尾
         self._castMissSince = None  # 拋竿中從什麼時候開始連續看不到魚尾
         self._baitMiss = 0  # 水面連續幾次看不到魚尾
-        self._baitNotSeen = 0  # 連續幾次放完都沒看到魚尾
-        self._tailOff = False  # 魚尾偵測看起來沒作用，改回照間隔時間放誘魚器
-        self._tailLogged = None  # 上次記到日誌的魚尾狀態(True 有、False 沒有、None 還沒到放誘魚器的時間)
+        self._baitNotSeen = 0  # 連續幾次丟完都沒看到魚尾
+        self._tailOff = False  # 魚尾偵測看起來沒作用，改回照間隔時間丟誘魚器
+        self._tailLogged = None  # 上次記到日誌的魚尾狀態(True 有、False 沒有、None 還沒到丟誘魚器的時間)
 
     def _interval(self, name):
         if name in ITEM_INTERVAL:
@@ -145,16 +145,16 @@ class ConsumablesMixin:
         return sum(self._tailHits) >= TAIL_CONFIRM_HITS
 
     def _baitMissNeeded(self):
-        """要連續幾次看不到魚尾才算效果結束。誘魚器是固定時效，放下去超過時效還看不到魚尾就很確定結束了，不用再等那麼多次"""
+        """要連續幾次看不到魚尾才算效果結束。誘魚器是固定時效，丟下去超過時效還看不到魚尾就很確定結束了，不用再等那麼多次"""
         last = self.lastDone.get("bait")
         if last is not None and time.time() - last >= ITEM_DURATION["bait"]:
             return BAIT_MISS_READS_EXPIRED
         return BAIT_MISS_READS
 
     def _baitDue(self, img):
-        """依水面的魚尾光柱判斷要不要放誘魚器(不看間隔時間):
-        有魚尾 = 效果中，不需要放；剛放完 = 等魚尾出現；連續幾次都看不到魚尾 = 效果結束，需要放。
-        放完卻一直看不到魚尾(偵測不到或沒放成功)，就改回照間隔時間放，以免一直浪費誘魚器"""
+        """依水面的魚尾光柱判斷要不要丟誘魚器(不看間隔時間):
+        有魚尾 = 效果中，不需要丟；剛丟完 = 等魚尾出現；連續幾次都看不到魚尾 = 效果結束，需要丟。
+        丟完卻一直看不到魚尾(偵測不到或沒丟成功)，就改回照間隔時間丟，以免一直浪費誘魚器"""
         last = self.lastDone.get("bait")
         if self._seenTail(img):
             if self._baitMiss:
@@ -175,17 +175,17 @@ class ConsumablesMixin:
             self._baitSeen = True  # 這一次已經算過了
             if self._baitNotSeen >= BAIT_NOT_SEEN_LIMIT:
                 self._tailOff = True
-                self.setLog(f"⚠️ 連續 {self._baitNotSeen} 次放完誘魚器都看不到魚尾，不再靠魚尾判斷，改照間隔時間放")
+                self.setLog(f"⚠️ 連續 {self._baitNotSeen} 次丟完誘魚器都看不到魚尾，不再靠魚尾判斷，改照間隔時間丟")
                 return self._isDue("bait", img)
         self._baitMiss += 1
         if self._baitMiss < self._baitMissNeeded():
             return False
         self._baitChecked = True
-        self._baitState("needed", "水面沒有魚尾，需要放誘魚器")
+        self._baitState("needed", "水面沒有魚尾，需要丟誘魚器")
         return True
 
     def _baitUnchecked(self):
-        """依魚尾判斷誘魚器時，這次運行還沒確認過水面的魚尾(看到魚尾，或確認沒有而要放誘魚器)"""
+        """依魚尾判斷誘魚器時，這次運行還沒確認過水面的魚尾(看到魚尾，或確認沒有而要丟誘魚器)"""
         return (
             self._flag("fishingUseBait")
             and self._flag("fishingSkipTail")

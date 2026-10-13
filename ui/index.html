@@ -216,11 +216,11 @@
           <div class="check mb-8">
             <input type="checkbox" class="setting-check" id="fishingUseBait" data-key="fishingUseBait" />
             <span class="item-icon"><img data-tpl="iconBait" alt="" hidden /></span>
-            <label for="fishingUseBait">放誘魚器</label>
+            <label for="fishingUseBait">定時丟誘魚器</label>
           </div>
           <div class="check sub no-icon mb-8">
             <input type="checkbox" class="setting-check" id="fishingSkipTail" data-key="fishingSkipTail" />
-            <label for="fishingSkipTail">水面有了就不放</label>
+            <label for="fishingSkipTail">水面有了就不丟</label>
           </div>
 
           <div class="check mb-8">
@@ -486,7 +486,7 @@
                 <span class="section-hint">遊戲解析度、介面縮放</span>
               </span>
             </summary>
-            <div class="section-body">
+            <div class="section-body foreground-body">
           <div class="row">
             <div class="col">
               <label for="screenResolution" class="label">遊戲解析度</label>
@@ -496,14 +496,14 @@
                 <option value="1366x768">1366x768</option>
                 <option value="1280x720">1280x720</option>
               </select>
+              <div class="muted fs-12 setting-note">＊ 電腦 1600x900、模擬器 1280x720 較為穩定</div>
             </div>
             <div class="col">
               <label for="uiScale" class="label">介面縮放比例</label>
               <select id="uiScale" class="setting input" data-key="uiScale">
-                <option value="75">75%</option>
-                <option value="85">85%</option>
                 <option value="100">100%</option>
               </select>
+              <div class="muted fs-12 setting-note">＊ 目前僅支援 100%</div>
             </div>
           </div>
             </div>
