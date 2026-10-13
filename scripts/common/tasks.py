@@ -1,11 +1,11 @@
-"""定時項目(丟維修盒、吃食物，釣魚還有噴香水、放誘魚器)的排程與執行: 什麼時候該做、做失敗怎麼辦。
+"""定時項目(丟維修盒、吃食物，釣魚還有噴香水、丟誘魚器)的排程與執行: 什麼時候該做、做失敗怎麼辦。
 要搭配 GameUI 使用(用到它的截圖、點擊、背包操作)。子類別要實作 _enabledTasks(依執行順序列出啟用的項目)與每個項目的 _doXxx"""
 
 import random
 import time
 
 INTERVAL_JITTER = 0.1  # 每次間隔額外延後 0~10%
-MAX_TASK_FAILURES = 3  # 噴香水、吃食物、放誘魚器連續失敗幾次就不再嘗試
+MAX_TASK_FAILURES = 3  # 噴香水、吃食物、丟誘魚器連續失敗幾次就不再嘗試
 TOOL_BROKEN_RETRY = 40  # 丟完維修盒後，這麼久(秒)內提示還在畫面上也不再重複丟
 
 
@@ -16,7 +16,7 @@ class OutOfStock(RuntimeError):
 class TimedTasks:
     """定時項目的排程與執行。使用前先呼叫 _initTasks()"""
 
-    LABELS = {"repair": "丟維修盒", "food": "吃食物", "perfume": "噴香水", "bait": "放誘魚器"}
+    LABELS = {"repair": "丟維修盒", "food": "吃食物", "perfume": "噴香水", "bait": "丟誘魚器"}
 
     def _initTasks(self):
         self.lastDone = {}  # 項目名稱 -> 上次執行的時間

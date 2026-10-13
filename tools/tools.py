@@ -652,6 +652,8 @@ def migrateConfig():
     current = _readConfigFile()
     added = {k: v for k, v in CONFIG_DEFAULTS.items() if k not in current}
     fixed = {k: CONFIG_DEFAULTS[k] for k, v in current.items() if k in CONFIG_DEFAULTS and not _isValidLike(CONFIG_DEFAULTS[k], v)}
+    if current.get("uiScale", "100") != "100":  # 介面縮放目前只支援 100%，以前存的 75、85 換回 100(下拉選單已經沒有那些選項)
+        fixed["uiScale"] = "100"
     if not added and not fixed and current.get("configVersion") == str(CONFIG_VERSION) and current.get("floatLogPosition") != "game":
         return []
     shutil.copyfile(path, getUserDataPath("config.ini.bak"))
