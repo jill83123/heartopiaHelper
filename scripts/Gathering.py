@@ -295,7 +295,6 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
             self._markDone("repair")
         self.backend.focusGame()
         self._wakeMouse(stopEvent)
-        self._lockFoodAtStart(stopEvent)
         if stopEvent.is_set():
             return
         self._lastIcon = self._lastBubble = time.time()
@@ -335,6 +334,9 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
                             return
                         self._runTask(name, fn, stopEvent)
                         self._closeBag(stopEvent)
+                        if name == "food" and self._meals:
+                            self.setLog("吃完食物，再採集一輪")
+                            nextAt = time.time()  # 體力不足那一輪沒採成，吃完馬上補採
                     continue
 
             if not gatherDue:

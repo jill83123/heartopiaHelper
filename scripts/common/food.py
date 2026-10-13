@@ -47,7 +47,6 @@ TYPED_WAIT = 8  # 模擬器貼上食物名稱後，最多等幾秒讓輸入框�
 TYPED_MIN_DARK = 40  # 輸入框裡至少有幾個深色像素才算有字(1600 寬為基準前的原始像素數)
 SEARCH_INPUT_OFFSET = -385  # 搜尋輸入框在「搜尋」按鈕左邊多遠
 KEEP_WAIT_SECONDS = 8  # 搜尋後最多等幾秒讓結果畫面的「保持結果」開關出現(模擬器卡的時候很慢)
-LOCK_SETTLE_SECONDS = 4  # 開始時固定食物搜尋結果: 按下搜尋後再多等幾秒才關背包
 
 _ocrReported = False  # OCR 狀態是否已經提示過(程式開著期間只提示一次)
 
@@ -55,7 +54,7 @@ _ocrReported = False  # OCR 狀態是否已經提示過(程式開著期間只提
 class FoodMixin:
     """吃食物。使用前先呼叫 _initFood()"""
 
-    foodLockSupported = False  # 這個功能可不可以鎖定食物搜尋結果(還要使用者勾了「保持結果」)
+    foodLockSupported = False  # 這個功能可不可以鎖定食物搜尋結果(體力耗盡第一次搜尋食物時順便鎖定)
 
     def _initFood(self):
         self._hungry = False  # 看到「體力不足，吃點東西吧」提示了，要吃食物
@@ -71,7 +70,6 @@ class FoodMixin:
         self._lockedEating = False  # 正在吃鎖定的搜尋結果(背包可能停在別的篩選，找不到時要重新搜尋)
         self._foodSearchPos = None  # 搜尋食物時背包「搜尋」圖示的位置，用來推算食物格子
         self._foodLocked = False  # 背包已經鎖在食物的搜尋結果
-        self._lockOnly = False  # 開始時只固定搜尋結果、不吃
 
     def _checkHunger(self, img):
         """體力見底時按互動鍵只會跳出「體力不足」提示，提示很快就消失，所以按完要立刻看，不能等到主迴圈"""
@@ -269,8 +267,6 @@ class FoodMixin:
         return int(cv2.cvtColor(img[y : y + 1, x : x + 1], cv2.COLOR_BGR2HSV)[0, 0, 1]) >= TILE_MIN_SATURATION
 
     def _shouldEat(self, bagImg):
-        if self._lockOnly:  # 開始時只是要把搜尋結果固定住，不管飽不飽都走完搜尋，但不吃
-            return True
         satiety = self._satiety(bagImg)  # 背包已經打開了，順便看一下，已經夠飽就不吃(讀不到就照提示吃)
         if satiety is not None and satiety >= self._foodUntil():
             self.setLog(f"飽食度 {satiety}%，已達 {self._foodUntil()}%")
@@ -321,7 +317,7 @@ class FoodMixin:
         return None
 
     def _lockWanted(self):
-        return self.foodLockSupported and self._flag("fishingFoodLock")
+        return self.foodLockSupported
 
     def _eatOnce(self, stopEvent):
         if self._foodLocked and self._foodSearchPos and self._lockWanted():
@@ -431,28 +427,8 @@ class FoodMixin:
             return None
         return result
 
-    def _lockFoodAtStart(self, stopEvent):
-        """剛開始執行時先搜尋一次食物並開啟「保持結果」，之後要吃時就直接點，不用等到餓了才第一次搜尋。這次不吃"""
-        if not (self._flag("fishingUseFood") and self._lockWanted()) or "food" in self.disabled:
-            return
-        self.setLog("先鎖定食物搜尋結果")
-        self._lockOnly = True
-        try:
-            self._runTask("food", self._doFood, stopEvent)
-        finally:
-            self._lockOnly = False
-        self._failCount.pop("food", None)  # 開始時鎖定失敗不算吃食物失敗，不然真正要吃時少了一次機會
-        self.lastDone.pop("food", None)  # 不是真的吃過，不要擋住之後的「體力不足」判斷
-        self._hungry = False
-        self._closeBag(stopEvent)
-
     def _eatFromResults(self, img, searchPos, name, stars, stopEvent):
         """吃搜尋結果裡的食物。吃完飽食度還低於設定值時，背包不關、搜尋結果也不重搜，直接接著吃下一份"""
-        if self._lockOnly:
-            # 搜尋剛按下去，模擬器卡的時候結果還沒套用，太早關背包可能固定不成功，多等一下
-            if stopEvent.wait(LOCK_SETTLE_SECONDS):
-                return False
-            return self._closeBag(stopEvent)
         for meal in itertools.count():  # 不限份數，吃到達標、沒食物或按停止為止
             result = self._eatPass(img, searchPos, name, stars, stopEvent, meal > 0, self._eatStart)
             if result != "again":

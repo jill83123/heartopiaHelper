@@ -314,10 +314,7 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, tool }) => {
       <span class="muted fs-12">%</span>
       ${resetIcon(`${p}FoodUntil`)}
     </div>
-    <div class="check sub no-icon mb-16">
-      <input type="checkbox" class="setting-check" id="${p}FoodLock" data-key="${p}FoodLock" />
-      <label for="${p}FoodLock" title="第一次搜尋時開啟遊戲的「下次開啟背包保持該結果」，之後開背包就直接停在這份食物">鎖定食物，背包保持搜尋結果</label>
-    </div>
+    <div class="food-group">
     <div class="row mb-8">
       <div class="col">
         <label for="${p}FoodName" class="label">食物名稱（背包搜尋用）</label>
@@ -337,9 +334,10 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, tool }) => {
         </select>
       </div>
     </div>
-    <div class="check sub no-icon mb-16">
+    <div class="check no-icon">
       <input type="checkbox" class="setting-check" id="${p}FoodKeepLast" data-key="${p}FoodKeepLast" />
       <label for="${p}FoodKeepLast">保留最後一次不吃</label>
+    </div>
     </div>
 
     <hr />`
@@ -887,7 +885,7 @@ const syncChildVisibility = () => {
   document.querySelectorAll('.check:not(.sub)').forEach((parent) => {
     const toggle = parent.querySelector(':scope > .setting-check');
     if (!toggle) return;
-    for (let el = parent.nextElementSibling; el && el.matches('.check.sub, .row'); el = el.nextElementSibling) {
+    for (let el = parent.nextElementSibling; el && el.matches('.check.sub, .row, .food-group'); el = el.nextElementSibling) {
       if (!el.matches('.always-on')) el.classList.toggle('child-off', !toggle.checked); // always-on: 不隨母選項隱藏的說明列
     }
   });
@@ -1450,18 +1448,12 @@ const renderHeroRunning = (items) => {
   if (key === heroRunningKey) return;
   heroRunningKey = key;
   document.querySelector('#heroRunning').replaceChildren(
-    ...running.map(([name, icon]) => {
+    ...running.map(([name]) => {
       const badge = document.createElement('span');
       badge.className = 'hero-badge';
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('class', 'icon');
-      svg.setAttribute('aria-hidden', 'true');
-      const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-      use.setAttribute('href', `#${icon}`);
-      svg.append(use);
-      const state = document.createElement('small');
-      state.textContent = '運行中';
-      badge.append(svg, name, state);
+      const state = document.createElement('small'); // 名稱前面的綠色狀態燈(樣式在 CSS)，文字放在提示裡
+      badge.title = `${name}運行中`;
+      badge.append(state, name);
       return badge;
     })
   );
