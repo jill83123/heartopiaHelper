@@ -1,6 +1,6 @@
 import random
 import time
-from scripts.base import BaseTask
+from scripts.common.base import BaseTask
 from tools.finder import clickBackButton
 
 CLICK_DELAY_RANGE = (0.02, 0.1)  # 點擊前隨機多等一小段時間(秒)，不要每次都一樣的節奏
@@ -18,6 +18,8 @@ class SnowCarving(BaseTask):
         return [self._detectLoop]
 
     def _detectLoop(self, stopEvent):
+        self.backend.focusGame()  # 前景模式: 先把遊戲拉到最上層，再解除卡滑鼠(模擬器模式不做事)
+        self._wakeMouse(stopEvent)
         frequency = float(self.config.get("snowDetectFrequency"))
 
         while not stopEvent.wait(frequency):

@@ -112,6 +112,12 @@ body {
 .m-0 {
   margin: 0 !important;
 }
+.update-ok {
+  color: var(--success);
+}
+.update-new {
+  color: var(--warn-text);
+}
 .ml-12 {
   margin-left: 16px !important;
 }
@@ -189,9 +195,9 @@ body {
 /* 頁首：天空漸層 + 雲朵，分頁放在裡面 */
 .hero {
   position: relative;
-  overflow: hidden;
-  padding: 16px 24px 24px;
-  margin-bottom: 16px;
+  z-index: 5; /* 小工具選單會蓋到下方內容 */
+  padding: 16px 24px 12px;
+  margin-bottom: 4px;
   background: linear-gradient(180deg, #6cbdee 0%, #a9dcf7 72%, var(--bg) 100%);
 }
 @media (prefers-color-scheme: dark) {
@@ -204,8 +210,15 @@ body {
   max-width: 504px;
   margin: 0 auto;
 }
+.hero-top {
+  display: flex;
+  align-items: center; /* 標題與運行中標籤垂直置中 */
+  gap: 16px;
+  margin-bottom: 12px;
+  padding-right: 48px; /* 右上角留給設定齒輪 */
+}
 .hero-title {
-  margin: 0 0 12px;
+  margin: 0;
   color: #fff;
   font-size: 22px;
   font-weight: 700;
@@ -236,8 +249,8 @@ body {
 .cloud.a {
   width: 90px;
   height: 24px;
-  right: 24px;
-  top: 16px;
+  right: calc(max(24px, (100% - 504px) / 2) + 56px); /* 避開右上角的設定齒輪 */
+  top: 28px; /* 上面的圓凸出 18px，要留夠位置才不會被切到 */
 }
 .cloud.a::before {
   width: 36px;
@@ -254,8 +267,8 @@ body {
 .cloud.b {
   width: 60px;
   height: 16px;
-  right: 140px;
-  top: 40px;
+  right: calc(max(24px, (100% - 504px) / 2) + 156px);
+  top: 46px;
   opacity: 0.6;
 }
 .cloud.b::before {
@@ -324,6 +337,239 @@ body {
   box-shadow: var(--shadow-1);
 }
 
+/* 頁首標題右側: 目前運行中的功能標籤，直向排列，超過兩個就排成兩欄 */
+.hero-running {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0; /* 名稱與「運行中」緊接，不空一格 */
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--shadow-1);
+}
+.hero-badge .icon {
+  display: block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  color: var(--text-3);
+}
+.hero-badge small {
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.hero-badge small {
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--success); /* 綠色狀態燈，代表運行中 */
+}
+.hero-running:empty {
+  display: none;
+}
+
+/* 小工具: 滑鼠移上去或點擊展開選單 */
+.tool-wrap {
+  position: relative;
+}
+.tool-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0; /* 小工具在分頁列最右邊，往左展開才不會超出視窗 */
+  width: max-content; /* 依選項內容決定寬度 */
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-1);
+  z-index: 10;
+}
+.tool-menu::before {
+  content: ''; /* 補上按鈕與選單間的縫隙，滑鼠移過去才不會斷掉 */
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -12px;
+  height: 12px;
+}
+.tool-wrap:hover > .tool-menu,
+.tool-wrap.open > .tool-menu {
+  display: block;
+}
+.tool-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1em;
+  padding: 8px 12px;
+  border-radius: 10px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tool-item .icon {
+  margin-left: -2px; /* 圖示框內側本來就有留白，往左補回去，視覺上左右留白才一樣 */
+}
+.tool-item.active {
+  color: var(--sky-deep);
+  font-weight: 600;
+}
+.tool-item:hover,
+.tool-item:focus-visible {
+  background: var(--sky-soft, rgba(108, 189, 238, 0.18));
+  outline: none;
+}
+
+/* 設定齒輪: 放在頁首標題列右側，不佔分頁列的位置 */
+.tab.gear {
+  position: absolute;
+  top: 4px; /* 和兩行標題(約 44px 高)垂直置中 */
+  right: 0;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.65); /* 和分頁列同樣的膠囊底 */
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+}
+.tab.gear:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+@media (prefers-color-scheme: dark) {
+  .tab.gear {
+    background: rgba(31, 45, 66, 0.7);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  .tab.gear:hover {
+    background: rgba(31, 45, 66, 0.9);
+  }
+}
+.tab.gear.active {
+  background: var(--surface);
+  color: var(--sky-deep);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
+}
+.tab.gear .icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* 農作物長草提醒的時間表 */
+hr:has(+ .run-head) {
+  margin-top: 24px; /* 和下方「運行」標題到分隔線的視覺距離一樣 */
+}
+/* 上面的區塊收起來(例如背景定時沒啟用、沒勾吃食物)時，分隔線直接接在標題下方，維持原本的間距 */
+.alt-only[hidden] + hr,
+.fg-only[hidden] + hr,
+.child-off + hr {
+  margin-top: 16px;
+}
+.title.crop-title {
+  margin-bottom: 4px;
+}
+.crop-desc {
+  margin: 0 0 24px;
+}
+.crop-card {
+  margin-top: 24px;
+  padding: 20px 20px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.crop-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 16px;
+}
+.crop-time {
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--sky-deep);
+}
+.crop-actions {
+  display: flex;
+  gap: 8px;
+}
+.crop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.crop-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px dashed var(--border-strong);
+}
+.crop-list li::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sky-deep);
+  opacity: 0.35;
+}
+.crop-list li span:last-child {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.crop-list li.done {
+  color: var(--text-3);
+}
+.crop-list li.done span:last-child {
+  color: var(--text-3);
+}
+.crop-list li.done span:last-child::before {
+  content: '✅ ';
+  opacity: 0.45; /* 彩色表情符號不會跟著文字變淺，另外壓低透明度 */
+}
+.crop-list li.next {
+  font-weight: 600;
+  color: var(--sky-deep);
+}
+.crop-list li.next::before {
+  opacity: 1;
+}
+.crop-list li.next span:last-child {
+  color: var(--sky-deep);
+}
+
 /* 每個分頁內容就是一張卡片 */
 .pane {
   display: none;
@@ -346,7 +592,7 @@ body {
   font-size: 1.15em;
   font-weight: 700;
   margin-top: 0;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 .title::before {
   content: '';
@@ -361,6 +607,43 @@ body {
   font-size: 0.93em;
   font-weight: 600;
   margin-bottom: var(--field-gap);
+}
+/* 設定列: 名稱在左、控制項接在同一行 */
+.setting-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.setting-line > .label {
+  flex: none;
+  width: 56px;
+  margin: 0;
+}
+.setting-line > .label.wide {
+  width: 120px; /* 放得下「剩餘時間（選填）」，三列的輸入框才對得齊 */
+  white-space: nowrap;
+}
+.setting-line > .check {
+  flex: 1;
+  min-width: 0;
+}
+.setting-line > .check > label {
+  margin-right: 8px; /* 「啟用」和後面的說明拉開一點 */
+}
+.setting-line + .group {
+  margin-top: 20px;
+}
+.setting-line.top {
+  align-items: flex-start; /* 說明文字會換行時，名稱對齊第一行 */
+}
+.setting-line.top > .label {
+  width: auto; /* 名稱比其他列長，不要換行 */
+  white-space: nowrap;
+  line-height: 22px; /* 和第一行的勾選列等高 */
+}
+.group > .setting-line:last-child {
+  margin-bottom: 0;
 }
 .log-title {
   display: block;
@@ -685,19 +968,23 @@ input[type='checkbox'][disabled] {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 .run-head .title {
   margin: 0;
 }
-/* 「啟用」開關與其下的設定區塊之間用分隔線區隔 */
+/* 「啟用」開關與其下的設定區塊之間用分隔線區隔(標題列的啟用開關下方不加線，只留間距) */
 .check + .fg-only,
-.check + .alt-only,
-.title-row + .fg-only,
-.title-warn + .alt-only {
+.check + .alt-only {
   margin-top: 12px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
+}
+.title-row + .fg-only {
+  margin-top: 0;
+}
+.title-warn + .alt-only {
+  margin-top: 10px;
 }
 
 /* 停止 / 開始按鈕獨立一行，放在日誌框下方，靠右 */
@@ -740,54 +1027,13 @@ hr {
   padding-bottom: 16px;
 }
 
-.advanced {
-  margin-top: 16px;
-}
-
 summary {
   cursor: pointer;
   font-weight: 600;
   margin-bottom: 0;
 }
-.advanced > summary,
 .group[open] > summary {
   margin-bottom: 12px;
-}
-
-.advanced .group {
-  margin-top: 12px;
-}
-
-/* 進階閥值: 群組與欄位間距 */
-.advanced > p {
-  margin-bottom: 16px !important;
-}
-
-/* 進階閥值區塊: 說明文字在左，一鍵重設按鈕在右側同一列 */
-.advanced-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.advanced-head .btn {
-  flex: none;
-  width: auto;
-  height: 32px;
-  padding: 0 16px;
-  white-space: nowrap;
-}
-
-.threshold-grid {
-  flex-wrap: wrap;
-  row-gap: 16px;
-  margin-bottom: 8px;
-}
-
-.threshold-grid .col {
-  flex: 0 0 calc(33.333% - 11px);
 }
 
 .howto {
@@ -803,9 +1049,13 @@ summary {
   border-radius: 4px;
 }
 
+/* 模擬器連線設定(展開時)和下方設定的距離，與其他區塊間的 20px 一致 */
+.adb-details:not([hidden]) {
+  margin-bottom: 20px;
+}
 .howto-group,
 .alt-only > details.group {
-  margin: 4px 0 16px;
+  margin: 4px 0 24px;
 }
 
 /* ============ 提示視窗：蓋在整個腳本視窗上，內容置中 ============ */
@@ -940,7 +1190,7 @@ summary {
   align-items: center;
   flex-wrap: wrap;
   gap: 2px 12px;
-  margin-bottom: 16px;
+  margin-bottom: 10px; /* 和「主要設定」「運行」標題到下方內容的間距一致 */
 }
 .title-row .title {
   margin: 0;
@@ -1103,7 +1353,7 @@ summary {
     padding: 0 16px 16px;
   }
   .hero {
-    padding: 16px 16px 16px;
+    padding: 16px 16px 12px;
   }
   .tab {
     padding: 8px 4px;
@@ -1149,17 +1399,6 @@ summary {
 /* 子選項已經縮排了，裡面的說明文字不用再縮一次 */
 .options > .check.sub .hint {
   padding-left: 0;
-}
-
-/* 進階比對閥值: 欄位名稱旁邊的模板縮圖 */
-.tpl-thumb {
-  height: 22px;
-  max-width: 40px;
-  width: auto;
-  margin-right: 8px;
-  vertical-align: middle;
-  object-fit: contain;
-  border-radius: 4px;
 }
 
 /* Lucide 圖示: 跟著文字顏色與大小 */
@@ -1271,7 +1510,7 @@ summary {
   margin: -8px 0 12px;
 }
 
-/* 設定頁的「浮動日誌」: 名稱與說明在左，開關或選單在右 */
+/* 設定頁的「懸浮日誌」: 名稱與說明在左，開關或選單在右 */
 .float-log-list {
   margin-top: 12px;
 }
@@ -1339,7 +1578,7 @@ details.section[open] > summary {
   margin-top: 0;
 }
 
-/* 設定頁的浮動日誌: 和釣魚頁一樣是「標題＋啟用開關」，關閉時下面的設定收起來，開啟後用分隔線區隔 */
+/* 設定頁的懸浮日誌: 和釣魚頁一樣是「標題＋啟用開關」，關閉時下面的設定收起來，開啟後用分隔線區隔 */
 .check.float-log-head {
   margin-top: 24px;
   margin-bottom: 16px !important; /* 和下面的子選項拉開 */
@@ -1372,6 +1611,34 @@ details.section > summary::before {
   align-self: stretch;
   height: auto;
 }
+/* 檢查更新: 外觀同群組標題，但不能摺疊 */
+.update-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  color: var(--text);
+  font-size: 1.15em;
+  font-weight: 700;
+}
+.update-line::before {
+  content: '';
+  flex: none;
+  align-self: stretch;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--sky);
+}
+.update-line .btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 104px;
+  height: 34px;
+  margin-left: auto;
+  padding: 0 16px;
+  font-size: 1rem;
+  white-space: nowrap;
+}
 .section-text {
   display: flex;
   flex-direction: column;
@@ -1394,6 +1661,12 @@ details.section > summary::before {
   font-size: 11px;
   font-weight: 400;
   vertical-align: middle;
+}
+
+.section-tag.outline {
+  border: 1px solid var(--sky);
+  background: transparent;
+  color: var(--sky-deep);
 }
 
 .section-tag.important {
@@ -1435,8 +1708,34 @@ details.section > summary::before {
   color: var(--warn-text);
 }
 
+/* 泡泡區域、目前菜品兩個框是一組: 組內靠近(10px)，和上方的操作模式、下方的設定欄位拉開(20px) */
+.row:has(.region-box) {
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+.row:has(.region-box) + .row:has(.region-box) {
+  margin-top: 0;
+}
+.row:has(.region-box) + .setting-line {
+  margin-top: 20px;
+}
 .dish-box {
   flex-wrap: wrap;
+}
+/* 同一列由左到右: 菜名與狀態、菜名截圖、按鈕；使用模擬器的提示固定在最下面一行 */
+.dish-box .region-info {
+  order: 0;
+}
+.dish-box .dish-image {
+  order: 1;
+}
+.dish-box .dish-actions {
+  order: 2;
+}
+#dishAdbHint {
+  order: 3;
+  flex: 1 0 100%;
+  margin-top: -8px; /* 抵銷換行的 12px 間距，貼近上方的菜名列 */
 }
 .dish-box .region-info {
   flex: 1 1 auto;
@@ -1453,15 +1752,15 @@ details.section > summary::before {
   flex: none;
   width: auto;
 }
-/* 菜名截圖獨立一行，放在按鈕下方 */
+/* 菜名截圖: 固定寬高，整張縮放進框內(不裁切) */
 .dish-image {
   flex: none;
   display: block;
+  width: 72px;
   height: 40px;
-  max-width: 100%;
   object-fit: contain;
+  background: var(--surface-2);
   border-radius: 6px;
-  border: 1px solid var(--border);
 }
 
 .run-head > .notice-btn {
@@ -1498,7 +1797,7 @@ details.section > summary::before {
   display: block;
   max-width: 100%;
   max-height: 260px;
-  margin: 0 auto 16px;
+  margin: 0 auto 28px;
   border-radius: var(--r-md);
   border: 1px solid var(--border);
 }
@@ -1573,11 +1872,6 @@ details.section > summary::before {
   text-align: left;
 }
 
-/* 料理數量的標題只佔文字寬度(點空白處不會聚焦欄位) */
-label[for="expectedCookQty"] {
-  align-self: flex-start; /* .col 是縱向 flex，不指定的話標題會被撐成整列寬 */
-}
-
 /* 「上次執行」在日誌框左下，與右邊的停止 / 開始按鈕同一列 */
 .run-actions {
   align-items: center;
@@ -1641,8 +1935,26 @@ label[for="expectedCookQty"] {
 }
 
 /* 食物名稱、星級那一列直接接在「吃食物」後面時，也和子選項對齊同一條線 */
+.check.no-icon:not(.sub) + .row,
 .options > .check.no-icon:not(.sub) + .row {
   padding-left: 46px;
+}
+
+/* 採集的食物設定(名稱、星級、保留最後一次)用虛線框成一組，縮進到「吃食物」的子層 */
+.food-group {
+  margin: 16px 0 24px 30px; /* 30 + 內距 16 = 46，裡面的欄位和上面的子選項對齊同一條線；下方 24px 讓框到分隔線的距離和上方「吃食物」到分隔線一樣 */
+  padding: 16px; /* 左右留一樣寬 */
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 10px;
+}
+.food-group > .row {
+  padding-left: 0 !important;
+  margin-top: 0 !important;
+}
+.food-group > .check {
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
 }
 
 /* 釣魚項目上下排列的間距統一 8px: 母選項、子選項、食物名稱那一列之間都一樣，不另外加上下留白 */
@@ -1710,4 +2022,12 @@ label[for="expectedCookQty"] {
 }
 .title-row:has(+ .title-warn) .title-toggle {
   transform: translateY(10px);
+}
+
+.text-on {
+  color: var(--success);
+}
+
+.text-off {
+  color: var(--danger);
 }

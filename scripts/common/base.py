@@ -1,7 +1,13 @@
+import random
 import threading
 import traceback
 from tools.finder import matchAuto
+from tools.guards import runDialogGuard
 from tools.tools import LOG_DIVIDER, getThreshold
+
+WAKE_X = 0.5  # 開始前喚醒滑鼠的位置: 遊戲畫面上方中間的空白處
+WAKE_Y = 0.12
+WAKE_JITTER = 0.08  # 位置再隨機偏移的比例
 
 
 class BaseTask:
@@ -36,6 +42,8 @@ class BaseTask:
         notice = getattr(self.backend, "resolutionNotice", lambda config: None)(self.config)
         if notice:
             self.setLog(notice)
+        # 安全網: 跳出確認視窗(誤點丟棄等)一律按取消，不算在主流程的執行緒裡，出錯也不會讓主流程停止
+        threading.Thread(target=runDialogGuard, args=(self.backend, self.config, self.setLog, stopEvent), daemon=True).start()
         for t in self._threads:
             t.start()
 
@@ -54,6 +62,22 @@ class BaseTask:
             self.setLog(f"❌ 發生錯誤，已停止運行：{e}")
             stopEvent.set()
             self.setLog(LOG_DIVIDER)
+
+    def _gameBox(self):
+        """遊戲畫面在螢幕上的範圍 (x, y, w, h)；前景模式取遊戲視窗，模擬器模式是整張截圖"""
+        rect = self.backend.getGameRect()
+        if rect:
+            return rect
+        img, ox, oy = self.backend.captureFull()
+        return ox, oy, img.shape[1], img.shape[0]
+
+    def _wakeMouse(self, stopEvent):
+        """前景模式開始前，在遊戲畫面上方中間的空白處左右鍵各點兩下，解除遊戲卡住滑鼠、畫面跟著滑鼠轉視角(模擬器模式不做事)"""
+        if getattr(self.backend, "isAdb", False):
+            return
+        x, y, w, h = self._gameBox()
+        self.backend.wakeMouse(round(x + w * (WAKE_X + random.uniform(-WAKE_JITTER, WAKE_JITTER))), round(y + h * (WAKE_Y + random.uniform(-WAKE_JITTER, WAKE_JITTER))))
+        stopEvent.wait(0.3)
 
     def _getMatchCords(self, img, itemName):
         templatePath = f"{self.templateDir}/{itemName}.png"

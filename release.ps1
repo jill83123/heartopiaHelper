@@ -39,8 +39,8 @@ Write-Host "打包中..."
 & $python -m PyInstaller --noconfirm main.spec  # 打包設定(資料檔、圖示、不顯示主控台、不用 UPX)都寫在 main.spec
 if ($LASTEXITCODE -ne 0) { Fail "打包失敗" }
 
-# 3.5 依 .gitignore 清掉 dist\main 最上層被忽略的項目（執行時產生的 debug 截圖、config.ini、userdata 等），避免打進 zip
-Get-ChildItem "dist\main" -Force | Where-Object { $_.Name -notin @("main.exe", "_internal") } | ForEach-Object {
+# 3.5 依 .gitignore 清掉 dist\heartopiaHelper 最上層被忽略的項目（執行時產生的 debug 截圖、config.ini、userdata 等），避免打進 zip
+Get-ChildItem "dist\heartopiaHelper" -Force | Where-Object { $_.Name -notin @("heartopiaHelper.exe", "_internal") } | ForEach-Object {
     git check-ignore -q $_.Name
     if ($LASTEXITCODE -eq 0) {
         Write-Host "排除被 .gitignore 忽略的項目: $($_.Name)"
@@ -51,7 +51,7 @@ Get-ChildItem "dist\main" -Force | Where-Object { $_.Name -notin @("main.exe", "
 # 4. 壓縮 (exe 要在 zip 的最上層)
 $zip = "heartopiaHelper_$tag.zip"
 if (Test-Path $zip) { Remove-Item $zip }
-Compress-Archive -Path "dist\main\*" -DestinationPath $zip
+Compress-Archive -Path "dist\heartopiaHelper\*" -DestinationPath $zip
 Write-Host ("zip 大小: {0:N1} MB" -f ((Get-Item $zip).Length / 1MB))
 
 # 5. 建立 Release (tag 會由 GitHub 在指定 commit 上自動建立)
