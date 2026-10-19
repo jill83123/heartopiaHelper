@@ -12,16 +12,16 @@ from tools.tools import loadTemplate
 
 ITEM_DURATION = {"perfume": 120, "bait": 60}
 ITEM_INTERVAL = {"perfume": 123, "bait": 63}  # 道具是固定時效，間隔不開放設定(誘魚器只在沒勾「水面有了就不丟」時照這個間隔丟)
-PERFUME_REACTION_RANGE = (6.0, 9.0)  # 圖示要「連續」消失這麼久(秒)才補噴，避免閃爍、被遮住或偶爾認不出來就誤噴。香水很珍貴，寧可慢一點
+PERFUME_REACTION_RANGE = (4.0, 6.0)  # 圖示要「連續」消失這麼久(秒)才補噴，避免閃爍、被遮住或偶爾認不出來就誤噴。香水很珍貴，寧可慢一點
 CASTING_LOOK_SECONDS = 40  # 拋竿中看不到圖示；有香水魚很快上鉤，連續拋竿超過這麼久都沒釣到魚，就收竿回主畫面看看香水還在不在
 START_PERFUME_CHECKS = 8  # 剛開始運行時，主畫面連續這麼多次看不到香水圖示才噴(約 2 秒)，避免漏看
 PERFUME_ICON_GRACE = 25  # 噴完香水後，地圖下方的圖示要多久內出現(秒)，超過還沒出現就再噴
 PERFUME_READ_BIAS = 6  # 從灰色角度讀出來的剩餘量會偏低(實測 57 秒時讀 44%，實際約 52%)，加上這個修正
 PERFUME_LOOSE_SCORE = 0.62  # 判斷「香水還在不在」用的寬鬆門檻(旁邊的鞋子效果圖示只有約 0.57)，寧可誤認為還在，也不要誤噴
-PERFUME_EXPIRED_REACTION_RANGE = (1.5, 3.0)  # 自己噴的香水，已超過持續時間又看不到圖示時，圖示要連續消失這麼久(秒)就補噴
-PERFUME_EXPIRED_MISS_FRAMES = 5  # 同上，補噴前至少連續這麼多次偵測都看不到圖示
-PERFUME_MISS_FRAMES = 10  # 補噴前，至少要連續這麼多次偵測都看不到圖示
-PERFUME_RECHECK = 3  # 決定要噴之前，最後再各隔 0.4 秒重新截圖確認的次數
+PERFUME_EXPIRED_REACTION_RANGE = (0.6, 1.2)  # 自己噴的香水，已超過持續時間又看不到圖示時，圖示要連續消失這麼久(秒)就補噴
+PERFUME_EXPIRED_MISS_FRAMES = 3  # 同上，補噴前至少連續這麼多次偵測都看不到圖示
+PERFUME_MISS_FRAMES = 8  # 補噴前，至少要連續這麼多次偵測都看不到圖示
+PERFUME_RECHECK = 3  # 決定要噴之前，最後再各隔 0.25 秒重新截圖確認的次數
 BAIT_PLACED_GRACE = 15  # 丟完誘魚器後，水面的魚尾光柱要多久內出現(秒)；這段時間不重複判斷
 BAIT_MISS_READS_EXPIRED = 3  # 丟下去已經超過誘魚器的時效，要連續這麼多次看不到魚尾就算結束
 BAIT_MISS_READS = 8  # 水面連續這麼多次都看不到魚尾，才算誘魚器沒效果了、需要再丟
@@ -30,9 +30,13 @@ BAIT_NOT_SEEN_LIMIT = 2  # 連續丟了這麼多次都看不到魚尾，就不�
 TAIL_BEAM_SIZE = (30, 200, 26, 220)  # 魚尾光柱的寬、高範圍: 最小寬、最大寬、最小高、最大高(1600 寬為基準)。光柱上半段會淡出，白青色的部分實測約 38x33，高度太嚴會剛好差一點而認不出來(形狀另外有高寬比限制)
 TAIL_BEAM_FILL = 0.74  # 光柱的方框裡至少要有多少比例是白青色(實測光柱 0.82~0.85，容易誤判的海浪、水圈在 0.73 以下)
 TAIL_BEAM_MIN_TOP = 0.12  # 光柱的上緣至少要在畫面高度的這個比例以下(實測光柱都在 0.25 以下)
+TAIL_BEAM_MAX_TOP = 0.6  # 光柱的上緣最多在畫面高度的這個比例(實測 0.18~0.38)
 TAIL_BEAM_FILL_LOW = 0.68  # 光柱被遮住或閃爍時的最低填滿比例(要搭配更高的亮度)
 TAIL_BEAM_BRIGHT_LOW_FILL = 228  # 填滿只有 0.68~0.74 時，光柱裡 B、G 的平均亮度至少要這麼亮
 TAIL_BEAM_BRIGHT = 215  # 光柱裡 B、G 的平均亮度至少要這麼亮(實測光柱 235 左右，光柱會閃爍變暗，所以留一點空間；浪花、水圈在 210 以下)
+TAIL_HUE = (85, 125)  # 光柱的色相範圍(OpenCV 0~179，青白色)
+TAIL_MAX_SAT = 70  # 光柱的飽和度上限(很淡)
+TAIL_MIN_VAL = 225  # 光柱的亮度下限
 TAIL_CONFIRM_HITS = 2  # 最近 TAIL_CONFIRM_WINDOW 次偵測裡，至少這麼多次有光柱才算數(光柱會閃爍，不能要求連續；也避免一閃而過的誤判)
 TAIL_CONFIRM_WINDOW = 5
 PERFUME_COVER_MIN_CONTRAST = 15  # 淺綠底最亮與最暗至少差這麼多，才認定有被灰色蓋住
@@ -279,7 +283,7 @@ class ConsumablesMixin:
     def _perfumeStillThere(self):
         """決定要噴香水之前的最後確認: 隔一小段時間重新截圖幾次，只要有一次看到圖示就不噴(香水很珍貴，誤噴比晚噴更糟)"""
         for _ in range(PERFUME_RECHECK):
-            time.sleep(0.4)
+            time.sleep(0.25)
             if self._hasPerfumeIcon(self._shot(), loose=True):
                 self.setLog("偵測到香水圖示，不補噴")
                 self._missingSince = None
@@ -295,8 +299,12 @@ class ConsumablesMixin:
         region = img[max(0, y) : y + h, max(0, x) : x + w].astype(int)
         blue, green, red = region[:, :, 0], region[:, :, 1], region[:, :, 2]
         top, low = region.max(axis=2), region.min(axis=2)
-        mask = ((green - red >= 14) & (blue - red >= 14) & (top >= 205) & (top - low <= 75)).astype(np.uint8)
+        mask = (green - red >= 14) & (blue - red >= 14) & (top >= 205) & (top - low <= 75)
+        # 水面被染成紫粉色時，光柱的 R 也被染高，和 G、B 差不到 14；改用色相補抓: 青白色(色相偏青、飽和度低、很亮)，紫粉色的水色相在 130 以上
+        hsv = cv2.cvtColor(np.ascontiguousarray(img[max(0, y) : y + h, max(0, x) : x + w, :3]), cv2.COLOR_BGR2HSV)
+        mask = (mask | ((hsv[:, :, 0] >= TAIL_HUE[0]) & (hsv[:, :, 0] <= TAIL_HUE[1]) & (hsv[:, :, 1] <= TAIL_MAX_SAT) & (hsv[:, :, 2] >= TAIL_MIN_VAL))).astype(np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))  # 去掉細線(魚線、水圈、浪花)，只留實心的光柱本體；不然光柱旁的細線連在一起，方框變大、填滿度掉到門檻邊緣
         count, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
         for i in range(1, count):
             bx, by, bw, bh, area = stats[i]
@@ -306,6 +314,8 @@ class ConsumablesMixin:
             if fill < TAIL_BEAM_FILL_LOW or not 0.7 <= bh / bw <= 1.8:
                 continue
             if by < TAIL_BEAM_MIN_TOP * region.shape[0]:  # 光柱在水面上，不會貼著畫面最上緣(那裡是天空、海面的反光，曾經誤判)
+                continue
+            if by > TAIL_BEAM_MAX_TOP * region.shape[0]:  # 光柱在遠處水面，上緣不會在畫面下半部(那裡是按鈕、角色)
                 continue
             inside = region[by : by + bh, bx : bx + bw][labels[by : by + bh, bx : bx + bw] == i]
             bright = inside[:, :2].mean()
