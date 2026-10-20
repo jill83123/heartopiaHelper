@@ -2,6 +2,7 @@ const bubbleRegionBtn = document.querySelector('#bubbleRegionBtn');
 const safeModeToggle = document.querySelector('#safeModeToggle');
 const fiveStarToggle = document.querySelector('#fiveStarToggle');
 const wildcardToggle = document.querySelector('#wildcardToggle');
+const seasoningToggle = document.querySelector('#seasoningToggle');
 
 let hasBubbleRegion = false;
 let isSelectingRegion = false; // 框選視窗開啟中: 不能再框選，也不能開始任務
@@ -67,6 +68,14 @@ const showDialog = (title, message, { confirm = false, image = '', danger = fals
     msgEl.replaceChildren();
     let list = null;
     message.split('\n').forEach((line) => {
+      if (line === '~') {
+        // 單獨一行「~」: 比空行窄的小間距，用來把清單分組
+        list = null;
+        const gap = document.createElement('div');
+        gap.className = 'dialog-gap small';
+        msgEl.appendChild(gap);
+        return;
+      }
       if (!line.trim()) {
         list = null;
         // 空行保留成一整行高的空白(開頭、結尾、連續的空行不產生)
@@ -793,6 +802,15 @@ wildcardToggle.addEventListener('change', (e) => {
   syncWildcardTag();
 });
 
+// 神奇調料切換
+const syncSeasoningTag = () => {
+  document.querySelector('#seasoningTag').hidden = !seasoningToggle.checked;
+};
+seasoningToggle.addEventListener('change', (e) => {
+  getApi().apiWriteSetting('cookUseSeasoning', e.target.checked);
+  syncSeasoningTag();
+});
+
 // 處理日誌訊息
 const handleCookingLogMessage = (log) => {
   currentCookingLogIndex = log.index;
@@ -930,7 +948,9 @@ const fillSettings = (settings) => {
   fiveStarToggle.checked = String(settings.stopAtFiveStar).toLowerCase() === 'true';
   wildcardToggle.checked = String(settings.cookUseWildcard).toLowerCase() === 'true';
   syncWildcardTag();
-  if (wildcardToggle.checked) document.querySelector('#cookAdvanced').open = true; // 有開的設定藏在折疊裡看不到，開程式時先展開
+  seasoningToggle.checked = String(settings.cookUseSeasoning).toLowerCase() === 'true';
+  syncSeasoningTag();
+  if (wildcardToggle.checked || seasoningToggle.checked) document.querySelector('#cookAdvanced').open = true; // 有開的設定藏在折疊裡看不到，開程式時先展開
 
   updateResetButtons();
 };
@@ -1326,6 +1346,7 @@ const setup = async () => {
     if (safeModeToggle) safeModeToggle.disabled = isAnyTaskRunning;
     if (fiveStarToggle) fiveStarToggle.disabled = isAnyTaskRunning;
     if (wildcardToggle) wildcardToggle.disabled = isAnyTaskRunning;
+    if (seasoningToggle) seasoningToggle.disabled = isAnyTaskRunning;
     const resetBtn = document.querySelector('#resetSettingsBtn');
     if (resetBtn) resetBtn.disabled = isAnyTaskRunning;
     if (bubbleRegionBtn) bubbleRegionBtn.disabled = isAnyTaskRunning || isSelectingRegion;
@@ -1386,9 +1407,12 @@ document.querySelector('#startCookBtn').addEventListener('click', async () => {
   const onOff = (box) => (box.checked ? '[+開啟]' : '[-關閉]');
   const lines = [
     `．料理數量：**${document.querySelector('#expectedCookQty').value}** 份`,
+    '~',
     `．安全模式：${safeModeToggle.checked ? `[+開啟]（煮滿 **${document.querySelector('#safeModeQty').value}** 份才收）` : '[-關閉]'}`,
     `．五星停止：${onOff(fiveStarToggle)}`,
-    `．使用萬能食材：${onOff(wildcardToggle)}`
+    '~',
+    `．萬能食材：${onOff(wildcardToggle)}`,
+    `．神奇調料：${onOff(seasoningToggle)}`
   ];
   let message = lines.join('\n');
   let image = '';

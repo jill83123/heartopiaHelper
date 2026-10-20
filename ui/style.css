@@ -1104,6 +1104,10 @@ summary {
   height: 1.6em;
 }
 
+.dialog-gap.small {
+  height: 0.6em;
+}
+
 /* 清單圓點用 ::before 自繪(絕對定位)，大小可控，也不會像放大的 ::marker 那樣撐高行距 */
 .dialog-list {
   margin: 0;
