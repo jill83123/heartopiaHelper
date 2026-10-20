@@ -6,7 +6,7 @@ import threading
 import time
 from scripts.common.base import BaseTask
 from tools.debug import DebugMixin
-from tools.finder import clickBackButton, countStarRow, findStartCookBtn, matchBestAuto, _findInFullScreen
+from tools.finder import clickBackButton, countStarRow, findSeasoningToggle, findStartCookBtn, matchBestAuto, _findInFullScreen
 from tools.tools import getThreshold, getUserDataPath
 
 IDLE_TIMEOUT = 1.5  # 泡泡區域內沒有任何圖示超過這個秒數，就點返回離開
@@ -23,6 +23,9 @@ WILDCARD_SLOT_DY = 41
 WILDCARD_PANEL_X = 0.55  # 食材選擇面板在畫面右側，從這個寬度比例以右才找萬能食材(左邊的格子裡填上後也會出現同樣的圖)
 WILDCARD_MAX_SLOTS = 6  # 一次最多補幾格，避免卡住一直點
 WILDCARD_PANEL_WAIT = 2.5  # 點了格子後，等食材選擇面板出現(找得到萬能食材)的秒數
+SEASONING_WAIT = 0.8  # 看到開始烹飪按鈕後，神奇調料那一列通常已經在了，找不到時最多再等這麼久
+SEASONING_CLICK_WAIT = 0.3  # 點了圈圈後等打勾動畫的秒數
+SEASONING_TRIES = 3  # 圈圈點了之後還是沒打勾時，最多再點幾次
 START_CLICK_COOLDOWN = 2.0  # 點下「開始烹飪」後這段時間內不再點任何東西。畫面會馬上回到主畫面，原位置是主畫面的按鈕(例如右下角的表情)
 DISH_MATCH_SCORE = 0.85  # 食譜畫面上找得到記錄的菜名截圖的相似度門檻
 DISH_MISMATCH_LIMIT = 3  # 連續幾次菜品不符就停止運行
@@ -61,6 +64,12 @@ class Cooking(DebugMixin, BaseTask):
         self.useWildcard = (config.get("cookUseWildcard") or "").lower() == "true"
         self.wildcardTried = False  # 這次打開食譜已經補過一輪了，補完還是不能按就停止
         self.outOfIngredients = False  # 食材不足無法再開始烹飪，只等剩下的煮完
+
+        # 神奇調料: 每次打開食譜，右下角神奇調料那一列的圈圈都是沒勾的，要點一下打勾才會使用
+        self.useSeasoning = (config.get("cookUseSeasoning") or "").lower() == "true"
+        self.seasoningDone = not self.useSeasoning  # 這次打開食譜已經處理過了
+        self.seasoningMissingLogged = False
+        self.seasoningLogged = False
 
         self.starWatchUntil = 0
         self.lastStarCheck = 0
@@ -175,6 +184,33 @@ class Cooking(DebugMixin, BaseTask):
                 return None
         return None
 
+    def _enableSeasoning(self, stopEvent):
+        """確認神奇調料的圈圈有打勾，沒勾就點它。找不到那一列(沒有神奇調料、或食譜用不到)就算了，不影響烹飪"""
+        deadline = time.time() + SEASONING_WAIT
+        toggle = findSeasoningToggle(self.backend, self.config)
+        while not toggle and time.time() < deadline and not stopEvent.wait(0.3):
+            toggle = findSeasoningToggle(self.backend, self.config)
+        if not toggle:
+            if not self.seasoningMissingLogged:
+                self.seasoningMissingLogged = True
+                self.setLog("找不到神奇調料的選項，略過")
+            return
+        for _ in range(SEASONING_TRIES):
+            x, y, checked = toggle
+            if checked:
+                if not self.seasoningLogged:
+                    self.seasoningLogged = True
+                    self.setLog("✅ 已使用神奇調料")
+                return
+            self.backend.click(x, y)
+            if stopEvent.wait(SEASONING_CLICK_WAIT):
+                return
+            toggle = findSeasoningToggle(self.backend, self.config)
+            if not toggle:
+                return
+        if not toggle[2]:
+            self.setLog("⚠️ 神奇調料的圈圈點不起來（可能已用完）")
+
     def _isStillThere(self, coords, name):
         """點擊前重新截圖，確認圖示(startAction 鍋子、completed 手套)仍在要點擊的位置"""
         bx, by, bw, bh = self.bubbleRegionCoord
@@ -231,6 +267,10 @@ class Cooking(DebugMixin, BaseTask):
             x, y, isEnabled = btn
             if isEnabled and not self.startBtnSeenAt:
                 self.startBtnSeenAt = time.time()
+            if self.isNextStartCookBtn and not self.seasoningDone:
+                # 選單動畫從第一次看到按鈕就開始跑，勾圈圈花的時間算在動畫裡，不重設計時也不重跑一輪偵測，才不會多等
+                self.seasoningDone = True
+                self._enableSeasoning(stopEvent)
             if not isEnabled:
                 if self.useWildcard and not self.wildcardTried:
                     self.wildcardTried = True
@@ -279,6 +319,7 @@ class Cooking(DebugMixin, BaseTask):
         self.setLog("菜品：已記錄截圖" if recordedAt else "菜品：尚未記錄")
         self.setLog(f"料理數量：{self.expectedCookQty}")
         self.setLog("安全模式：" + (f"啟用，煮滿 {self.safeModeQty} 份才收" if self.isSafeMode else "未啟用"))
+        self.setLog("神奇調料：" + ("啟用" if self.useSeasoning else "未啟用"))
         self.setLog("五星停止：" + ("啟用" if self.stopAtFiveStar else "未啟用"))
         detectFrequency = float(self.config.get("detectFrequency"))
 
@@ -352,6 +393,7 @@ class Cooking(DebugMixin, BaseTask):
                     self.isNextStartCookBtn = True
                     self.potClickedAt = time.time()
                     self.dishVerified = self.dishImage is None
+                    self.seasoningDone = not self.useSeasoning
                     self.potClickCoords = self.clickCoords
                     self.gloveClickCoords = None
                 continue
