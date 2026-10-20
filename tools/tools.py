@@ -350,6 +350,7 @@ DEFAULT_THRESHOLDS = {
     "backBtn": 0.8,
     "plusBadge": 0.85,  # 食材格右上角的 + 號(實測同畫面約 1.0)
     "wildcardItem": 0.75,
+    "seasoningIcon": 0.8,  # 神奇調料那一列的瓶子圖示(實測約 0.85 以上)
     "snowPut": 0.7,
     "snowStartBtn": 0.7,
     "snowflake": 0.7,
@@ -408,6 +409,7 @@ CONFIG_DEFAULTS = {
     "isSafeMode": "True",
     "stopAtFiveStar": "False",
     "cookUseWildcard": "False",  # 食材格有 + 號(食材不足)時改用萬能食材補上
+    "cookUseSeasoning": "False",  # 每次打開食譜都把神奇調料的圈圈點成打勾
     "debugMode": "False",
     "autoCancelDialog": "True",  # 跳出確認視窗(誤點丟棄等)一律按取消，見 tools/guards.py；要關掉改成 False
     "safeModeQty": "3",
