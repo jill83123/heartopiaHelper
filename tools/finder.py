@@ -6,6 +6,11 @@ from tools.tools import bestMatchScore, getScaleWithResolution, getThreshold, lo
 
 BACK_BTN_TEMPLATE = "templates/common/backBtn.png"
 START_COOK_BTN_TEMPLATE = "templates/cooking/startCookBtn.png"
+SEASONING_ICON_TEMPLATE = "templates/cooking/seasoningIcon.png"
+SEASONING_TOGGLE_DX = 388  # 神奇調料瓶子圖示中心到右邊圈圈中心的距離(以 1600 寬為準)
+SEASONING_TOGGLE_HALF_W = 45  # 圈圈位置會隨畫面有幾像素差異，左右多看一些
+SEASONING_TOGGLE_HALF_H = 28
+SEASONING_MIN_PIXELS = 150  # 圈圈顏色的像素數(以 1600 寬為準)達到這個數才算
 
 
 # 尚未鎖定縮放時，除了依解析度算出的縮放外，額外嘗試的修正倍率
@@ -141,3 +146,34 @@ def findStartCookBtn(backend, config):
     patch = img[max(0, cy - 3) : cy + 4, x0:x1]
     saturation = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)[:, :, 1].mean()
     return x, y, saturation >= 30
+
+
+def findSeasoningToggle(backend, config):
+    """找食譜畫面右下角「神奇調料」那一列右邊的圈圈，回傳 (x, y, 是否已打勾)，找不到那一列回傳 None。
+    先用瓶子圖示定位那一列，再看圈圈的顏色: 沒勾是米色、打勾是青色"""
+    img, ox, oy = backend.captureFull()
+    if backend.channelsSwapped:
+        img = np.ascontiguousarray(img[:, :, ::-1])  # 要看顏色，換回真正的 BGR
+    img = img[:, :, :3]
+    coords = matchAuto(backend, config, img, SEASONING_ICON_TEMPLATE, getThreshold(config, "seasoningIcon"))
+    if not coords:
+        return None
+    scale = getBaseScale(backend, config) * backend.scaleResolver.factor
+    iconX, iconY = max(coords, key=lambda c: c[0])  # 不太會有多個，保險取最右邊的
+    cx = int(iconX + SEASONING_TOGGLE_DX * scale)
+    hw, hh = int(SEASONING_TOGGLE_HALF_W * scale), int(SEASONING_TOGGLE_HALF_H * scale)
+    x0, y0 = max(0, cx - hw), max(0, iconY - hh)
+    roi = img[y0 : iconY + hh, x0 : cx + hw]
+    if roi.size == 0:
+        return None
+    hsv = cv2.cvtColor(np.ascontiguousarray(roi), cv2.COLOR_BGR2HSV)
+    # 飽和度: 米色圈圈 PC 約 43、模擬器約 85，旁邊的底色只有 7~16，所以下限取 30
+    teal = cv2.inRange(hsv, (75, 100, 100), (105, 255, 255))
+    beige = cv2.inRange(hsv, (8, 30, 200), (25, 120, 255))
+    minPixels = SEASONING_MIN_PIXELS * scale * scale
+    if cv2.countNonZero(teal) >= minPixels:
+        return ox + cx, oy + iconY, True
+    if cv2.countNonZero(beige) >= minPixels:
+        ys, xs = np.nonzero(beige)
+        return ox + x0 + int(xs.mean()), oy + y0 + int(ys.mean()), False
+    return None
