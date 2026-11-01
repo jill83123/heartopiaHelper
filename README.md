@@ -108,8 +108,10 @@ python main.py
 ## 打包
 
 ```powershell
-pyinstaller --noconsole --name heartopiaHelper --add-data "config.default.ini;." --add-data "ui;ui" --add-data "templates;templates" --add-data "tools/ADBKeyboard.apk;tools" main.py
+venv\Scripts\python -m PyInstaller --noconfirm main.spec
 ```
+
+一定要用專案 venv 的 Python 打包（不要直接打 `pyinstaller`，會用到全域環境而漏掉 `keyboard` 等套件）。資料檔、圖示、不顯示主控台等設定都在 `main.spec`。
 
 打包時內建的是預設範本 `config.default.ini`；打包後的 `config.ini` 會放在 exe 旁邊，第一次執行時由範本複製，重新打包不會蓋掉你的設定。
 
