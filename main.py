@@ -67,9 +67,25 @@ def setDevIcon():
             user32.SendMessageW(ctypes.c_void_p(hwnd), 0x80, wParam, ctypes.c_void_p(icon))
 
 
+_floatPrepared = False
+
+
+def prepareFloatLogOnce():
+    """主視窗頁面載入完成後才建懸浮日誌視窗。視窗一建好就同時初始化第二個 WebView2，UI 執行緒偶爾會卡住(開啟時「沒有回應」)"""
+    global _floatPrepared
+    if _floatPrepared:
+        return
+    _floatPrepared = True
+    time.sleep(0.5)  # 讓主視窗先把畫面畫出來
+    api._prepareFloatLog()
+
+
+def onLoaded():
+    threading.Thread(target=prepareFloatLogOnce, daemon=True).start()
+
+
 def onStarted():
     threading.Thread(target=setDevIcon, daemon=True).start()
-    api._prepareFloatLog()
 
 
 def listenStopKey():
@@ -150,6 +166,7 @@ def main():
         text_select=True,
     )
     mainWindow.events.closing += onClosing
+    mainWindow.events.loaded += onLoaded
     try:
         webview.start(onStarted)
     except KeyboardInterrupt:
