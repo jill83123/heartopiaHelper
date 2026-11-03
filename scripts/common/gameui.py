@@ -33,6 +33,9 @@ GAME_BASE_WIDTH = 1600
 ACTION_FROM_RIGHT = 224
 ACTION_FROM_BOTTOM = 212
 
+COLOR_CHECKED = ("repairBoxItem",)  # 形狀比對過了還要再檢查顏色的模板(判斷「工具欄開著」用，誤判會讓程式一直去關工具欄)
+COLOR_TOLERANCE = 45  # 平均顏色(BGR)和模板的距離上限；真的圖示實測約 1，形狀相似的誤判約 57
+
 _templatePaths = {}  # (資料夾, 模板名稱, 是否模擬器) -> 找到的模板路徑
 
 
@@ -161,7 +164,26 @@ class GameUI(DebugMixin, BaseTask):
     def _find(self, img, name):
         """回傳模板在畫面中的座標(影像座標)，沒找到回傳 None"""
         threshold = getThreshold(self.config, name)
-        return matchBestAuto(self.backend, self.config, img, self._templatePath(name), threshold)
+        pos = matchBestAuto(self.backend, self.config, img, self._templatePath(name), threshold)
+        if pos and name in COLOR_CHECKED and not self._colorMatches(img, name, pos):
+            self._trace(f"「{name}」形狀相似但顏色不對，不算")
+            self._saveShot(img, "colormiss", mark=(pos[0] - 20, pos[1] - 20, 40, 40))
+            return None
+        return pos
+
+    def _colorMatches(self, img, name, pos):
+        """比對到的位置，中間那塊的平均顏色跟模板接近嗎。灰階比對分不出顏色，場景裡形狀像的東西(例如棕色公事包形的物件)會被當成圖示"""
+        template = loadTemplate(self._templatePath(name))
+        scale = resolveScale(self.backend, self.config, img, self._templatePath(name))
+        h, w = int(template.shape[0] * scale), int(template.shape[1] * scale)
+        mh, mw = max(1, h // 5), max(1, w // 5)  # 只取中間 60%，四周是會變的底色
+        x, y = pos[0] - w // 2, pos[1] - h // 2
+        patch = img[max(0, y + mh) : y + h - mh, max(0, x + mw) : x + w - mw, :3]
+        if patch.size == 0:
+            return True  # 圖示貼在畫面邊緣，取不到就不擋
+        core = template[template.shape[0] // 5 : -(template.shape[0] // 5), template.shape[1] // 5 : -(template.shape[1] // 5)]
+        distance = np.linalg.norm(patch.reshape(-1, 3).mean(axis=0) - core.reshape(-1, 3).mean(axis=0))
+        return distance <= COLOR_TOLERANCE
 
     def _gameRect(self, img):
         """遊戲畫面在影像中的範圍 (x, y, w, h)；取不到視窗(或模擬器模式)就當作整張影像"""
