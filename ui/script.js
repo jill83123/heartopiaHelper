@@ -1475,9 +1475,8 @@ const renderHeroRunning = (items) => {
     ...running.map(([name]) => {
       const badge = document.createElement('span');
       badge.className = 'hero-badge';
-      const state = document.createElement('small'); // 名稱前面的綠色狀態燈(樣式在 CSS)，文字放在提示裡
-      badge.title = `${name}運行中`;
-      badge.append(state, name);
+      const state = document.createElement('small'); // 名稱前面的綠色狀態燈(樣式在 CSS)
+      badge.append(state, `${name}中`);
       return badge;
     })
   );
