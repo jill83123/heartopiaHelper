@@ -45,6 +45,9 @@ SIGN_WAIT = 4.0  # 採完一輪後，最多等幾秒看有沒有出現倒數圖�
 MISS_LOG_STREAK = 3  # 連續幾輪都沒看到倒數圖示和氣泡才在日誌提醒
 UNKNOWN_BACK_SECONDS = 3  # 畫面不是主畫面也不是背包超過這個秒數(多半是誤點到別的介面)，就點左上角的返回
 UNKNOWN_CHECK_SECONDS = 3  # 沒有定時項目要看畫面時，隔多久也要看一次畫面是不是被其他介面蓋住
+MAX_BACK_RESCUES = 3  # 沒看到圖示與氣泡時最多點幾次返回(中間看到圖示或氣泡就歸零)；點了還是沒好就不再點，等停止
+BACK_CHECK_EXTRA = 30  # 超過一輪的間隔再多幾秒還沒看到圖示與氣泡，就開始看左上角有沒有返回鈕
+BACK_CHECK_EVERY = 30  # 看返回鈕的間隔(秒)
 GAME_COVERED_RETRY = 2  # 遊戲視窗被蓋住時，隔多久再試一次(秒)
 
 
@@ -257,6 +260,8 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
             self._lastIcon = now
         if seenBubble:
             self._lastBubble = now
+        if seenIcon or seenBubble:
+            self._backRescues = 0
         if not seenIcon:  # 沒認到倒數圖示: 存下當時的畫面(debug/noicon_*)，用來檢查圖示在哪、為什麼沒比對到
             self._saveShot(self._shot(), "noicon")
         self._missStreak = 0 if (seenIcon or seenBubble) else self._missStreak + 1
@@ -297,11 +302,22 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
         self._wakeMouse(stopEvent)
         if stopEvent.is_set():
             return
+        self._backRescues = 0
+        self._lastBackTry = 0
         self._lastIcon = self._lastBubble = time.time()
         nextAt = time.time()  # 開始後馬上採集第一輪
 
         while not stopEvent.wait(SCAN_SECONDS):
             limit = self._noPickupMinutes()
+            # 超過一輪的時間還沒看到倒數圖示與氣泡，多半是卡在某個介面(不一定會被判成「未知」)，不等到停止的時限，先看左上角有沒有返回鈕
+            sinceSeen = time.time() - max(self._lastIcon, self._lastBubble)
+            if sinceSeen > self._gatherInterval() + BACK_CHECK_EXTRA and time.time() - self._lastBackTry >= BACK_CHECK_EVERY and self._backRescues < MAX_BACK_RESCUES:
+                self._lastBackTry = time.time()
+                if clickBackButton(self.backend, self.config, topLeftOnly=True):
+                    self._backRescues += 1
+                    self.setLog(f"已經 {int(sinceSeen)} 秒沒看到倒數圖示與氣泡，左上角有返回鈕，已點擊返回")
+                    stopEvent.wait(0.8)
+                    continue
             # 倒數圖示和獲得物品氣泡兩個都超過設定的時間沒出現才停止，只要有一個出現過就不停
             if limit > 0 and time.time() - self._lastIcon > limit * 60 and time.time() - self._lastBubble > limit * 60:
                 self._alert(f"已經 {limit:g} 分鐘沒看到倒數圖示，也沒看到獲得物品氣泡，已停止（請確認角色位置、工具與目標）")
