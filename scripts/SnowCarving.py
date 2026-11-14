@@ -23,7 +23,7 @@ class SnowCarving(BaseTask):
         frequency = float(self.config.get("snowDetectFrequency"))
 
         while not stopEvent.wait(frequency):
-            img, (bx, by) = self._shot()
+            img, (bx, by) = self._gameShot()
 
             snowflakeCords = self._getMatchCords(img, "snowflake")
             if snowflakeCords:
@@ -45,18 +45,6 @@ class SnowCarving(BaseTask):
                 continue
 
             self._handleTimeout()
-
-    def _shot(self):
-        """截取遊戲畫面。前景模式只取遊戲視窗的範圍(找不到視窗就取整個螢幕)，模擬器模式取整張截圖。
-        回傳 (影像, 影像左上角在螢幕上的座標)，點擊座標靠它換算"""
-        img, ox, oy = self.backend.captureFull()
-        rect = self.backend.getGameRect()
-        if rect:
-            x0, y0 = max(0, rect[0] - ox), max(0, rect[1] - oy)
-            x1, y1 = min(img.shape[1], rect[0] - ox + rect[2]), min(img.shape[0], rect[1] - oy + rect[3])
-            if x1 - x0 >= 100 and y1 - y0 >= 100:
-                return img[y0:y1, x0:x1], (ox + x0, oy + y0)
-        return img, (ox, oy)
 
     def _clickFirst(self, base, cords, stopEvent):
         if stopEvent.wait(random.uniform(*CLICK_DELAY_RANGE)):

@@ -18,6 +18,7 @@ from tools.tools import (
     captureScreen,
     clickMouse,
     clickRightMouse,
+    dragMouse,
     selectRegion,
     findWindow,
     focusWindow,
@@ -104,6 +105,18 @@ class ScreenBackend:
         self._passThroughFloatLog(x, y)
         try:
             clickMouse(x, y)
+        finally:
+            self._restoreFloatLog()
+
+    def drag(self, x1, y1, x2, y2, slow=False):
+        """按住左鍵從 (x1, y1) 拖到 (x2, y2) 再放開。slow=True 是慢慢拖、到了停一下才放開(捲動托盤用，放開時不能還在動，不然會滑過頭)"""
+        self._requireGame()
+        self._passThroughFloatLog(x2, y2)
+        try:
+            if slow:
+                dragMouse(int(x1), int(y1), int(x2), int(y2), steps=40, stepDelay=0.015, settle=0.4)
+            else:
+                dragMouse(int(x1), int(y1), int(x2), int(y2))
         finally:
             self._restoreFloatLog()
 
@@ -341,6 +354,9 @@ class AdbBackend:
     def swipe(self, x1, y1, x2, y2, durationMs):
         """手指從 (x1, y1) 滑到 (x2, y2)"""
         self._run(["shell", "input", "swipe", *(str(int(v)) for v in (x1, y1, x2, y2, durationMs))])
+
+    def drag(self, x1, y1, x2, y2, slow=False):
+        self.swipe(x1, y1, x2, y2, 1200 if slow else 600)
 
     def getGameRect(self):
         return None  # 模擬器畫面就是整張截圖
