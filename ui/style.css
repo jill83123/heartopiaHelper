@@ -1244,6 +1244,15 @@ summary {
   font-size: 1.1em;
 }
 
+/* 版本標題與緊接著的小標題靠近成一組，和上一版之間拉開距離 */
+.md h3 {
+  margin: 18px 0 2px;
+}
+
+.md h3 + h4 {
+  margin-top: 2px;
+}
+
 .md h4 {
   font-size: 1em;
 }
