@@ -21,6 +21,7 @@ from version import VERSION
 
 REPO = "jill83123/heartopiaHelper"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
+LIST_API_URL = f"https://api.github.com/repos/{REPO}/releases?per_page=30"
 # 只接受來自本儲存庫 Release 的檔案，避免被導到其他網址
 ALLOWED_PREFIX = f"https://github.com/{REPO}/releases/download/"
 HEADERS = {"User-Agent": "heartopiaHelper-updater", "Accept": "application/vnd.github+json"}
@@ -68,6 +69,36 @@ def fetchLatest(timeout=10):
     }
 
 
+def fetchNotesSince(current, latestVersion, timeout=10):
+    """合併「目前版本之後、到最新版」每一版的更新說明，由新到舊，每版加版本標題。
+    只有一版時不加標題；查詢失敗或沒有任何說明時回傳 None，由呼叫端退回最新版的說明"""
+    try:
+        request = urllib.request.Request(LIST_API_URL, headers=HEADERS)
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            releases = json.load(response)
+    except Exception:
+        return None
+
+    latestParts = parseVersion(latestVersion)
+    currentParts = parseVersion(current)
+    picked = []
+    for release in releases:
+        if release.get("draft") or release.get("prerelease"):
+            continue
+        tag = release.get("tag_name", "")
+        parts = parseVersion(tag)
+        if parts and currentParts < parts <= latestParts:
+            picked.append((parts, tag, (release.get("body") or "").strip()))
+    picked.sort(key=lambda item: item[0], reverse=True)
+
+    withNotes = [item for item in picked if item[2]]
+    if not withNotes:
+        return None
+    if len(picked) == 1:
+        return withNotes[0][2]
+    return "\n\n".join(f"# {tag}\n\n{body}" for _, tag, body in withNotes)
+
+
 def isReleasePage(url):
     """只允許開啟本儲存庫的 Release 頁面"""
     return isinstance(url, str) and url.startswith(f"https://github.com/{REPO}/releases")
@@ -78,7 +109,8 @@ def checkUpdate():
     latest = fetchLatest()
     result = {"current": VERSION, "canAutoUpdate": isFrozen(), "hasUpdate": False, "checkFailed": latest is None}
     if latest and isNewer(latest["version"], VERSION):
-        result.update(hasUpdate=True, latest=latest["version"], notes=latest["notes"], pageUrl=latest["pageUrl"], hasAsset=latest["asset"] is not None)
+        notes = fetchNotesSince(VERSION, latest["version"]) or latest["notes"]
+        result.update(hasUpdate=True, latest=latest["version"], notes=notes, pageUrl=latest["pageUrl"], hasAsset=latest["asset"] is not None)
     return result
 
 
