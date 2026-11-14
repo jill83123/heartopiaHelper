@@ -15,6 +15,7 @@ class BaseTask:
     子類別覆寫 templateDir 與 _threadTargets()，每個目標函式接收一個 stopEvent，迴圈以 stopEvent.is_set() 判斷是否結束"""
 
     templateDir = ""
+    dialogGuard = True  # 跳出確認視窗時自動按取消。拼圖要自己按「放回」，所以關掉
 
     def __init__(self, setLog, backend, config):
         self.setLog = setLog
@@ -43,7 +44,8 @@ class BaseTask:
         if notice:
             self.setLog(notice)
         # 安全網: 跳出確認視窗(誤點丟棄等)一律按取消，不算在主流程的執行緒裡，出錯也不會讓主流程停止
-        threading.Thread(target=runDialogGuard, args=(self.backend, self.config, self.setLog, stopEvent), daemon=True).start()
+        if self.dialogGuard:
+            threading.Thread(target=runDialogGuard, args=(self.backend, self.config, self.setLog, stopEvent), daemon=True).start()
         for t in self._threads:
             t.start()
 
@@ -70,6 +72,18 @@ class BaseTask:
             return rect
         img, ox, oy = self.backend.captureFull()
         return ox, oy, img.shape[1], img.shape[0]
+
+    def _gameShot(self):
+        """截取遊戲畫面。前景模式只取遊戲視窗的範圍(找不到視窗就取整個螢幕)，模擬器模式取整張截圖。
+        回傳 (影像, 影像左上角在螢幕上的座標)，點擊座標靠它換算"""
+        img, ox, oy = self.backend.captureFull()
+        rect = self.backend.getGameRect()
+        if rect:
+            x0, y0 = max(0, rect[0] - ox), max(0, rect[1] - oy)
+            x1, y1 = min(img.shape[1], rect[0] - ox + rect[2]), min(img.shape[0], rect[1] - oy + rect[3])
+            if x1 - x0 >= 100 and y1 - y0 >= 100:
+                return img[y0:y1, x0:x1], (ox + x0, oy + y0)
+        return img, (ox, oy)
 
     def _wakeMouse(self, stopEvent):
         """前景模式開始前，在遊戲畫面上方中間的空白處左右鍵各點兩下，解除遊戲卡住滑鼠、畫面跟著滑鼠轉視角(模擬器模式不做事)"""

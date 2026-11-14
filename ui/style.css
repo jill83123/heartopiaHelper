@@ -392,7 +392,8 @@ body {
   position: absolute;
   top: calc(100% + 12px);
   right: 0; /* 小工具在分頁列最右邊，往左展開才不會超出視窗 */
-  width: max-content; /* 依選項內容決定寬度 */
+  width: max-content; /* 依選項內容決定寬度，但至少有一定寬度 */
+  min-width: 140px;
   margin: 0;
   padding: 4px;
   list-style: none;
@@ -424,14 +425,11 @@ body {
   color: var(--text);
   font-family: inherit;
   font-size: 1em;
-  padding: 8px 12px;
+  padding: 8px 16px;
   border-radius: 10px;
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
-}
-.tool-item .icon {
-  margin-left: -2px; /* 圖示框內側本來就有留白，往左補回去，視覺上左右留白才一樣 */
 }
 .tool-item.active {
   color: var(--sky-deep);
@@ -2050,4 +2048,23 @@ details.section > summary::before {
 
 .text-off {
   color: var(--danger);
+}
+
+.puzzle-notes {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.7;
+}
+
+.tab .chevron {
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+}
+
+.pane-heading {
+  margin: 0 0 14px;
+  color: var(--text);
+  font-size: 1.3em;
+  font-weight: 700;
 }

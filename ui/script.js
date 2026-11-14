@@ -9,6 +9,7 @@ let isSelectingRegion = false; // 框選視窗開啟中: 不能再框選，也�
 
 let currentCookingLogIndex = 0;
 let currentSnowLogIndex = 0;
+let currentPuzzleLogIndex = 0;
 let currentCropLogIndex = 0;
 let currentFishLogIndex = 0;
 let currentFishAltLogIndex = 0;
@@ -457,6 +458,14 @@ const NOTICE_TEXTS = {
     title: '雪雕注意事項',
     message: '．雪雕後方的背景建議越單純越好，背景太雜容易誤判而點錯位置。',
   },
+  puzzle: {
+    title: '拼圖注意事項',
+    message: [
+      '．請先自己進入拼圖畫面，再按開始；遊戲須在最上層（只支援前景模式）。',
+      '．支援的拼圖片數：36、64、100 片。',
+      '．執行中請不要移動滑鼠。',
+    ].join('\n'),
+  },
   fishing: {
     title: '釣魚注意事項',
     message: '．請確保**遊戲視角**（非人物視角）**正對魚尾**且**可見**（如下圖）。',
@@ -829,6 +838,13 @@ const handleSnowLogMessage = (log) => {
   const logContainerSnow = document.querySelector('#logContainerSnow');
   logContainerSnow.value += log.msg + '\n';
   logContainerSnow.scrollTop = logContainerSnow.scrollHeight;
+};
+
+const handlePuzzleLogMessage = (log) => {
+  currentPuzzleLogIndex = log.index;
+  const logContainer = document.querySelector('#logContainerPuzzle');
+  logContainer.value += log.msg + '\n';
+  logContainer.scrollTop = logContainer.scrollHeight;
 };
 
 const handleFishAltLogMessage = (log) => {
@@ -1290,7 +1306,7 @@ const setup = async () => {
   poll(async () => {
     const status = await getApi().apiGetStatus();
     // 任一任務運行中，所有頁面的開始鈕都不能按
-    const anyRunning = !!(status.cooking || status.snowCarving || status.fishing || status.plant || status.wood);
+    const anyRunning = !!(status.cooking || status.snowCarving || status.puzzle || status.fishing || status.plant || status.wood);
 
     // 料理
     const startCookBtn = document.querySelector('#startCookBtn');
@@ -1304,6 +1320,12 @@ const setup = async () => {
     if (startSnowBtn) startSnowBtn.disabled = anyRunning || isSelectingRegion;
     if (stopSnowBtn) stopSnowBtn.disabled = !status.snowCarving;
 
+    // 拼圖
+    const startPuzzleBtn = document.querySelector('#startPuzzleBtn');
+    const stopPuzzleBtn = document.querySelector('#stopPuzzleBtn');
+    if (startPuzzleBtn) startPuzzleBtn.disabled = anyRunning || isSelectingRegion;
+    if (stopPuzzleBtn) stopPuzzleBtn.disabled = !status.puzzle;
+
     // 釣魚
     const startFishBtn = document.querySelector('#startFishBtn');
     const stopFishBtn = document.querySelector('#stopFishBtn');
@@ -1316,6 +1338,7 @@ const setup = async () => {
     renderHeroRunning([
       ['料理', 'i-chef-hat', status.cooking],
       ['雪雕', 'i-snowflake', status.snowCarving],
+      ['拼圖', 'i-puzzle', status.puzzle],
       ['釣魚', 'i-fish', status.fishing],
       ['採集', 'i-sprout', status.plant || status.wood],
       ['拔草提醒', 'i-alarm-clock', cropRunning]
@@ -1333,7 +1356,7 @@ const setup = async () => {
     });
 
     // 只要有任務在執行，設定欄位、泡泡範圍選取按鈕都設為 disabled
-    const isAnyTaskRunning = status.cooking || status.snowCarving || status.fishing || status.plant || status.wood;
+    const isAnyTaskRunning = status.cooking || status.snowCarving || status.puzzle || status.fishing || status.plant || status.wood;
     document.querySelectorAll('.setting, .setting-check').forEach((input) => {
       input.disabled = (isAnyTaskRunning && !input.dataset.always) || input.dataset.locked === '1' || (input.dataset.always && cropRunning);
     });
@@ -1396,6 +1419,12 @@ const setup = async () => {
     const logs = await getApi().apiGetNextLogs(currentSnowLogIndex, 'snowCarving');
     logs.forEach(handleSnowLogMessage);
   }, 100);
+
+  // 定時拉取拼圖日誌
+  poll(async () => {
+    const logs = await getApi().apiGetNextLogs(currentPuzzleLogIndex, 'puzzle');
+    logs.forEach(handlePuzzleLogMessage);
+  }, 100);
 };
 
 window.addEventListener('pywebviewready', init);
@@ -1431,6 +1460,13 @@ document.querySelector('#stopCookBtn').addEventListener('click', async () => {
 });
 
 // 開始雪雕
+document.querySelector('#startPuzzleBtn').addEventListener('click', async () => {
+  await startTask((confirmed) => getApi().startPuzzle(confirmed));
+});
+document.querySelector('#stopPuzzleBtn').addEventListener('click', async () => {
+  await getApi().stop();
+});
+
 document.querySelector('#startSnowBtn').addEventListener('click', async () => {
   if (alertBlockers(getSnowBlockers())) return;
   await startTask((confirmed) => getApi().startSnowCarving(confirmed));
@@ -1555,33 +1591,37 @@ document.querySelector('#startCropBtn').addEventListener('click', async () => {
 document.querySelector('#stopCropBtn').addEventListener('click', () => getApi().apiCropStop());
 
 // Tab 切換
-const toolWrap = document.querySelector('.tool-wrap');
-const toolsTab = document.querySelector('#toolsTab');
+const menuTabs = [...document.querySelectorAll('.tab[data-menu]')]; // 小工具、更多：下拉選單型分頁
 const showPane = (tab, target) => {
   document.querySelectorAll('.tab').forEach((l) => l.classList.remove('active'));
   document.querySelectorAll('.pane').forEach((p) => p.classList.remove('show', 'active'));
   tab.classList.add('active');
-  document.querySelectorAll('.tool-item').forEach((item) => item.classList.toggle('active', tab === toolsTab && item.dataset.target === target));
+  document.querySelectorAll('.tool-item').forEach((item) => item.classList.toggle('active', item.closest('.tool-wrap').contains(tab) && item.dataset.target === target));
   const pane = document.querySelector(target);
   if (pane) pane.classList.add('show', 'active');
-  toolWrap.classList.remove('open');
+  document.querySelectorAll('.tool-wrap').forEach((w) => w.classList.remove('open'));
 };
 document.querySelectorAll('.tab[data-target]').forEach((btn) => {
   btn.addEventListener('click', () => showPane(btn, btn.dataset.target));
 });
-// 小工具: 點擊開關選單(滑鼠移上去由 CSS 展開)，選了項目才切換分頁
-toolsTab.addEventListener('click', () => {
-  const open = toolWrap.classList.toggle('open');
-  toolsTab.setAttribute('aria-expanded', open);
-});
-document.querySelectorAll('.tool-item').forEach((item) => {
-  item.addEventListener('click', () => {
-    showPane(toolsTab, item.dataset.target);
-    item.blur();
+// 小工具、更多: 點擊開關選單(滑鼠移上去由 CSS 展開)，選了項目才切換分頁
+menuTabs.forEach((menuTab) => {
+  const wrap = menuTab.closest('.tool-wrap');
+  menuTab.addEventListener('click', () => {
+    const open = wrap.classList.toggle('open');
+    menuTab.setAttribute('aria-expanded', open);
+  });
+  wrap.querySelectorAll('.tool-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      showPane(menuTab, item.dataset.target);
+      item.blur();
+    });
   });
 });
 document.addEventListener('click', (e) => {
-  if (!toolWrap.contains(e.target)) toolWrap.classList.remove('open');
+  document.querySelectorAll('.tool-wrap').forEach((w) => {
+    if (!w.contains(e.target)) w.classList.remove('open');
+  });
 });
 
 // 數字欄位超過上限(max)就自動改回上限，例如吃食物的飽食度最多 99。用捕獲階段先處理，後面儲存設定時拿到的就是修正後的值

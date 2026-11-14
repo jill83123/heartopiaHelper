@@ -584,6 +584,8 @@ def validateConfig(config, task):
     elif task == "fishing":
         checks.append(number("fishingDetectFrequency", "偵測頻率", 0.1))
         checks += fishingItemChecks(config, "fishing", "")
+    elif task == "puzzle":
+        pass  # 拼圖沒有可調的設定
     else:
         checks.append(number("snowDetectFrequency", "偵測頻率", 0.05))
 
@@ -723,6 +725,33 @@ def clickMouse(x, y):
     win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
     time.sleep(0.1)
     win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
+
+
+def _moveMouseAbs(x, y):
+    """用「絕對座標的滑鼠移動事件」移到 (x, y)。SetCursorPos 只是把游標瞬間放過去，遊戲(Unity)可能收不到滑鼠移動，
+    拖曳時碎片就不會跟著游標；這個會產生真的滑鼠移動事件(座標換成 0~65535，涵蓋整個虛擬桌面)"""
+    vx, vy = win32api.GetSystemMetrics(76), win32api.GetSystemMetrics(77)
+    vw, vh = win32api.GetSystemMetrics(78), win32api.GetSystemMetrics(79)
+    nx = round((x - vx) * 65535 / max(1, vw - 1))
+    ny = round((y - vy) * 65535 / max(1, vh - 1))
+    win32api.mouse_event(win32con.MOUSEEVENTF_MOVE | win32con.MOUSEEVENTF_ABSOLUTE | win32con.MOUSEEVENTF_VIRTUALDESK, nx, ny, 0, 0)
+
+
+def dragMouse(x1, y1, x2, y2, steps=8, hold=0.25, stepDelay=0.008, settle=0.05):
+    """按住左鍵從 (x1, y1) 拖到 (x2, y2) 再放開。遊戲要「長按」才會拿起碎片，所以按下後先不動，等 hold 秒；
+    之後分成小步、用真的滑鼠移動事件移動，到了再停一下才放開"""
+    win32api.SetCursorPos((x1, y1))
+    _moveMouseAbs(x1, y1)
+    time.sleep(0.1)
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    time.sleep(hold)
+    for i in range(1, steps + 1):
+        _moveMouseAbs(round(x1 + (x2 - x1) * i / steps), round(y1 + (y2 - y1) * i / steps))
+        time.sleep(stepDelay)
+    time.sleep(settle)
+    _moveMouseAbs(x2, y2)
+    time.sleep(0.04)
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
 
 def clickRightMouse(x, y):

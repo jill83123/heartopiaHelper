@@ -21,6 +21,7 @@ from scripts.fishing import Fishing
 from scripts.PlantGathering import PlantGathering
 from scripts.WoodCutting import WoodCutting
 from scripts.SnowCarving import SnowCarving
+from scripts.Puzzle import Puzzle
 from scripts.CropReminder import CropReminder
 
 
@@ -57,9 +58,9 @@ GATHER_FOOD_KEYS = (
     "RepairMinutes",
 )
 GATHER_TASKS = ("plant", "wood")
-FLOAT_START_BUTTONS = {"cooking": "#startCookBtn", "snowCarving": "#startSnowBtn", "fishing": "#startFishBtn", "plant": "#startPlantBtn", "wood": "#startWoodBtn"}  # 懸浮日誌「開始」要按主視窗哪一顆
-FLOAT_TASK_NAMES = {"cooking": "料理", "snowCarving": "雪雕", "fishing": "釣魚", "plant": "採集", "wood": "採集"}  # 懸浮日誌標題顯示目前(上次)執行的內容
-RUN_KEYS = ("cooking", "snowCarving", "fishing", "plant", "wood")  # 要記錄執行時間的任務(釣魚的前景、背景定時算同一個)
+FLOAT_START_BUTTONS = {"cooking": "#startCookBtn", "snowCarving": "#startSnowBtn", "puzzle": "#startPuzzleBtn", "fishing": "#startFishBtn", "plant": "#startPlantBtn", "wood": "#startWoodBtn"}  # 懸浮日誌「開始」要按主視窗哪一顆
+FLOAT_TASK_NAMES = {"cooking": "料理", "snowCarving": "雪雕", "puzzle": "拼圖", "fishing": "釣魚", "plant": "採集", "wood": "採集"}  # 懸浮日誌標題顯示目前(上次)執行的內容
+RUN_KEYS = ("cooking", "snowCarving", "puzzle", "fishing", "plant", "wood")  # 要記錄執行時間的任務(釣魚的前景、背景定時算同一個)
 
 REGION_HINTS = {
     "bubbleRegionCoord": "請框選「料理泡泡區域」：鍋子、火、手套、計時器圖示會出現的範圍（Esc 取消）",
@@ -76,6 +77,9 @@ class Api:
 
         # snow
         self.snowCarvingTask = None
+
+        # puzzle
+        self.puzzleTask = None
 
         # fishing
         self.fishingTask = None
@@ -94,6 +98,7 @@ class Api:
         self.logs = {
             "cooking": deque(maxlen=LOG_LIMIT),
             "snowCarving": deque(maxlen=LOG_LIMIT),
+            "puzzle": deque(maxlen=LOG_LIMIT),
             "crop": deque(maxlen=LOG_LIMIT),
             "fishing": deque(maxlen=LOG_LIMIT),
             "fishingAlt": deque(maxlen=LOG_LIMIT),
@@ -101,7 +106,7 @@ class Api:
             "wood": deque(maxlen=LOG_LIMIT),
             "float": deque(maxlen=LOG_LIMIT),  # 懸浮日誌: 只放目前這一次運行的任務訊息
         }
-        self.logCounts = {"cooking": 0, "snowCarving": 0, "crop": 0, "fishing": 0, "fishingAlt": 0, "plant": 0, "wood": 0, "float": 0}
+        self.logCounts = {"cooking": 0, "snowCarving": 0, "puzzle": 0, "crop": 0, "fishing": 0, "fishingAlt": 0, "plant": 0, "wood": 0, "float": 0}
         self.floatSources = set()  # 這次運行有哪些任務的訊息要送進懸浮日誌
         self.floatRun = 0  # 每次按「開始」加 1，懸浮日誌視窗看到變了就清空
         self._logWindow = None
@@ -247,6 +252,7 @@ class Api:
         return {
             "cooking": (self.cookingTask,),
             "snowCarving": (self.snowCarvingTask,),
+            "puzzle": (self.puzzleTask,),
             "fishing": (self.fishingTask, self.fishingAltTask),
             "plant": (self.plantTask,),
             "wood": (self.woodTask,),
@@ -367,7 +373,7 @@ class Api:
         config = dict(self.config)
         if task == "fishingAlt":
             config["controlMode"] = "adb"
-        elif task == "fishing":
+        elif task in ("fishing", "puzzle"):
             config["controlMode"] = "screen"
         return config
 
@@ -572,7 +578,7 @@ class Api:
         return True
 
     def isRunning(self):
-        return any(task and task.isStart for task in (self.cookingTask, self.snowCarvingTask, self.fishingTask, self.fishingAltTask, self.plantTask, self.woodTask))
+        return any(task and task.isStart for task in (self.cookingTask, self.snowCarvingTask, self.puzzleTask, self.fishingTask, self.fishingAltTask, self.plantTask, self.woodTask))
 
     def apiWriteSetting(self, key, value):
         writeConfig(key, value)
@@ -636,6 +642,31 @@ class Api:
         self._beginRun(["snowCarving"])
         self.snowCarvingTask = SnowCarving(snowLog, backend, config)
         self.snowCarvingTask.start()
+        return {"ok": True}
+
+    def startPuzzle(self, confirmed=False):
+        if self.isRunning():
+            return {"ok": False, "error": "已有任務運行中，請先停止"}
+        if self.selectLock.locked():
+            return {"ok": False, "error": "正在選取範圍，請先完成選取"}
+
+        def puzzleLog(msg):
+            self.setLog(msg, "puzzle")
+
+        config = self.taskConfig("puzzle")  # 拼圖固定走前景模式
+        error = validateConfig(config, "puzzle")
+        if error:
+            return {"ok": False, "error": error}
+        backend = self.getBackend("puzzle")
+        if not backend:
+            return {"ok": False, "error": self.backendErrorText(), **self.backendFailure()}
+        blocked = self._resolutionBlock(backend, confirmed)
+        if blocked:
+            return blocked
+
+        self._beginRun(["puzzle"])
+        self.puzzleTask = Puzzle(puzzleLog, backend, config)
+        self.puzzleTask.start()
         return {"ok": True}
 
     def _altConfig(self):
@@ -796,8 +827,12 @@ class Api:
             self.snowCarvingTask.stop()
             self.snowCarvingTask = None
 
+        if self.puzzleTask:
+            self.puzzleTask.stop()
+            self.puzzleTask = None
+
     def apiGetStatus(self):
-        status = {"cooking": False, "snowCarving": False, "fishing": False, "plant": False, "wood": False}
+        status = {"cooking": False, "snowCarving": False, "puzzle": False, "fishing": False, "plant": False, "wood": False}
         status["runs"] = {key: self._runSnapshot(key) for key in RUN_KEYS}
         status["floatLogPosition"] = self.config.get("floatLogPosition", "screen")  # 拖曳懸浮日誌會自動切到「自訂」，讓設定頁跟著變
 
@@ -812,6 +847,9 @@ class Api:
 
         if self.snowCarvingTask and getattr(self.snowCarvingTask, "isStart", False):
             status["snowCarving"] = True
+
+        if self.puzzleTask and getattr(self.puzzleTask, "isStart", False):
+            status["puzzle"] = True
 
         if any(task and getattr(task, "isStart", False) for task in (self.fishingTask, self.fishingAltTask)):
             status["fishing"] = True
