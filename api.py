@@ -831,6 +831,13 @@ class Api:
             self.puzzleTask.stop()
             self.puzzleTask = None
 
+    def apiFrontReady(self):
+        """主視窗前端初始化完成時由頁面呼叫: 啟動診斷收尾，並讓 main 接著建懸浮日誌視窗"""
+        callback = getattr(self, "onFrontReady", None)
+        if callback:
+            callback()
+        return True
+
     def apiGetStatus(self):
         status = {"cooking": False, "snowCarving": False, "puzzle": False, "fishing": False, "plant": False, "wood": False}
         status["runs"] = {key: self._runSnapshot(key) for key in RUN_KEYS}

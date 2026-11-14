@@ -1,3 +1,4 @@
+import faulthandler
 import keyboard
 import os
 import sys
@@ -32,6 +33,43 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 api = Api()
+
+# ===== 啟動診斷: 偶爾開啟後沒有反應時，userdata/startup.log 會留下卡在哪個階段，以及當下每條執行緒的堆疊 =====
+_startT0 = time.time()
+_traceFile = None
+try:
+    from tools.tools import getUserDataPath
+    _traceFile = open(getUserDataPath("startup.log"), "w", encoding="utf-8", buffering=1)
+    faulthandler.enable(file=_traceFile)
+except Exception:
+    _traceFile = None
+
+
+def trace(msg):
+    if _traceFile:
+        try:
+            _traceFile.write(f"[{time.time() - _startT0:6.2f}s] {msg}\n")
+        except Exception:
+            pass
+
+
+def armHangDump():
+    """主視窗 20 秒內沒完成初始化，就把所有執行緒的堆疊寫進 startup.log(只寫一次)"""
+    if _traceFile:
+        try:
+            faulthandler.dump_traceback_later(20, file=_traceFile)
+        except Exception:
+            pass
+
+
+def disarmHangDump():
+    try:
+        faulthandler.cancel_dump_traceback_later()
+    except Exception:
+        pass
+
+
+trace("匯入完成、Api 建立完成")
 
 
 def resourcePath(relativePath):
@@ -71,21 +109,36 @@ _floatPrepared = False
 
 
 def prepareFloatLogOnce():
-    """主視窗頁面載入完成後才建懸浮日誌視窗。視窗一建好就同時初始化第二個 WebView2，UI 執行緒偶爾會卡住(開啟時「沒有回應」)"""
+    """主視窗頁面初始化完成後才建懸浮日誌視窗。視窗一建好就同時初始化第二個 WebView2，UI 執行緒偶爾會卡住(開啟時「沒有回應」)"""
     global _floatPrepared
     if _floatPrepared:
         return
     _floatPrepared = True
-    time.sleep(0.5)  # 讓主視窗先把畫面畫出來
+    time.sleep(1.0)  # 讓主視窗先把畫面畫出來、第一輪輪詢跑完
+    trace("開始建立懸浮日誌視窗")
     api._prepareFloatLog()
+    trace("懸浮日誌視窗建立完成")
 
 
 def onLoaded():
-    threading.Thread(target=prepareFloatLogOnce, daemon=True).start()
+    trace("主視窗 loaded")
+
+
+def onShown():
+    trace("主視窗 shown")
 
 
 def onStarted():
+    trace("webview.start 的啟動函式開始")
+    armHangDump()
     threading.Thread(target=setDevIcon, daemon=True).start()
+
+
+def onFrontReady():
+    """前端初始化完成(由頁面呼叫 apiFrontReady 觸發)"""
+    trace("前端初始化完成")
+    disarmHangDump()
+    threading.Thread(target=prepareFloatLogOnce, daemon=True).start()
 
 
 def listenStopKey():
@@ -167,6 +220,8 @@ def main():
     )
     mainWindow.events.closing += onClosing
     mainWindow.events.loaded += onLoaded
+    mainWindow.events.shown += onShown
+    api.onFrontReady = onFrontReady
     try:
         webview.start(onStarted)
     except KeyboardInterrupt:

@@ -1202,6 +1202,7 @@ const init = async () => {
     await setup();
   } finally {
     hideLoading();
+    getApi().apiFrontReady();
   }
 };
 
