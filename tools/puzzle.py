@@ -428,6 +428,37 @@ def detectGrid(img, ref, centers, candidates=GRID_SIZES):
     return (best if scores[best] >= 0.4 else None), scores, confident
 
 
+def measureBoardPieces(board):
+    """棋盤上已經有碎片時(例如上次拼到一半)，從單獨一片碎片(沒和別片連在一起)量本體邊長，推出片數。
+    回傳片數或 None。用棋盤底色(兩種灰階)以外的像素當碎片"""
+    tones = _TONES
+    if tones is None:
+        return None
+    gray = board.astype(np.float32).mean(axis=2)
+    bg = np.zeros(gray.shape, bool)
+    for t in tones:
+        bg |= np.abs(gray - t) <= 3.5
+    mask = (~bg).astype(np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    size = board.shape[0]
+    votes = []
+    for i in range(1, n):
+        x, y, w, h = stats[i, :4]
+        if w < size / 14 or h < size / 14 or w > size / 3.2 or h > size / 3.2:
+            continue  # 太小是雜訊，太大是好幾片連在一起
+        sub = labels[y : y + h, x : x + w] == i
+        cols, rows = sub.sum(axis=0), sub.sum(axis=1)
+        ci, ri = np.nonzero(cols >= 0.4 * cols.max())[0], np.nonzero(rows >= 0.5 * rows.max())[0]
+        bw, bh = int(ci[-1] - ci[0] + 1), int(ri[-1] - ri[0] + 1)
+        votes.append(size / float(max(bw, bh)))  # 凹槽、凸角會讓其中一個方向量短，本體是正方形，取大的
+    if not votes:
+        return None
+    v = float(np.median(votes))
+    g = min(GRID_SIZES, key=lambda k: abs(v - k))
+    return g if abs(v - g) <= 0.8 else None
+
+
 def measureDropped(before, after, cell):
     """碎片掉到棋盤上後，用放前放後的差異量出那片碎片本體的邊長(就是棋盤一格)，回傳 (邊長, 中心x, 中心y) 或 None。
     本體每一欄/每一列都有碎片的像素，凸角只佔一小段，所以只數「碎片像素夠多」的欄列"""
@@ -444,9 +475,9 @@ def measureDropped(before, after, cell):
         return None
     sub = labels[y : y + h, x : x + w] == i
     cols, rows = sub.sum(axis=0), sub.sum(axis=1)
-    cx_idx, ry_idx = np.nonzero(cols >= 0.6 * cols.max())[0], np.nonzero(rows >= 0.6 * rows.max())[0]
+    cx_idx, ry_idx = np.nonzero(cols >= 0.4 * cols.max())[0], np.nonzero(rows >= 0.5 * rows.max())[0]
     bw, bh = int(cx_idx[-1] - cx_idx[0] + 1), int(ry_idx[-1] - ry_idx[0] + 1)
-    return (bw + bh) / 2.0, x + (cx_idx[0] + cx_idx[-1]) / 2.0, y + (ry_idx[0] + ry_idx[-1]) / 2.0
+    return float(max(bw, bh)), x + (cx_idx[0] + cx_idx[-1]) / 2.0, y + (ry_idx[0] + ry_idx[-1]) / 2.0
 
 
 def bestCells(scores):
