@@ -60,6 +60,49 @@ def _buttonsWhite(img):
     return hits >= 3
 
 
+ALIGN_MARGIN = 20  # 版面位置可能和基準差幾個像素(視窗邊框、截圖範圍不同)，上下左右各搜這麼遠
+ALIGN_MIN_SCORE = 0.8  # 四顆按鈕的白色圓環對上的比例下限
+
+
+def alignOffset(img):
+    """用右側四顆白色圓形按鈕，找出實際版面相對 1600x900 基準位置的偏移 (dx, dy)(實際位置 = 基準位置 + 偏移)，找不到回傳 None。
+    畫面大小要接近 1600x900 才處理(其他大小是縮放造成的，不是平移)"""
+    H, W = img.shape[:2]
+    if not (0.95 <= W / BASE_W <= 1.05 and 0.95 <= H / BASE_H <= 1.05):
+        return None
+    r0, r1, rad = 24, 31, 35
+    tw, th = 2 * rad, BUTTON_YS[-1] - BUTTON_YS[0] + 2 * rad
+    tmpl = np.zeros((th, tw), np.float32)
+    yy, xx = np.ogrid[:th, :tw]
+    for by in BUTTON_YS:
+        d = np.hypot(xx - rad, yy - (by - BUTTON_YS[0] + rad))
+        tmpl[(d >= r0) & (d <= r1)] = 1.0
+    cx0, cy0 = BUTTON_X - rad - ALIGN_MARGIN, BUTTON_YS[0] - rad - ALIGN_MARGIN
+    x0, y0 = max(0, cx0), max(0, cy0)
+    x1, y1 = min(W, BUTTON_X + rad + ALIGN_MARGIN), min(H, BUTTON_YS[-1] + rad + ALIGN_MARGIN)
+    if x1 - x0 < tw or y1 - y0 < th:
+        return None
+    hsv = cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+    white = ((hsv[..., 1] < 40) & (hsv[..., 2] > 225)).astype(np.float32)
+    res = cv2.matchTemplate(white, tmpl, cv2.TM_CCORR) / float(tmpl.sum())
+    _, score, _, loc = cv2.minMaxLoc(res)
+    if score < ALIGN_MIN_SCORE:
+        return None
+    return x0 + loc[0] - (BUTTON_X - rad), y0 + loc[1] - (BUTTON_YS[0] - rad)
+
+
+def normalizeLayout(img, offset):
+    """把版面平移回 1600x900 基準位置(多出的地方補黑)，回傳新影像；原圖座標 = 新圖座標 + offset"""
+    dx, dy = offset
+    out = np.zeros((BASE_H, BASE_W, 3), img.dtype)
+    H, W = img.shape[:2]
+    sx0, sy0 = max(0, dx), max(0, dy)
+    sx1, sy1 = min(W, BASE_W + dx), min(H, BASE_H + dy)
+    if sx1 > sx0 and sy1 > sy0:
+        out[sy0 - dy : sy1 - dy, sx0 - dx : sx1 - dx] = img[sy0:sy1, sx0:sx1]
+    return out
+
+
 def findFrame(img):
     """目前拼圖畫面的狀態: ("board", 外框) 顯示棋盤、("reference", 外框) 參考圖開著、None 不在拼圖畫面。
     框色、棋盤底色會隨拼圖主題改變，所以不比顏色: 版面位置固定，只確認那一段木框顏色一致，且棋盤顯示時右側四顆按鈕是亮白色"""
