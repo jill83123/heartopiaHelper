@@ -44,7 +44,8 @@ MIN_SCORE = 0.55  # 碎片與參考圖的相似分數下限
 MIN_MARGIN = 0.12  # 第一名要比第二名高出多少，才算有把握
 GUESS_SCORE = 0.40  # 沒有把握時猜測的下限
 GUESS_MARGIN = 0.03
-FORCE_SCORE = 0.10  # 連猜都不夠把握時，剩下的碎片還是挑最高分的放(空格已經不多，總得放進某一格)
+VERIFY_LOOSE_SCORE = 0.42  # 收尾階段，放下後在棋盤上重新比對，高於這個分數就把碎片移到它該在的空格
+FORCE_SCORE = 0.25  # 連猜都不夠把握時，剩下的碎片還是挑最高分的放(空格已經不多，總得放進某一格)
 
 
 class Puzzle(DebugMixin, BaseTask):
@@ -169,14 +170,22 @@ class Puzzle(DebugMixin, BaseTask):
                 centers = [(x, y) for x, y, _ in P.trayPieces(img) if img.shape[1] * P.TRAY_PICK_X[0] <= x <= img.shape[1] * P.TRAY_PICK_X[1]]
                 boardW = P.innerRect(frame)[2]
                 grid, gridScores, sure = P.detectGrid(img, cv2.resize(self.reference, (boardW, boardW), interpolation=cv2.INTER_AREA), centers)  # 參考圖要先縮成棋盤的大小，托盤碎片的比例才對得上
-                if not sure and self._boardAllEmpty(img, frame):
-                    probed = self._probeGrid(img, base, frame, centers, stopEvent)  # 色塊大的圖案看不出片數: 放一片到棋盤上，直接量它的大小
+                if self._boardAllEmpty(img, frame):
+                    probed = self._probeGrid(img, base, frame, centers, stopEvent)  # 棋盤全空時圖案比對不準(第一次跑常猜錯): 放一片到棋盤上，直接量它的大小
                     grid = probed or grid
+                else:
+                    ix, iy, iw, ih = P.innerRect(frame)
+                    measured = P.measureBoardPieces(img[iy : iy + ih, ix : ix + iw])  # 棋盤上已有碎片: 直接量單獨一片的大小，比圖案比對準
+                    grid = measured or grid
                 grid = grid or P.TRAY_GRID
                 if grid != P.GRID:
                     P.setGrid(grid)
                 P.setTones(None)
                 self.setLog(f"拼圖是 {grid}×{grid} 片")
+                if self.recent:  # 量大小時放上去的那片: 先檢查，放錯就馬上放回托盤，再開始拼
+                    self._evaluateRecent(stopEvent, quick=True)
+                    if self.suspect:
+                        self._recycle(stopEvent)
                 continue
             if P.edgeOnDetected(img, P.EDGE_BTN):
                 self.edgeMode = True
@@ -221,7 +230,7 @@ class Puzzle(DebugMixin, BaseTask):
                 self._lastTray = None
                 continue
             if result == "full":  # 棋盤沒有空格了: 還有放錯的就清垃圾桶重來，沒有就是拼完了
-                if self.recent and self.rounds < MAX_ROUNDS and self._recycle(stopEvent):
+                if self.rounds < MAX_ROUNDS and self._recycle(stopEvent):  # 平坦的圖案(如地板)放錯也會被當成放對，所以不管有沒有記錄，一律按一次垃圾桶確認沒有未落位的碎片
                     self._startNewRound()
                     continue
                 self.setLog("✅ 拼圖完成")
@@ -349,6 +358,7 @@ class Puzzle(DebugMixin, BaseTask):
         empty = P.emptyMap(board)
         if not empty.any():
             return "full"
+        nEmpty = int(empty.sum())  # 棋盤上每個空格對應托盤上一片碎片(放錯還沒清掉的會讓托盤更少)，所以托盤碎片數不會超過它
         corners = ((0, 0), (0, P.GRID - 1), (P.GRID - 1, 0), (P.GRID - 1, P.GRID - 1))
         self._scanning = edgeOn and not self._cornerScanned and any(empty[r, c] for r, c in corners)
         if edgeOn and not self._scanning:
@@ -369,9 +379,14 @@ class Puzzle(DebugMixin, BaseTask):
         strict, guess, force, exh = None, None, None, None
         cornerBest = None
         cornerBestEdges = None
-        for sx, sy, _ in P.trayPieces(img):
-            if not img.shape[1] * P.TRAY_PICK_X[0] <= sx <= img.shape[1] * P.TRAY_PICK_X[1]:  # 托盤兩端被切掉、淡出的碎片點不到，不看
-                continue
+        slots = P.trayPieces(img)
+        maxEnergy = max((e for _, _, e in slots), default=0.0)
+        slots = [t for t in slots if img.shape[1] * P.TRAY_PICK_X[0] <= t[0] <= img.shape[1] * P.TRAY_PICK_X[1]]  # 托盤兩端被切掉、淡出的碎片點不到，不看
+        if nEmpty < len(slots):
+            slots = slots[:nEmpty]  # 碎片數比托盤放得下的少時，托盤不會捲動，碎片從最左邊連續排(放回的排最後面)，後面的位置是空的
+        for sx, sy, energy in slots:
+            if energy < 0.5 * maxEnergy:
+                continue  # 這個位置的邊緣能量遠低於有碎片的位置: 托盤上根本沒碎片(尾端空了)，不要去拖
             if self._slotIsEmpty(img, sx, sy, tcell):
                 continue
             sig0 = self._sig(img, sx, sy, tcell)
@@ -400,11 +415,11 @@ class Puzzle(DebugMixin, BaseTask):
                     scores = np.where(side, scores, -1.0)
             sig = self._sig(img, sx, sy, tcell)
             blocked = np.zeros_like(empty)
-            for oldSig, r0, c0 in self.rejected:  # 這片碎片之前放在這一格被放回來過，就不是這格
+            for oldSig, r0, c0 in (self.rejected if nEmpty > 1 else []):  # 只剩最後一格時，這片一定屬於它，不能因為之前放不上去就把它列黑名單  # 這片碎片之前放在這一格被放回來過，就不是這格
                 if float(np.abs(sig - oldSig).mean()) < REJECT_DIFF:
                     scores[r0, c0] = -1.0
                     blocked[r0, c0] = True
-            for (r0, c0), n in self.cellFails.items():
+            for (r0, c0), n in (self.cellFails.items() if nEmpty > 1 else []):
                 if n >= MAX_CELL_FAILS:
                     scores[r0, c0] = -1.0
                     blocked[r0, c0] = True
@@ -444,6 +459,12 @@ class Puzzle(DebugMixin, BaseTask):
         chosenEdges = P.pieceEdges(img, (sx, sy), tcell)
         tx = bx + round((col + 0.5) * cell)
         ty = by + round((row + 0.5) * cell)
+        if nEmpty == 1:  # 最後一片一定放得進最後一格: 每次落點稍微偏一點(碎片被抓的位置不一定在正中央，偏了可能不會吸附)
+            n = getattr(self, "soloTries", 0)
+            self.soloTries = n + 1
+            ox, oy = ((0, 0), (0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (1, 1), (-1, 1), (1, -1))[n % 9]
+            tx += round(ox * cell * 0.15)
+            ty += round(oy * cell * 0.15)
         before = self._slotPatch(img, sx, sy, tcell)
         cy0, cy1, cx0, cx1 = by + round(row * cell), by + round((row + 1) * cell), bx + round(col * cell), bx + round((col + 1) * cell)
         beforeCell = img[cy0:cy1, cx0:cx1].astype(np.int16)  # 目標格放之前的樣子: 托盤那一格看不出變化時，也可以看這格有沒有變
@@ -492,7 +513,8 @@ class Puzzle(DebugMixin, BaseTask):
         margin = score - cands[1][0] if len(cands) > 1 else 1.0
         if (r2, c2) == (row, col):
             return row, col
-        if score >= MIN_SCORE and margin >= MIN_MARGIN and P.emptyMap(board)[r2, c2] and (not edgeOn or P.ringCells()[r2, c2]):
+        loose = self.forceMode or self.exhaustive  # 收尾階段碎片已經沒幾片，棋盤上看到的整片比對比托盤縮圖準，門檻放寬一點
+        if score >= (VERIFY_LOOSE_SCORE if loose else MIN_SCORE) and margin >= (MIN_MARGIN * 0.5 if loose else MIN_MARGIN) and P.emptyMap(board)[r2, c2] and (not edgeOn or P.ringCells()[r2, c2]):
             self.setLog(f"這片應該在第 {r2 + 1} 列第 {c2 + 1} 行（相似度 {score:.2f}）")
             self.backend.drag(base[0] + bx + cx, base[1] + by + cy, base[0] + bx + round((c2 + 0.5) * cell), base[1] + by + round((r2 + 0.5) * cell))
             stopEvent.wait(DROP_WAIT)
@@ -525,7 +547,7 @@ class Puzzle(DebugMixin, BaseTask):
             return False
         if not pos:
             self.backend.click(base[0] + teal[0], base[1] + teal[1])
-            stopEvent.wait(0.9)
+            stopEvent.wait(0.4)
             return self._afterRecycle(stopEvent)
         x, y = int(pos[0]), int(pos[1])
         x0, x1, y0, y1 = x + int(150 * scale), x + int(450 * scale), max(0, y - int(40 * scale)), y + int(40 * scale)
@@ -536,14 +558,14 @@ class Puzzle(DebugMixin, BaseTask):
         else:
             cx, cy = x + int(290 * scale), y
         self.backend.click(base[0] + cx, base[1] + cy)
-        stopEvent.wait(0.9)
+        stopEvent.wait(0.4)
         return self._afterRecycle(stopEvent)
 
     def _afterRecycle(self, stopEvent):
         # 碎片飛回托盤有動畫，等棋盤的空格不再變化才記錄(太早看會把還沒飛走的錯碎片當成放對了)
         empty, last = None, None
-        for _ in range(8):
-            if stopEvent.wait(0.5):
+        for _ in range(16):
+            if stopEvent.wait(0.25):  # 勤快一點看，穩定了就馬上往下，不要多等
                 return True
             img, base = self._gameShot()
             state = P.findFrame(img)
@@ -611,13 +633,17 @@ class Puzzle(DebugMixin, BaseTask):
         before = img[by : by + bh, bx : bx + bw].copy()
         sig = self._sig(img, sx, sy, tcell)
         self.backend.drag(base[0] + sx, base[1] + sy, base[0] + bx + bw // 2, base[1] + by + bh // 2)
-        if stopEvent.wait(0.6):
+        if stopEvent.wait(1.0):  # 碎片落下有縮放動畫，等它停好再量
             return None
         after, _ = self._gameShot()
-        measured = P.measureDropped(before, after[by : by + bh, bx : bx + bw], tcell)
+        afterBoard = after[by : by + bh, bx : bx + bw]
+        measured = P.measureDropped(before, afterBoard, tcell)
         if measured is None:
             return None
         cellPx, mx, my = measured
+        byBoard = P.measureBoardPieces(afterBoard)  # 用棋盤底色量到的結果比放前放後的差異穩定，兩者不同時以它為準
+        if byBoard:
+            cellPx = bw / byBoard
         grid = min(P.GRID_SIZES, key=lambda g: abs(bw / cellPx - g))  # 只有 6、8、10 三種，取最接近的
         if abs(bw / cellPx - grid) > 1.0:
             return None
