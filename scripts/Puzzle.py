@@ -176,7 +176,7 @@ class Puzzle(DebugMixin, BaseTask):
                 else:
                     ix, iy, iw, ih = P.innerRect(frame)
                     measured = P.measureBoardPieces(img[iy : iy + ih, ix : ix + iw])  # 棋盤上已有碎片: 直接量單獨一片的大小，比圖案比對準
-                    grid = measured or grid
+                    grid = measured or P.gridFromSeams(img[iy : iy + ih, ix : ix + iw]) or grid  # 量不到單獨一片時，看接縫的間距
                 grid = grid or P.TRAY_GRID
                 if grid != P.GRID:
                     P.setGrid(grid)
@@ -383,7 +383,10 @@ class Puzzle(DebugMixin, BaseTask):
         maxEnergy = max((e for _, _, e in slots), default=0.0)
         slots = [t for t in slots if img.shape[1] * P.TRAY_PICK_X[0] <= t[0] <= img.shape[1] * P.TRAY_PICK_X[1]]  # 托盤兩端被切掉、淡出的碎片點不到，不看
         if nEmpty < len(slots):
-            slots = slots[:nEmpty]  # 碎片數比托盤放得下的少時，托盤不會捲動，碎片從最左邊連續排(放回的排最後面)，後面的位置是空的
+            # 碎片數比托盤放得下的少時，碎片散落、不照固定間距排: 不靠間距推算，直接找畫面上有碎片(彩色)的地方
+            byColor = [t for t in P.trayPiecesByColor(img, nEmpty) if img.shape[1] * P.TRAY_PICK_X[0] <= t[0] <= img.shape[1] * P.TRAY_PICK_X[1]]
+            slots = byColor if byColor else slots[:nEmpty]  # 不截到剩下片數: 場景裡的誤判拖了沒變化會被記成空位，真的碎片不能因為名額被占走而被漏掉
+            maxEnergy = 1.0
         for sx, sy, energy in slots:
             if energy < 0.5 * maxEnergy:
                 continue  # 這個位置的邊緣能量遠低於有碎片的位置: 托盤上根本沒碎片(尾端空了)，不要去拖

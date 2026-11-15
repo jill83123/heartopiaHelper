@@ -155,6 +155,51 @@ def trayPieces(img, scale=None):
     return out
 
 
+def trayPiecesByColor(img, need=None):
+    """碎片少、散落在托盤上(不照固定間距排)時，直接看哪裡有碎片: 碎片是飽和的彩色，托盤底是灰的。
+    回傳碎片中心 [(x, y, 1.0), ...] 由左到右；重疊的碎片用距離轉換的峰值分開。
+    need: 還應該有幾片(棋盤空格數)。另外把「又暗又和底色差很多」的塊(深色碎片)補進來，最多補這麼多個"""
+    H, W = img.shape[:2]
+    cy = round(TRAY_Y * H)
+    hh = round(TRAY_HALF_H * H)
+    y0, y1 = max(0, cy - hh), min(H, cy + hh)
+    hsv = cv2.cvtColor(img[y0:y1], cv2.COLOR_BGR2HSV)
+    band = cv2.GaussianBlur(img[y0:y1], (5, 5), 0).astype(np.float32)
+    bg = np.median(band[:, round(TRAY_X_RANGE[0] * W) : round(TRAY_X_RANGE[1] * W)], axis=1, keepdims=True)  # 每一列的中位數顏色 = 托盤底色(碎片只佔少數，托盤上下亮度不同所以逐列算)
+    far = (band - bg).mean(axis=2) > 45  # 比底色亮很多 = 淡色碎片(只看變亮的，陰影、深色地板不算)
+    mask = (far | ((hsv[:, :, 1] > 110) & (hsv[:, :, 2] > 70))).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+    minR = 0.006 * W  # 碎片本體至少有這麼粗才算(排除小雜點)
+    sep = 0.03 * W
+    out = []
+    while True:
+        _, mx, _, loc = cv2.minMaxLoc(dist)
+        if mx < minR:
+            break
+        x, y = loc
+        out.append((x, y0 + y, 1.0))
+        cv2.circle(dist, (x, y), int(sep), 0, -1)
+    if need:  # 深色碎片: 比底色暗很多。托盤後面的陰影也會暗，所以所以要夠暗、塊要有碎片本體的粗細
+        dark = (((bg - band).mean(axis=2) > 25) & (band.max(axis=2) < 55)).astype(np.uint8) * 255
+        dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+        dd = cv2.distanceTransform(dark, cv2.DIST_L2, 5)
+        for x0, y1_, _ in out:
+            cv2.circle(dd, (x0, y1_ - y0), int(sep), 0, -1)
+        xl, xr = round(TRAY_PICK_X[0] * W), round(TRAY_PICK_X[1] * W)
+        dd[:, :xl] = 0
+        dd[:, xr:] = 0
+        for _ in range(need + 4):  # 深色的最多補「剩下片數」個；彩色的誤判(場景裡亮的東西)可能占掉名額，所以不看已找到幾個
+            _, mx, _, loc = cv2.minMaxLoc(dd)
+            if mx < 0.006 * W:
+                break
+            x, y = loc
+            out.append((x, y0 + y, 1.0))
+            cv2.circle(dd, (x, y), int(sep), 0, -1)
+    out.sort()
+    return out
+
+
 def referenceImage(img, frame, size):
     """從參考圖畫面切出圖片本體，縮成棋盤內框的大小 (size x size)"""
     x, y, w, h = innerRect(frame)
@@ -426,6 +471,29 @@ def detectGrid(img, ref, centers, candidates=GRID_SIZES):
     best = ranked[0]
     confident = scores[best] >= 0.4 and (len(ranked) < 2 or scores[best] - scores[ranked[1]] >= 0.03)  # 色塊大的圖，好幾種片數都對得起來，這時不能只靠圖案
     return (best if scores[best] >= 0.4 else None), scores, confident
+
+
+def gridFromSeams(board, cands=GRID_SIZES):
+    """棋盤上已經拼了不少碎片時，碎片之間的接縫是等距的線: 看哪種片數的格線位置邊緣最強(和格子中間比)。
+    托盤碎片散落、看不出大小時用這個。回傳片數或 None(沒有明顯勝出)"""
+    g = cv2.GaussianBlur(cv2.cvtColor(board, cv2.COLOR_BGR2GRAY), (3, 3), 0).astype(np.float32)
+    n = g.shape[0]
+    ex = np.abs(cv2.Sobel(g, cv2.CV_32F, 1, 0, ksize=3)).mean(axis=0)
+    ey = np.abs(cv2.Sobel(g, cv2.CV_32F, 0, 1, ksize=3)).mean(axis=1)
+    scores = {}
+    for c in cands:
+        cell = n / c
+        on, off = [], []
+        for e in (ex, ey):
+            for k in range(1, c):
+                a, b = int(round(k * cell)), int(round((k - 0.5) * cell))
+                on.append(e[max(0, a - 2) : a + 3].max())
+                off.append(e[max(0, b - 2) : b + 3].max())
+        scores[c] = float(np.mean(on) / (np.mean(off) + 1e-6))
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    if scores[ranked[0]] >= 1.8 and scores[ranked[0]] >= 1.5 * scores[ranked[1]]:
+        return ranked[0]
+    return None
 
 
 def measureBoardPieces(board):
