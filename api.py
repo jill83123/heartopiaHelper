@@ -184,6 +184,8 @@ class Api:
                 hidden=True,  # 先隱藏著建好，按「開始」時才不取得焦點地顯示，不會把遊戲從最上層搶走
             )
             self._logWindow.events.closing += self._onFloatClosing
+            # 視窗外殼一建好就改它的樣式，會和還在初始化的 WebView2 互相等待而卡死(主視窗也跟著沒反應)，等頁面載入完成再動它
+            self._logWindow.events.loaded.wait(15)
         for _ in range(100):  # 等視窗建好
             hwnd = win32gui.FindWindow(None, floatlog.LOG_TITLE)
             if hwnd:
