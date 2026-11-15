@@ -4,6 +4,7 @@ import numpy as np
 from scripts.common.base import BaseTask
 from tools import puzzle as P
 from tools.finder import getBaseScale
+from tools.debug import DebugMixin
 from tools.guards import findCancelButton
 
 GONE_SECONDS = 3  # 看過棋盤之後，連續這麼久都看不到拼圖畫面就停止
@@ -16,7 +17,8 @@ TRAY_STABLE_DIFF = 2.5  # 托盤畫面和上一輪的平均差異低於這個值
 EDGE_FIRST = False  # 先切到「只顯示邊緣拼圖塊」拼邊緣。實測不先拼邊緣更快，預設關閉
 SHAPE_MATCH = True  # 整片比對(上下挪位置比、凸角小塊一起比)；效果不好時改 False 就回到原本的做法
 SHIFT_YS = (-10, 0, 10)  # 托盤碎片高低不一，上下挪這些像素各比一次
-START_GRACE_SECONDS = 1.0  # 開始時沒看到拼圖介面，等這麼久還是沒有就停止
+START_GRACE_SECONDS = 3.0  # 開始時沒看到拼圖介面，等這麼久還是沒有就停止
+EMPTY_SLOT_DIFF = 10  # 托盤位置的畫面和碎片被拿走後的背景平均差異低於這個，就當作還是空的
 MAX_CELL_FAILS = 2  # 同一格連續放不上去幾次，就先不再嘗試
 TRASH_AFTER_GUESSES = 5  # 猜的、硬放的碎片累積幾片就先按一次垃圾桶(放錯的碎片會蓋住格子、干擾判斷)
 TRASH_AFTER_PLACED = 24  # 不管有沒有把握，累積放了幾片也按一次
@@ -45,7 +47,7 @@ GUESS_MARGIN = 0.03
 FORCE_SCORE = 0.10  # 連猜都不夠把握時，剩下的碎片還是挑最高分的放(空格已經不多，總得放進某一格)
 
 
-class Puzzle(BaseTask):
+class Puzzle(DebugMixin, BaseTask):
     """自動拼拼圖: 先開參考圖記下整張圖，再把托盤上的碎片依顏色、凸角缺角比對到參考圖的位置，拖到棋盤對應的格子。
     放錯的碎片不會落位，最後按垃圾桶放回托盤，再捲動托盤重新檢查。
     不負責進入拼圖，要先自己開好拼圖畫面。只支援前景模式(PC 版)"""
@@ -57,6 +59,11 @@ class Puzzle(BaseTask):
         img, origin = super()._gameShot()
         if self.backend.channelsSwapped:
             img = np.ascontiguousarray(img[:, :, ::-1])
+        offset = P.alignOffset(img)
+        if offset is not None and (offset != (0, 0) or img.shape[:2] != (P.BASE_H, P.BASE_W)):
+            # 版面和基準位置差幾個像素: 平移回基準位置，之後所有座標照基準算，點擊用的原點跟著挪
+            img = P.normalizeLayout(img, offset)
+            origin = (origin[0] + offset[0], origin[1] + offset[1])
         return img, origin
     dialogGuard = False  # 垃圾桶的確認視窗要按「放回」，不能讓安全網自動按取消
 
@@ -90,6 +97,8 @@ class Puzzle(BaseTask):
         self.falseAlarms = 0  # 清掉的結果一片都沒放錯，就是檢查太敏感，下次多累積幾片再清
         self.edgesAt = {}  # 放過碎片的格子 -> 放下時看到的四邊形狀
         self._seenBoard = False
+        self.slotFails = {}  # 托盤位置 x -> 從那裡拖了卻沒有任何變化的次數
+        self.emptySlots = []  # 碎片被拿走後托盤上空出來的位置 (x, 當時的背景畫面)，之後背景沒變就是還空著，不要再去那裡拿碎片
         self._trayFixed = False  # 托盤左右都拖不動(碎片都在畫面上)就不再拖
         self._stuckScrolls = 0
         self._edgeGaveUp = False  # 邊緣剩下的放不上去，已放棄先拼邊緣
@@ -128,6 +137,7 @@ class Puzzle(BaseTask):
                 if waitSince is None:
                     waitSince = time.time()
                 elif time.time() - waitSince > START_GRACE_SECONDS:
+                    self._saveShot(img, "puzzle_notfound")  # 除錯模式才存: 看程式實際截到的是什麼
                     self.setLog("沒有看到拼圖畫面，請先進入拼圖再按開始，已停止")
                     stopEvent.set()
                     return
@@ -362,6 +372,8 @@ class Puzzle(BaseTask):
         for sx, sy, _ in P.trayPieces(img):
             if not img.shape[1] * P.TRAY_PICK_X[0] <= sx <= img.shape[1] * P.TRAY_PICK_X[1]:  # 托盤兩端被切掉、淡出的碎片點不到，不看
                 continue
+            if self._slotIsEmpty(img, sx, sy, tcell):
+                continue
             sig0 = self._sig(img, sx, sy, tcell)
             scores = P.cellScores(img, (sx, sy), ref, cell, empty, cache=self._cacheFor(sig0), tcell=tcell, **self._matchArgs())
             edges = P.pieceEdges(img, (sx, sy), tcell)
@@ -444,6 +456,7 @@ class Puzzle(BaseTask):
         diff = float(np.abs(self._slotPatch(after, sx, sy, tcell).astype(np.int16) - before.astype(np.int16)).mean())
         cellDiff = float(np.abs(after[cy0:cy1, cx0:cx1].astype(np.int16) - beforeCell).mean())
         if diff >= CHANGE_THRESHOLD or cellDiff >= CELL_CHANGE_THRESHOLD:
+            self.emptySlots.append((sx, self._slotPatch(after, sx, sy, tcell)))
             self.placed += 1
             self.cellFails.pop((row, col), None)
             self.setLog(f"放上第 {row + 1} 列第 {col + 1} 行（相似度 {score:.2f}{kind}）")
@@ -455,6 +468,11 @@ class Puzzle(BaseTask):
             self.placedSince[(row, col)] = sig
             self.placedAt[(row, col)] = time.time()
             return "placed"
+        # 從這個托盤位置拖了，托盤上的畫面卻沒變: 多半根本沒有碎片(托盤後段空了)。連續兩次就記成空位，不再去那裡拿
+        key = next((k for k in self.slotFails if abs(k - sx) <= 10), sx)
+        self.slotFails[key] = self.slotFails.get(key, 0) + 1
+        if self.slotFails[key] >= 2:
+            self.emptySlots.append((sx, before))
         self.cellFails[(row, col)] = self.cellFails.get((row, col), 0) + 1
         if self.cellFails[(row, col)] >= MAX_CELL_FAILS:  # 同一格連續失敗才提醒，單次失敗(沒拖起來)很常見，不洗版
             self.setLog(f"第 {row + 1} 列第 {col + 1} 行試了幾次都放不上去，先跳過")
@@ -486,6 +504,8 @@ class Puzzle(BaseTask):
         """按右側垃圾桶，把還沒落位(放錯)的單片拼圖放回托盤。會跳出確認視窗，要按「放回」(青綠色)。
         放回後看哪些放過碎片的格子又空了，那些就是放錯的，記下來以後同一片不再放那格。回傳有沒有成功放回"""
         img, base = self._gameShot()
+        self.emptySlots = []  # 放錯的碎片會回到托盤
+        self.slotFails = {}
         self.backend.click(base[0] + round(P.TRASH_BTN[0] * img.shape[1]), base[1] + round(P.TRASH_BTN[1] * img.shape[0]))
         # 確認視窗是淡入跳出的，等一下再看；最多等 3 秒，每 0.25 秒看一次
         pos = teal = None
@@ -694,6 +714,13 @@ class Puzzle(BaseTask):
         patch = img[max(0, y - half) : y + half, max(0, x - half) : x + half]
         return cv2.resize(patch, (24, 24), interpolation=cv2.INTER_AREA).astype(np.float32)
 
+    def _slotIsEmpty(self, img, x, y, cell):
+        patch = self._slotPatch(img, x, y, cell)
+        for ox, old in self.emptySlots:
+            if abs(ox - x) <= 10 and old.shape == patch.shape and float(np.abs(patch.astype(np.int16) - old.astype(np.int16)).mean()) < EMPTY_SLOT_DIFF:
+                return True
+        return False
+
     @staticmethod
     def _slotPatch(img, x, y, cell):
         half = round(cell * 0.5)
@@ -704,6 +731,8 @@ class Puzzle(BaseTask):
         """在托盤上兩片碎片的正中間(碎片中心的高度)按住左右拖，看看有沒有別的碎片滑進來。
         self.sweepDir: -1 往左拖(看後面的)、+1 往右拖(回前面)。回傳托盤有沒有真的動(沒動就是到底了)"""
         H, W = img.shape[:2]
+        self.emptySlots = []  # 托盤要捲動，位置都會變
+        self.slotFails = {}
         slots = [x for x, _, _ in P.trayPieces(img)]
         if len(slots) < 2:
             return False
