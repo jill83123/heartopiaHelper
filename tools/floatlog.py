@@ -22,6 +22,35 @@ def heightOf(config):
         return LOG_SIZE[1]
 
 
+# 這些會改視窗的呼叫都要用 ctypes: 它們要等視窗所在的 UI 執行緒處理訊息，而 pywin32 的 win32gui 不會在等待時放掉 GIL，
+# UI 執行緒剛好要執行 Python 的事件處理(要 GIL)就互相等待、整個程式卡死(開啟時「沒有回應」)。ctypes 等待時會放掉 GIL
+_user32 = ctypes.WinDLL("user32", use_last_error=True)
+_user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+_user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
+_user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
+_user32.SetLayeredWindowAttributes.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_ubyte, ctypes.c_uint]
+_user32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+_user32.SetWindowDisplayAffinity.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+
+
+def getExStyle(hwnd):
+    return int(_user32.GetWindowLongPtrW(hwnd, win32con.GWL_EXSTYLE))
+
+
+def setExStyle(hwnd, style):
+    _user32.SetWindowLongPtrW(hwnd, win32con.GWL_EXSTYLE, style)
+
+
+def showWindow(hwnd, cmd):
+    _user32.ShowWindow(hwnd, cmd)
+
+
+def setWindowPos(hwnd, after, x, y, w, h, flags):
+    _user32.SetWindowPos(hwnd, after, x, y, w, h, flags)
+
+
 def dpiScale(hwnd):
     try:
         return ctypes.windll.user32.GetDpiForWindow(hwnd) / 96
@@ -31,12 +60,12 @@ def dpiScale(hwnd):
 
 def styleOverlay(hwnd):
     """半透明、不搶焦點(不然顯示時會把遊戲從最上層拉掉)、不出現在工作列，並從螢幕截圖中排除(不影響畫面比對)"""
-    style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+    style = getExStyle(hwnd)
     style |= win32con.WS_EX_LAYERED | win32con.WS_EX_NOACTIVATE | win32con.WS_EX_TOOLWINDOW
-    win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style)
-    win32gui.SetLayeredWindowAttributes(hwnd, 0, LOG_ALPHA, win32con.LWA_ALPHA)
+    setExStyle(hwnd, style)
+    _user32.SetLayeredWindowAttributes(hwnd, 0, LOG_ALPHA, win32con.LWA_ALPHA)
     try:
-        ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
+        _user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
     except Exception:
         pass
     enableShadow(hwnd)
@@ -83,8 +112,8 @@ def targetPosition(hwnd, mode, config, collapsed=False):
 def placeAndShow(hwnd, x, y, heightCss):
     """移到指定位置並顯示(置頂、不取得焦點)。heightCss 是視窗高度(96 dpi 的像素)"""
     scale = dpiScale(hwnd)
-    win32gui.ShowWindow(hwnd, win32con.SW_SHOWNOACTIVATE)
-    win32gui.SetWindowPos(
+    showWindow(hwnd, win32con.SW_SHOWNOACTIVATE)
+    setWindowPos(
         hwnd,
         win32con.HWND_TOPMOST,
         int(x),
@@ -104,7 +133,7 @@ def setHeight(hwnd, heightCss, anchor="bottom"):
         top = bottom - height
     width = round(LOG_SIZE[0] * scale)
     left, top = clampToScreen(left, top, width, height)
-    win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, left, top, round(LOG_SIZE[0] * scale), height, win32con.SWP_NOACTIVATE)
+    setWindowPos(hwnd, win32con.HWND_TOPMOST, left, top, round(LOG_SIZE[0] * scale), height, win32con.SWP_NOACTIVATE)
     return left, top
 
 
@@ -125,8 +154,8 @@ def setPassThrough(on):
         hwnd = win32gui.FindWindow(None, LOG_TITLE)
         if not hwnd:
             return
-        style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+        style = getExStyle(hwnd)
         style = style | win32con.WS_EX_TRANSPARENT if on else style & ~win32con.WS_EX_TRANSPARENT
-        win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style)
+        setExStyle(hwnd, style)
     except Exception:
         pass

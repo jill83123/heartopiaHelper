@@ -192,7 +192,7 @@ class Api:
                 self._logHwnd = hwnd
                 floatlog.styleOverlay(hwnd)
                 if not self._logShown:
-                    win32gui.ShowWindow(hwnd, 0)  # SW_HIDE，確保沒有顯示出來
+                    floatlog.showWindow(hwnd, 0)  # SW_HIDE，確保沒有顯示出來
                 return hwnd
             time.sleep(0.05)
         return None
@@ -328,7 +328,7 @@ class Api:
 
     def apiHideFloatLog(self):
         if self._logHwnd and win32gui.IsWindow(self._logHwnd):
-            win32gui.ShowWindow(self._logHwnd, 0)  # SW_HIDE
+            floatlog.showWindow(self._logHwnd, 0)  # SW_HIDE
         self._logShown = False
         return True
 
@@ -361,7 +361,7 @@ class Api:
         left, top, right, bottom = win32gui.GetWindowRect(self._logHwnd)
         x, y = floatlog.clampToScreen(left, top, right - left, bottom - top)  # 拖到畫面外就彈回可視範圍
         if (x, y) != (left, top):
-            win32gui.SetWindowPos(self._logHwnd, win32con.HWND_TOPMOST, x, y, 0, 0, win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
+            floatlog.setWindowPos(self._logHwnd, win32con.HWND_TOPMOST, x, y, 0, 0, win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
             left, top = x, y
         if self._floatPlaced and (left, top) == tuple(self._floatPlaced):
             return False
