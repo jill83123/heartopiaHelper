@@ -116,7 +116,9 @@ def prepareFloatLogOnce():
     _floatPrepared = True
     time.sleep(1.0)  # 讓主視窗先把畫面畫出來、第一輪輪詢跑完
     trace("開始建立懸浮日誌視窗")
+    armHangDump()
     api._prepareFloatLog()
+    disarmHangDump()
     trace("懸浮日誌視窗建立完成")
 
 

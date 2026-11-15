@@ -490,11 +490,8 @@ hr:has(+ .run-head) {
 .child-off + hr {
   margin-top: 16px;
 }
-.title.crop-title {
-  margin-bottom: 4px;
-}
 .crop-desc {
-  margin: 0 0 24px;
+  margin: -8px 0 24px; /* 往上貼近標題 */
 }
 .crop-card {
   margin-top: 24px;
@@ -2059,12 +2056,6 @@ details.section > summary::before {
   color: var(--danger);
 }
 
-.puzzle-notes {
-  margin: 0;
-  padding-left: 18px;
-  line-height: 1.7;
-}
-
 .tab .chevron {
   width: 14px;
   height: 14px;
@@ -2072,7 +2063,8 @@ details.section > summary::before {
 }
 
 .pane-heading {
-  margin: 0 0 14px;
+  margin: 0 0 10px; /* 和 .title 到下方內容的間距一致 */
+  line-height: 1.3;
   color: var(--text);
   font-size: 1.3em;
   font-weight: 700;
