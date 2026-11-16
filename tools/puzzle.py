@@ -39,10 +39,27 @@ def _scaled(img, x, y):
 
 
 def _ringUniform(img, xs):
+    """那一段木框顏色是否一致。拼上去的碎片凸角偶爾會壓到框上，所以允許少數像素不同(看大部分像素是否接近中位數顏色)"""
     x0, y0 = _scaled(img, xs[0], RING_Y[0])
     x1, y1 = _scaled(img, xs[1], RING_Y[1])
     strip = img[y0:y1, x0:x1].reshape(-1, 3).astype(np.float32)
-    return strip.size > 0 and float(strip.std(axis=0).max()) < RING_MAX_STD
+    if strip.size == 0:
+        return False
+    if float(strip.std(axis=0).max()) < RING_MAX_STD:
+        return True
+    near = np.abs(strip - np.median(strip, axis=0)).max(axis=1) < 25  # 木框有些許明暗漸層，所以容忍度不要太小
+    return float(near.mean()) >= 0.8
+
+
+def _ringHasEdge(img, xs):
+    """那一段木框的外側顏色要和框不同(有框的邊界)。背景剛好是一大片單色(深色牆、草地)時，不是框"""
+    x0, y0 = _scaled(img, xs[0], RING_Y[0])
+    x1, y1 = _scaled(img, xs[1], RING_Y[1])
+    o0, _ = _scaled(img, xs[0] - 26, 0)
+    o1, _ = _scaled(img, xs[0] - 14, 0)
+    inner = np.median(img[y0:y1, x0:x1].reshape(-1, 3), axis=0).astype(np.float32)
+    outer = np.median(img[y0:y1, o0:o1].reshape(-1, 3), axis=0).astype(np.float32)
+    return float(np.abs(inner - outer).max()) > 20
 
 
 def _buttonsWhite(img):
@@ -113,7 +130,7 @@ def findFrame(img):
 
     if _ringUniform(img, BOARD_RING_X) and _buttonsWhite(img):
         return "board", box(BOARD_OUTER)
-    if _ringUniform(img, REF_RING_X):
+    if _ringUniform(img, REF_RING_X) and _ringHasEdge(img, REF_RING_X):
         return "reference", box(REF_OUTER)
     return None
 
@@ -155,6 +172,51 @@ def trayPieces(img, scale=None):
     return out
 
 
+def trayPiecesByColor(img, need=None):
+    """碎片少、散落在托盤上(不照固定間距排)時，直接看哪裡有碎片: 碎片是飽和的彩色，托盤底是灰的。
+    回傳碎片中心 [(x, y, 1.0), ...] 由左到右；重疊的碎片用距離轉換的峰值分開。
+    need: 還應該有幾片(棋盤空格數)。另外把「又暗又和底色差很多」的塊(深色碎片)補進來，最多補這麼多個"""
+    H, W = img.shape[:2]
+    cy = round(TRAY_Y * H)
+    hh = round(TRAY_HALF_H * H)
+    y0, y1 = max(0, cy - hh), min(H, cy + hh)
+    hsv = cv2.cvtColor(img[y0:y1], cv2.COLOR_BGR2HSV)
+    band = cv2.GaussianBlur(img[y0:y1], (5, 5), 0).astype(np.float32)
+    bg = np.median(band[:, round(TRAY_X_RANGE[0] * W) : round(TRAY_X_RANGE[1] * W)], axis=1, keepdims=True)  # 每一列的中位數顏色 = 托盤底色(碎片只佔少數，托盤上下亮度不同所以逐列算)
+    bright = (band - bg).mean(axis=2) > 45  # 比底色亮很多 = 淡色碎片(只看變亮的，陰影、深色地板不算)
+    sat = (hsv[:, :, 1] > 110) & (hsv[:, :, 2] > 70)  # 飽和的彩色碎片
+    sep = 0.03 * W
+    out = []
+
+    def collect(mask, minR, limit):
+        mask = cv2.morphologyEx(mask.astype(np.uint8) * 255, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+        dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+        for x0, y1_, _ in out:
+            cv2.circle(dist, (x0, y1_ - y0), int(sep), 0, -1)
+        found = 0
+        while found < limit:
+            _, mx, _, loc = cv2.minMaxLoc(dist)
+            if mx < minR:
+                break
+            x, y = loc
+            out.append((x, y0 + y, 1.0))
+            cv2.circle(dist, (x, y), int(sep), 0, -1)
+            found += 1
+
+    collect(sat, 0.006 * W, 99)
+    collect(bright & ~sat, 0.014 * W, 99)  # 淡色的要有碎片本體的粗細才算，場景裡零星的亮點不是
+    if need and len(out) < need:
+        # 深色碎片: 又暗、又和底色差很多。托盤後面的陰影也會暗，所以只在上面找到的比剩下的片數少時才補，
+        # 而且塊要有碎片本體的粗細，最多補到夠數
+        xl, xr = round(TRAY_PICK_X[0] * W), round(TRAY_PICK_X[1] * W)
+        dark = ((bg - band).mean(axis=2) > 25) & (band.max(axis=2) < 55)
+        dark[:, :xl] = False
+        dark[:, xr:] = False
+        collect(dark, 0.010 * W, need - len(out))
+    out.sort()
+    return out
+
+
 def referenceImage(img, frame, size):
     """從參考圖畫面切出圖片本體，縮成棋盤內框的大小 (size x size)"""
     x, y, w, h = innerRect(frame)
@@ -191,9 +253,14 @@ def matchPiece(img, center, ref, cell, scales=(1.0,)):
 _TONES = None  # 這個拼圖棋盤格的兩種底色(灰階)。一開始棋盤大多是空的，整張圖出現最多的兩個灰階就是它們；記下來之後，碎片再怎麼多也不會把深色/灰色的碎片當成空格
 
 
+_RING_COLORS = None  # 開始時(棋盤大半是空的)從內部空格學到的兩種底色(BGR)。快拼完時內部沒有空格可學，最外圈剩下的空格就靠它認
+
+
 def setTones(tones):
-    global _TONES
+    global _TONES, _RING_COLORS
     _TONES = tones
+    if tones is None:
+        _RING_COLORS = None
 
 
 def getTones():
@@ -259,24 +326,30 @@ def _plainRing(board, gray, out, grid):
     這裡補判: 最外圈的格子大部分像素的「顏色」(不是只看灰階，淡灰色碎片的灰階會和底色一樣)接近內部空格的兩種底色，就算空格"""
     size = gray.shape[0]
     cell = size / grid
+    global _RING_COLORS
     inner = [(r, c) for r in range(1, grid - 1) for c in range(1, grid - 1) if out[r, c]]
-    if not inner:
+    if inner:
+        pix = np.concatenate([board[round(r * cell + cell * 0.2) : round((r + 1) * cell - cell * 0.2), round(c * cell + cell * 0.2) : round((c + 1) * cell - cell * 0.2)].reshape(-1, 3) for r, c in inner]).astype(np.float32)
+        g = pix.mean(axis=1)
+        hist = np.bincount(np.rint(g).astype(np.int32), minlength=258).astype(np.float32)
+        near = hist[:-2] + hist[1:-1] + hist[2:]
+        p1 = int(near.argmax())
+        masked = near.copy()
+        masked[max(0, p1 - 3) : p1 + 4] = 0
+        colors = []
+        for t in (p1 + 1, int(masked.argmax()) + 1):
+            sel = pix[np.abs(g - t) <= 1.5]
+            if len(sel):
+                colors.append(sel.mean(axis=0))
+        if len(colors) < 2:
+            return out
+        colors = np.array(colors)
+        if _RING_COLORS is None and len(inner) >= 8:  # 內部空格夠多(棋盤還很空)時學一次，之後內部拼滿了還能用
+            _RING_COLORS = colors
+    elif _RING_COLORS is not None:
+        colors = _RING_COLORS
+    else:
         return out
-    pix = np.concatenate([board[round(r * cell + cell * 0.2) : round((r + 1) * cell - cell * 0.2), round(c * cell + cell * 0.2) : round((c + 1) * cell - cell * 0.2)].reshape(-1, 3) for r, c in inner]).astype(np.float32)
-    g = pix.mean(axis=1)
-    hist = np.bincount(np.rint(g).astype(np.int32), minlength=258).astype(np.float32)
-    near = hist[:-2] + hist[1:-1] + hist[2:]
-    p1 = int(near.argmax())
-    masked = near.copy()
-    masked[max(0, p1 - 3) : p1 + 4] = 0
-    colors = []
-    for t in (p1 + 1, int(masked.argmax()) + 1):
-        sel = pix[np.abs(g - t) <= 1.5]
-        if len(sel):
-            colors.append(sel.mean(axis=0))
-    if len(colors) < 2:
-        return out
-    colors = np.array(colors)
     for r in range(grid):
         for c in range(grid):
             if out[r, c] or 0 < r < grid - 1 and 0 < c < grid - 1:
@@ -428,6 +501,29 @@ def detectGrid(img, ref, centers, candidates=GRID_SIZES):
     return (best if scores[best] >= 0.4 else None), scores, confident
 
 
+def gridFromSeams(board, cands=GRID_SIZES):
+    """棋盤上已經拼了不少碎片時，碎片之間的接縫是等距的線: 看哪種片數的格線位置邊緣最強(和格子中間比)。
+    托盤碎片散落、看不出大小時用這個。回傳片數或 None(沒有明顯勝出)"""
+    g = cv2.GaussianBlur(cv2.cvtColor(board, cv2.COLOR_BGR2GRAY), (3, 3), 0).astype(np.float32)
+    n = g.shape[0]
+    ex = np.abs(cv2.Sobel(g, cv2.CV_32F, 1, 0, ksize=3)).mean(axis=0)
+    ey = np.abs(cv2.Sobel(g, cv2.CV_32F, 0, 1, ksize=3)).mean(axis=1)
+    scores = {}
+    for c in cands:
+        cell = n / c
+        on, off = [], []
+        for e in (ex, ey):
+            for k in range(1, c):
+                a, b = int(round(k * cell)), int(round((k - 0.5) * cell))
+                on.append(e[max(0, a - 2) : a + 3].max())
+                off.append(e[max(0, b - 2) : b + 3].max())
+        scores[c] = float(np.mean(on) / (np.mean(off) + 1e-6))
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    if scores[ranked[0]] >= 1.8 and scores[ranked[0]] >= 1.5 * scores[ranked[1]]:
+        return ranked[0]
+    return None
+
+
 def measureBoardPieces(board):
     """棋盤上已經有碎片時(例如上次拼到一半)，從單獨一片碎片(沒和別片連在一起)量本體邊長，推出片數。
     回傳片數或 None。用棋盤底色(兩種灰階)以外的像素當碎片"""
@@ -478,6 +574,80 @@ def measureDropped(before, after, cell):
     cx_idx, ry_idx = np.nonzero(cols >= 0.4 * cols.max())[0], np.nonzero(rows >= 0.5 * rows.max())[0]
     bw, bh = int(cx_idx[-1] - cx_idx[0] + 1), int(ry_idx[-1] - ry_idx[0] + 1)
     return float(max(bw, bh)), x + (cx_idx[0] + cx_idx[-1]) / 2.0, y + (ry_idx[0] + ry_idx[-1]) / 2.0
+
+
+def _hungarian(cost):
+    """匈牙利演算法: n x m 的成本表(n <= m)，每列配一個不重複的欄，總成本最小。回傳每列配到的欄"""
+    n, m = cost.shape
+    INF = 1e18
+    u, v = np.zeros(n + 1), np.zeros(m + 1)
+    p, way = np.zeros(m + 1, int), np.zeros(m + 1, int)
+    for i in range(1, n + 1):
+        p[0], j0 = i, 0
+        minv, used = np.full(m + 1, INF), np.zeros(m + 1, bool)
+        while True:
+            used[j0] = True
+            i0 = p[j0]
+            free = ~used[1:]
+            cur = cost[i0 - 1] - u[i0] - v[1:]
+            upd = free & (cur < minv[1:])
+            minv[1:][upd] = cur[upd]
+            way[1:][upd] = j0
+            cand = np.where(free, minv[1:], INF)
+            j1 = int(cand.argmin()) + 1
+            delta = cand[j1 - 1]
+            idx = np.nonzero(used)[0]
+            u[p[idx]] += delta
+            v[idx] -= delta
+            minv[1:][free] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while True:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
+            if j0 == 0:
+                break
+    ans = np.zeros(n, int)
+    for j in range(1, m + 1):
+        if p[j]:
+            ans[p[j] - 1] = j - 1
+    return ans
+
+
+def assignCells(rows):
+    """整體分配: 每片碎片各一個不重複的格子，總分最高(不是各片各自挑最像的，兩片搶同一格時會自動讓步)。
+    rows: 每片碎片的 cellScores 結果(grid x grid，不能放的填負數)。
+    回傳每片 (row, col, 分數, 把握度) 或 None。把握度 = 這片不放在分到的格子時，總分會少多少
+    (只有一片時就是第一名與第二名的差，和原本的算法一致；有別片也想要同一格時，會把那片的損失算進去)"""
+    n = len(rows)
+    if n == 0:
+        return []
+    grid_w = rows[0].shape[1]
+    S = np.stack([r.ravel() for r in rows]).astype(np.float64)
+    m = S.shape[1]
+    if n > m:
+        return [None] * n
+    cost = -S
+    ans = _hungarian(cost)
+    total = float(S[np.arange(n), ans].sum())
+    out = []
+    for i in range(n):
+        j = int(ans[i])
+        score = float(S[i, j])
+        if score < 0:
+            out.append(None)
+            continue
+        alt = cost.copy()
+        alt[i, j] = 10.0  # 禁止這片放這格，看總分會掉多少
+        a2 = _hungarian(alt)
+        if a2[i] == j or S[i, a2[i]] < 0:  # 沒有別的格子可去: 和 bestCells 一樣，把握度就是它自己的分數
+            margin = score
+        else:
+            margin = total - float(S[np.arange(n), a2].sum())
+        out.append((j // grid_w, j % grid_w, score, float(margin)))
+    return out
 
 
 def bestCells(scores):
