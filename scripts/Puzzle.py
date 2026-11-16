@@ -45,6 +45,7 @@ MIN_MARGIN = 0.12  # 第一名要比第二名高出多少，才算有把握
 GUESS_SCORE = 0.40  # 沒有把握時猜測的下限
 GUESS_MARGIN = 0.03
 VERIFY_LOOSE_SCORE = 0.42  # 收尾階段，放下後在棋盤上重新比對，高於這個分數就把碎片移到它該在的空格
+BATCH_MAX = 4  # 有把握的碎片一次最多連續放幾片
 FORCE_SCORE = 0.25  # 連猜都不夠把握時，剩下的碎片還是挑最高分的放(空格已經不多，總得放進某一格)
 
 
@@ -379,6 +380,7 @@ class Puzzle(DebugMixin, BaseTask):
         strict, guess, force, exh = None, None, None, None
         cornerBest = None
         cornerBestEdges = None
+        rows = []  # 每片碎片的 (x, y, 對各空格的分數)
         slots = P.trayPieces(img)
         maxEnergy = max((e for _, _, e in slots), default=0.0)
         slots = [t for t in slots if img.shape[1] * P.TRAY_PICK_X[0] <= t[0] <= img.shape[1] * P.TRAY_PICK_X[1]]  # 托盤兩端被切掉、淡出的碎片點不到，不看
@@ -442,12 +444,17 @@ class Puzzle(DebugMixin, BaseTask):
                 r1, c1 = np.unravel_index(int(cand.argmax()), cand.shape)
                 if np.isfinite(cand[r1, c1]) and (exh is None or cand[r1, c1] > exh[0][2]):
                     exh = ((int(r1), int(c1), float(cand[r1, c1])), (sx, sy))
-            top = P.bestCells(scores)
-            if top is None:
+            rows.append((sx, sy, scores))
+        # 整體分配: 每片碎片各配一個不重複的格子(兩片搶同一格時自動讓步)，把握度看「這片不放這格總分掉多少」
+        strictList = []
+        for (sx, sy, _), a in zip(rows, P.assignCells([r[2] for r in rows])):
+            if a is None:
                 continue
-            r, c, score, margin = top
-            if score >= MIN_SCORE and margin >= MIN_MARGIN and (strict is None or score > strict[0][2]):
-                strict = ((r, c, score), (sx, sy))
+            r, c, score, margin = a
+            if score >= MIN_SCORE and margin >= MIN_MARGIN:
+                strictList.append(((r, c, score), (sx, sy)))
+                if strict is None or score > strict[0][2]:
+                    strict = ((r, c, score), (sx, sy))
             elif score >= GUESS_SCORE and margin >= GUESS_MARGIN and (guess is None or margin > guess[2]):
                 guess = ((r, c, score), (sx, sy), margin)
             if self.forceMode and score >= FORCE_SCORE and (force is None or score > force[0][2]):
@@ -459,27 +466,65 @@ class Puzzle(DebugMixin, BaseTask):
 
         isCorner = bool(cornerBest) and best is cornerBest
         (row, col, score), (sx, sy) = best
-        chosenEdges = P.pieceEdges(img, (sx, sy), tcell)
+        targets = [(row, col, score, sx, sy, cornerBestEdges if isCorner else P.pieceEdges(img, (sx, sy), tcell))]
+        if best is strict and not (self._scanning or self.forceMode or self.exhaustive or edgeOn) and nEmpty > 1:
+            # 有把握的碎片一次連續放(各自分到不同的格子)，不用每放一片就等托盤穩定、重新比對: 從右邊的碎片開始拿，
+            # 它右邊沒有碎片會往左補位，左邊還沒拿的碎片位置就不會變
+            top = sorted(strictList, key=lambda t: -t[0][2])[:BATCH_MAX]
+            if best not in top:
+                top[-1] = best
+            targets = [(r, c, sc, x, y, P.pieceEdges(img, (x, y), tcell)) for (r, c, sc), (x, y) in sorted(top, key=lambda t: -t[1][0])]
+        sigs = {t[3]: self._sig(img, t[3], t[4], tcell) for t in targets}
+        placedAny = False
+        cur = img
+        for k, (row, col, score, sx, sy, edges) in enumerate(targets):
+            if k > 0 and float(np.abs(self._sig(cur, sx, sy, tcell) - sigs[sx]).mean()) >= REJECT_DIFF * 1.5:
+                break  # 托盤上這個位置的碎片已經不是原本那片(托盤動了)，不要照舊的位置拿，回到主迴圈重新看
+            status = self._dropPiece(cur, base, frame, ref, cell, tcell, nEmpty, row, col, score, kind, sx, sy, edges, stopEvent, edgeOn)
+            if status != "placed":
+                return "placed" if placedAny else status
+            placedAny = True
+            if k + 1 < len(targets):
+                cur, _ = self._gameShot()  # 放下後可能被修正過位置，用最新的畫面繼續
+        return "placed"
+
+    def _dropPiece(self, img, base, frame, ref, cell, tcell, nEmpty, row, col, score, kind, sx, sy, edges, stopEvent, edgeOn):
+        """把托盤位置 (sx, sy) 的碎片拖到格子 (row, col)，看有沒有放上去。回傳 "placed" 或 "retry" """
+        bx, by, bw, bh = P.innerRect(frame)
         tx = bx + round((col + 0.5) * cell)
         ty = by + round((row + 0.5) * cell)
-        if nEmpty == 1:  # 最後一片一定放得進最後一格: 每次落點稍微偏一點(碎片被抓的位置不一定在正中央，偏了可能不會吸附)
+        gx, gy = sx, sy
+        if nEmpty <= 2:  # 只剩最後幾片: 每次的抓取點、落點都稍微偏一點(碎片被抓的位置不一定剛好在可拖的範圍內，偏了可能不會吸附)
             n = getattr(self, "soloTries", 0)
             self.soloTries = n + 1
             ox, oy = ((0, 0), (0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (1, 1), (-1, 1), (1, -1))[n % 9]
             tx += round(ox * cell * 0.15)
             ty += round(oy * cell * 0.15)
+            gx, gy = sx + round(((0, 10, -8, 0, 0, 12, -10)[n % 7]) * 1.0), sy + round(((0, 0, 0, -10, 10, -8, 8)[n % 7]) * 1.0)
         before = self._slotPatch(img, sx, sy, tcell)
         cy0, cy1, cx0, cx1 = by + round(row * cell), by + round((row + 1) * cell), bx + round(col * cell), bx + round((col + 1) * cell)
         beforeCell = img[cy0:cy1, cx0:cx1].astype(np.int16)  # 目標格放之前的樣子: 托盤那一格看不出變化時，也可以看這格有沒有變
         sig = self._sig(img, sx, sy, tcell)
-        self.backend.drag(base[0] + sx, base[1] + sy, base[0] + tx, base[1] + ty)
+        self.backend.drag(base[0] + gx, base[1] + gy, base[0] + tx, base[1] + ty)
         if stopEvent.wait(DROP_WAIT):
             return "retry"
 
         after, _ = self._gameShot()
         diff = float(np.abs(self._slotPatch(after, sx, sy, tcell).astype(np.int16) - before.astype(np.int16)).mean())
         cellDiff = float(np.abs(after[cy0:cy1, cx0:cx1].astype(np.int16) - beforeCell).mean())
-        if diff >= CHANGE_THRESHOLD or cellDiff >= CELL_CHANGE_THRESHOLD:
+        late = nEmpty <= 3  # 最後幾片: 只看托盤上那一格的碎片有沒有不見。拖到空的地方時，目標格會因為游標經過而變亮、變色，不能拿來當放上去的證據
+        changed = diff >= CHANGE_THRESHOLD or (not late and cellDiff >= CELL_CHANGE_THRESHOLD)
+        if changed and late:
+            # 碎片沒落位時會飛回托盤，剛放下就看到的畫面變化可能只是飛行中的樣子。等動畫結束再看一次
+            if stopEvent.wait(0.45):
+                return "retry"
+            settled, _ = self._gameShot()
+            diff = float(np.abs(self._slotPatch(settled, sx, sy, tcell).astype(np.int16) - before.astype(np.int16)).mean())
+            if diff < CHANGE_THRESHOLD:  # 又回到原本的樣子: 碎片被彈回托盤，沒放上去(不是托盤空了，不記成空位)
+                self.cellFails[(row, col)] = self.cellFails.get((row, col), 0) + 1
+                return "retry"
+            after = settled
+        if changed:
             self.emptySlots.append((sx, self._slotPatch(after, sx, sy, tcell)))
             self.placed += 1
             self.cellFails.pop((row, col), None)
@@ -487,7 +532,7 @@ class Puzzle(DebugMixin, BaseTask):
             if kind:
                 self.guessed += 1
             row, col = self._verify(after, base, frame, ref, cell, row, col, stopEvent, edgeOn)
-            self.edgesAt[(row, col)] = cornerBestEdges if isCorner else chosenEdges
+            self.edgesAt[(row, col)] = edges
             self.recent.append((sig, row, col))
             self.placedSince[(row, col)] = sig
             self.placedAt[(row, col)] = time.time()
