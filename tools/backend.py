@@ -19,6 +19,9 @@ from tools.tools import (
     clickMouse,
     clickRightMouse,
     dragMouse,
+    pressMouse,
+    moveMouseHeld,
+    releaseMouse,
     selectRegion,
     findWindow,
     focusWindow,
@@ -117,6 +120,21 @@ class ScreenBackend:
                 dragMouse(int(x1), int(y1), int(x2), int(y2), steps=40, stepDelay=0.015, settle=0.4)
             else:
                 dragMouse(int(x1), int(y1), int(x2), int(y2))
+        finally:
+            self._restoreFloatLog()
+
+    def touchDown(self, x, y):
+        """在 (x, y) 按住左鍵不放，直到 touchUp(中間用 touchMove 移動)"""
+        self._requireGame()
+        self._passThroughFloatLog(x, y)
+        pressMouse(x, y)
+
+    def touchMove(self, x, y):
+        moveMouseHeld(x, y)
+
+    def touchUp(self):
+        try:
+            releaseMouse()
         finally:
             self._restoreFloatLog()
 
@@ -357,6 +375,17 @@ class AdbBackend:
 
     def drag(self, x1, y1, x2, y2, slow=False):
         self.swipe(x1, y1, x2, y2, 1200 if slow else 600)
+
+    def touchDown(self, x, y):
+        self.holdDown(x, y)
+
+    def touchMove(self, x, y):
+        if getattr(self, "_holdAt", None):
+            self._holdAt = (str(int(x)), str(int(y)))
+            self._run(["shell", "input", "motionevent", "MOVE", *self._holdAt])
+
+    def touchUp(self):
+        self.holdUp()
 
     def getGameRect(self):
         return None  # 模擬器畫面就是整張截圖

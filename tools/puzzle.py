@@ -292,7 +292,7 @@ def setGrid(n):
     GRID = int(n)
 
 
-def emptyMap(board, grid=None):
+def emptyMap(board, grid=None, cover=None):
     """棋盤內框影像上，每一格是不是還空著 -> grid x grid 的布林陣列[row][col]。
     空格是兩種很接近的底色交錯成的棋盤格(顏色隨主題變)，所以看每格的顏色是不是剛好分成兩群、
     各自非常一致、群與群只差一點點；碎片的圖案(單色平面或有漸層、輪廓)不會是這樣"""
@@ -315,7 +315,7 @@ def emptyMap(board, grid=None):
             n1, n2 = near[p1], near[p2]
             gap = abs(p2 - p1)
             # 兩種底色都要佔相當比例、合起來佔大部分(邊上可能有鄰格碎片的凸起，所以不要求 100%)
-            out[r, c] = CHECKER_MIN_GAP <= gap <= CHECKER_MAX_GAP and min(n1, n2) >= v.size * 0.22 and (n1 + n2) >= v.size * CHECKER_COVER
+            out[r, c] = CHECKER_MIN_GAP <= gap <= CHECKER_MAX_GAP and min(n1, n2) >= v.size * 0.22 and (n1 + n2) >= v.size * (CHECKER_COVER if cover is None else cover)
             if out[r, c] and _TONES is not None:  # 兩種底色要跟整個棋盤的底色一樣，不然是碎片上剛好有兩種接近的顏色
                 out[r, c] = all(min(abs(q + 1 - t) for t in _TONES) <= 3 for q in (p1, p2))
     return _plainRing(board, gray, out, grid)

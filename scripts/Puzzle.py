@@ -19,6 +19,15 @@ SHAPE_MATCH = True  # 整片比對(上下挪位置比、凸角小塊一起比)�
 SHIFT_YS = (-10, 0, 10)  # 托盤碎片高低不一，上下挪這些像素各比一次
 START_GRACE_SECONDS = 3.0  # 開始時沒看到拼圖介面，等這麼久還是沒有就停止
 EMPTY_SLOT_DIFF = 10  # 托盤位置的畫面和碎片被拿走後的背景平均差異低於這個，就當作還是空的
+RELAXED_COVER = 0.5  # 最後一格放寬判空格時，兩種底色至少占格子的比例(平常是 CHECKER_COVER)
+MAX_RELAXED_TRIES = 6  # 放寬判斷最多用幾次(沒碎片可放時不要一直拖)
+TRAY_FIXED_MAX = 7  # 剩這麼多片以下，托盤不捲動，碎片位置固定
+TRAY_FIRST_X = 345  # 托盤第一片碎片的中心(1600 寬基準)
+TRAY_STEP_X = 141  # 相鄰碎片間距(1600 寬基準)
+GRID_STRONG_ENERGY = 1.2  # 托盤固定間距上，邊緣能量(相對底)超過這個值才算有碎片
+EXH_LOOSE_DIFF = 30  # 逐一嘗試時，縮圖差異低於這個值就當同一片(比 REJECT_DIFF 鬆，因為放回托盤後位置會偏)
+EXH_TRY_PENALTY = 0.6  # 逐一嘗試時，每試過一次(這格放錯、這片試過)扣的分數
+EXH_FAIL_FACTOR = 3  # 逐一嘗試時，拖了沒反應多半是沒抓到碎片、不是格子不對，失敗上限放寬幾倍
 MAX_CELL_FAILS = 2  # 同一格連續放不上去幾次，就先不再嘗試
 TRASH_AFTER_GUESSES = 5  # 猜的、硬放的碎片累積幾片就先按一次垃圾桶(放錯的碎片會蓋住格子、干擾判斷)
 TRASH_AFTER_PLACED = 24  # 不管有沒有把握，累積放了幾片也按一次
@@ -104,6 +113,7 @@ class Puzzle(DebugMixin, BaseTask):
         self._trayFixed = False  # 托盤左右都拖不動(碎片都在畫面上)就不再拖
         self._stuckScrolls = 0
         self._edgeGaveUp = False  # 邊緣剩下的放不上去，已放棄先拼邊緣
+        self._relaxedTries = 0  # 放寬判空格已用幾次
         self.exhaustive = False  # 最後手段: 不看相似度，逐一嘗試所有沒試過的碎片 x 空格組合
         self.edgeMode = False  # 目前是不是「只顯示邊緣拼圖塊」
 
@@ -358,7 +368,13 @@ class Puzzle(DebugMixin, BaseTask):
         board = img[by : by + bh, bx : bx + bw]
         empty = P.emptyMap(board)
         if not empty.any():
-            return "full"
+            # 最後一格的棋盤紋常被鄰格的凸起切碎，兩種底色占的比例不夠而被當成已有碎片: 放寬標準再找一次(最多試幾次，免得真的拼完了還一直拖)
+            relaxed = P.emptyMap(board, cover=RELAXED_COVER) if P.getTones() is not None else empty  # 要有學到的棋盤底色才敢放寬，不然平坦的圖案會被誤判
+            if P.getTones() is not None and relaxed.any() and int(relaxed.sum()) <= 2 and self._relaxedTries < MAX_RELAXED_TRIES:
+                self._relaxedTries += 1
+                empty = relaxed
+            else:
+                return "full"
         nEmpty = int(empty.sum())  # 棋盤上每個空格對應托盤上一片碎片(放錯還沒清掉的會讓托盤更少)，所以托盤碎片數不會超過它
         corners = ((0, 0), (0, P.GRID - 1), (P.GRID - 1, 0), (P.GRID - 1, P.GRID - 1))
         self._scanning = edgeOn and not self._cornerScanned and any(empty[r, c] for r, c in corners)
@@ -384,7 +400,16 @@ class Puzzle(DebugMixin, BaseTask):
         slots = P.trayPieces(img)
         maxEnergy = max((e for _, _, e in slots), default=0.0)
         slots = [t for t in slots if img.shape[1] * P.TRAY_PICK_X[0] <= t[0] <= img.shape[1] * P.TRAY_PICK_X[1]]  # 托盤兩端被切掉、淡出的碎片點不到，不看
-        if nEmpty < len(slots):
+        strong = [t for t in slots if t[2] >= GRID_STRONG_ENERGY]  # 固定間距上邊緣能量明顯高於底的位置
+        if nEmpty <= TRAY_FIXED_MAX:
+            # 碎片不多時托盤不用捲動，碎片一律從固定的第一格開始靠左、等間距排: 直接用固定位置。
+            # 能量、顏色偵測在背景雜亂(夜景、花叢、禮物堆)時會偏掉，拖曳起點會落在碎片外面
+            slots = [(round((TRAY_FIRST_X + k * TRAY_STEP_X) * img.shape[1] / 1600), slots[0][1] if slots else round(P.TRAY_Y * img.shape[0]), 1.0) for k in range(nEmpty)]
+            slots = [t for t in slots if img.shape[1] * P.TRAY_PICK_X[0] <= t[0] <= img.shape[1] * P.TRAY_PICK_X[1]]
+            maxEnergy = 1.0
+        elif nEmpty < len(slots) and strong:
+            slots = sorted(sorted(strong, key=lambda t: -t[2])[:nEmpty])
+        elif nEmpty < len(slots):
             # 碎片數比托盤放得下的少時，碎片散落、不照固定間距排: 不靠間距推算，直接找畫面上有碎片(彩色)的地方
             byColor = [t for t in P.trayPiecesByColor(img, nEmpty) if img.shape[1] * P.TRAY_PICK_X[0] <= t[0] <= img.shape[1] * P.TRAY_PICK_X[1]]
             slots = byColor if byColor else slots[:nEmpty]  # 不截到剩下片數: 場景裡的誤判拖了沒變化會被記成空位，真的碎片不能因為名額被占走而被漏掉
@@ -425,7 +450,7 @@ class Puzzle(DebugMixin, BaseTask):
                     scores[r0, c0] = -1.0
                     blocked[r0, c0] = True
             for (r0, c0), n in (self.cellFails.items() if nEmpty > 1 else []):
-                if n >= MAX_CELL_FAILS:
+                if n >= MAX_CELL_FAILS * (EXH_FAIL_FACTOR if self.exhaustive else 1):
                     scores[r0, c0] = -1.0
                     blocked[r0, c0] = True
             if corner is not None:
@@ -440,7 +465,14 @@ class Puzzle(DebugMixin, BaseTask):
                         cornerBest = ((corner[0], corner[1], float(scores[corner])), (sx, sy))  # 直角碎片優先: 角落先拼上去
                         cornerBestEdges = cornerEdges
             if self.exhaustive:  # 逐一嘗試: 不管相似度與形狀，剩下的碎片 x 還空著且沒試過的格子，挑形狀最合的組合
-                cand = np.where(empty & ~blocked, shaped, -np.inf)
+                # 放錯回到托盤的碎片位置、縮圖都會變，黑名單認不出同一片，會一直挑同一片放同一格: 這格被放錯過、這片被試過的次數都扣分，強迫輪換
+                cellTries = np.zeros(empty.shape, np.float32)
+                pieceTries = 0
+                for oldSig, r0, c0 in self.rejected:
+                    cellTries[r0, c0] += 1
+                    if float(np.abs(sig - oldSig).mean()) < EXH_LOOSE_DIFF:
+                        pieceTries += 1
+                cand = np.where(empty & ~blocked, shaped - EXH_TRY_PENALTY * (cellTries + pieceTries), -np.inf)
                 r1, c1 = np.unravel_index(int(cand.argmax()), cand.shape)
                 if np.isfinite(cand[r1, c1]) and (exh is None or cand[r1, c1] > exh[0][2]):
                     exh = ((int(r1), int(c1), float(cand[r1, c1])), (sx, sy))
@@ -494,7 +526,7 @@ class Puzzle(DebugMixin, BaseTask):
         tx = bx + round((col + 0.5) * cell)
         ty = by + round((row + 0.5) * cell)
         gx, gy = sx, sy
-        if nEmpty <= 2:  # 只剩最後幾片: 每次的抓取點、落點都稍微偏一點(碎片被抓的位置不一定剛好在可拖的範圍內，偏了可能不會吸附)
+        if nEmpty <= 2 or self.exhaustive:  # 只剩最後幾片(或逐一嘗試): 每次的抓取點、落點都稍微偏一點(碎片被抓的位置不一定剛好在可拖的範圍內，偏了可能不會吸附)
             n = getattr(self, "soloTries", 0)
             self.soloTries = n + 1
             ox, oy = ((0, 0), (0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (1, 1), (-1, 1), (1, -1))[n % 9]
@@ -540,10 +572,10 @@ class Puzzle(DebugMixin, BaseTask):
         # 從這個托盤位置拖了，托盤上的畫面卻沒變: 多半根本沒有碎片(托盤後段空了)。連續兩次就記成空位，不再去那裡拿
         key = next((k for k in self.slotFails if abs(k - sx) <= 10), sx)
         self.slotFails[key] = self.slotFails.get(key, 0) + 1
-        if self.slotFails[key] >= 2:
+        if self.slotFails[key] >= (2 * EXH_FAIL_FACTOR if self.exhaustive else 2):
             self.emptySlots.append((sx, before))
         self.cellFails[(row, col)] = self.cellFails.get((row, col), 0) + 1
-        if self.cellFails[(row, col)] >= MAX_CELL_FAILS:  # 同一格連續失敗才提醒，單次失敗(沒拖起來)很常見，不洗版
+        if self.cellFails[(row, col)] >= MAX_CELL_FAILS * (EXH_FAIL_FACTOR if self.exhaustive else 1):  # 同一格連續失敗才提醒，單次失敗(沒拖起來)很常見，不洗版
             self.setLog(f"第 {row + 1} 列第 {col + 1} 行試了幾次都放不上去，先跳過")
         return "retry"
 
