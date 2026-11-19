@@ -355,6 +355,15 @@ DEFAULT_THRESHOLDS = {
     "snowStartBtn": 0.7,
     "snowflake": 0.7,
     "snowCompleted": 0.7,
+    "bagSearch": 0.8,  # 南瓜雕刻: 背包上方「搜尋：奇靈南瓜」(templates/pumpkin 的圖都是從錄影裁的，還沒在實機驗證過分數)
+    "placeBtn": 0.8,
+    "placeExit": 0.8,
+    "placeConfirm": 0.8,
+    "carveIcon": 0.75,
+    "collectIcon": 0.75,
+    "carveBadge": 0.8,
+    "carveMarker": 0.7,
+    "carveHandle": 0.7,
     "bagBtn": 0.62,  # 沙灘背景上主畫面約 0.76、拋竿中(沒有背包鈕)最高 0.49，取中間
     "castBtn": 0.7,
     "biteMark": 0.75,
@@ -538,7 +547,7 @@ GATHER_LABELS = {"plant": "採集（無工具）", "wood": "採集（有工具�
 
 
 def validateConfig(config, task):
-    """啟動前檢查設定值，回傳錯誤訊息；沒問題回傳 None。task 為 "cooking"、"snowCarving"、"fishing"、"fishingAlt"、"plant" 或 "wood" """
+    """啟動前檢查設定值，回傳錯誤訊息；沒問題回傳 None。task 為 "cooking"、"snowCarving"、"fishing"、"fishingAlt"、"plant"、"wood"、"puzzle" 或 "pumpkin" """
 
     def number(key, label, minimum, isInt=False):
         try:
@@ -584,8 +593,8 @@ def validateConfig(config, task):
     elif task == "fishing":
         checks.append(number("fishingDetectFrequency", "偵測頻率", 0.1))
         checks += fishingItemChecks(config, "fishing", "")
-    elif task == "puzzle":
-        pass  # 拼圖沒有可調的設定
+    elif task in ("puzzle", "pumpkin"):
+        pass  # 拼圖、南瓜雕刻沒有可調的設定
     else:
         checks.append(number("snowDetectFrequency", "偵測頻率", 0.05))
 
@@ -751,6 +760,22 @@ def dragMouse(x1, y1, x2, y2, steps=8, hold=0.25, stepDelay=0.008, settle=0.05):
     time.sleep(settle)
     _moveMouseAbs(x2, y2)
     time.sleep(0.04)
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+
+def pressMouse(x, y):
+    """游標移到 (x, y) 並按住左鍵不放，之後用 moveMouseHeld 移動、releaseMouse 放開(南瓜雕刻要一直按著滑桿上下拉)"""
+    win32api.SetCursorPos((int(x), int(y)))
+    _moveMouseAbs(int(x), int(y))
+    time.sleep(0.05)
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+
+
+def moveMouseHeld(x, y):
+    _moveMouseAbs(int(x), int(y))
+
+
+def releaseMouse():
     win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
 

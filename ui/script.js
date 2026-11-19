@@ -10,6 +10,7 @@ let isSelectingRegion = false; // 框選視窗開啟中: 不能再框選，也�
 let currentCookingLogIndex = 0;
 let currentSnowLogIndex = 0;
 let currentPuzzleLogIndex = 0;
+let currentPumpkinLogIndex = 0;
 let currentCropLogIndex = 0;
 let currentFishLogIndex = 0;
 let currentFishAltLogIndex = 0;
@@ -467,6 +468,14 @@ const NOTICE_TEXTS = {
       '．執行中請不要移動滑鼠。',
     ].join('\n'),
   },
+  pumpkin: {
+    title: '南瓜雕刻注意事項',
+    message: [
+      '．遊戲須在最上層（只支援前景模式）。',
+      '．角色請先站在雕刻檯旁。',
+      '．執行中請不要移動滑鼠。',
+    ].join('\n'),
+  },
   fishing: {
     title: '釣魚注意事項',
     message: '．請確保**遊戲視角**（非人物視角）**正對魚尾**且**可見**（如下圖）。',
@@ -844,6 +853,13 @@ const handleSnowLogMessage = (log) => {
 const handlePuzzleLogMessage = (log) => {
   currentPuzzleLogIndex = log.index;
   const logContainer = document.querySelector('#logContainerPuzzle');
+  logContainer.value += log.msg + '\n';
+  logContainer.scrollTop = logContainer.scrollHeight;
+};
+
+const handlePumpkinLogMessage = (log) => {
+  currentPumpkinLogIndex = log.index;
+  const logContainer = document.querySelector('#logContainerPumpkin');
   logContainer.value += log.msg + '\n';
   logContainer.scrollTop = logContainer.scrollHeight;
 };
@@ -1308,7 +1324,7 @@ const setup = async () => {
   poll(async () => {
     const status = await getApi().apiGetStatus();
     // 任一任務運行中，所有頁面的開始鈕都不能按
-    const anyRunning = !!(status.cooking || status.snowCarving || status.puzzle || status.fishing || status.plant || status.wood);
+    const anyRunning = !!(status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.fishing || status.plant || status.wood);
 
     // 料理
     const startCookBtn = document.querySelector('#startCookBtn');
@@ -1327,6 +1343,10 @@ const setup = async () => {
     const stopPuzzleBtn = document.querySelector('#stopPuzzleBtn');
     if (startPuzzleBtn) startPuzzleBtn.disabled = anyRunning || isSelectingRegion;
     if (stopPuzzleBtn) stopPuzzleBtn.disabled = !status.puzzle;
+    const startPumpkinBtn = document.querySelector('#startPumpkinBtn');
+    const stopPumpkinBtn = document.querySelector('#stopPumpkinBtn');
+    if (startPumpkinBtn) startPumpkinBtn.disabled = anyRunning || isSelectingRegion;
+    if (stopPumpkinBtn) stopPumpkinBtn.disabled = !status.pumpkin;
 
     // 釣魚
     const startFishBtn = document.querySelector('#startFishBtn');
@@ -1341,6 +1361,7 @@ const setup = async () => {
       ['料理', 'i-chef-hat', status.cooking],
       ['雪雕', 'i-snowflake', status.snowCarving],
       ['拼圖', 'i-puzzle', status.puzzle],
+      ['南瓜雕刻', 'i-pumpkin', status.pumpkin],
       ['釣魚', 'i-fish', status.fishing],
       ['採集', 'i-sprout', status.plant || status.wood],
       ['拔草提醒', 'i-alarm-clock', cropRunning]
@@ -1358,7 +1379,7 @@ const setup = async () => {
     });
 
     // 只要有任務在執行，設定欄位、泡泡範圍選取按鈕都設為 disabled
-    const isAnyTaskRunning = status.cooking || status.snowCarving || status.puzzle || status.fishing || status.plant || status.wood;
+    const isAnyTaskRunning = status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.fishing || status.plant || status.wood;
     document.querySelectorAll('.setting, .setting-check').forEach((input) => {
       input.disabled = (isAnyTaskRunning && !input.dataset.always) || input.dataset.locked === '1' || (input.dataset.always && cropRunning);
     });
@@ -1427,6 +1448,12 @@ const setup = async () => {
     const logs = await getApi().apiGetNextLogs(currentPuzzleLogIndex, 'puzzle');
     logs.forEach(handlePuzzleLogMessage);
   }, 100);
+
+  // 定時拉取南瓜雕刻日誌
+  poll(async () => {
+    const logs = await getApi().apiGetNextLogs(currentPumpkinLogIndex, 'pumpkin');
+    logs.forEach(handlePumpkinLogMessage);
+  }, 100);
 };
 
 window.addEventListener('pywebviewready', init);
@@ -1466,6 +1493,13 @@ document.querySelector('#startPuzzleBtn').addEventListener('click', async () => 
   await startTask((confirmed) => getApi().startPuzzle(confirmed));
 });
 document.querySelector('#stopPuzzleBtn').addEventListener('click', async () => {
+  await getApi().stop();
+});
+
+document.querySelector('#startPumpkinBtn').addEventListener('click', async () => {
+  await startTask((confirmed) => getApi().startPumpkin(confirmed));
+});
+document.querySelector('#stopPumpkinBtn').addEventListener('click', async () => {
   await getApi().stop();
 });
 
