@@ -66,6 +66,61 @@ def _whiteText(region):
     return white[max(0, ys.min() - 2) : ys.max() + 3, max(0, xs.min() - 2) : xs.max() + 3]
 
 
+def readText(region, scales=(2, 3)):
+    """讀區域裡的中文字(深色字、淺色底，例如對話泡泡的選項)。每個倍率讀一次，回傳各次讀到的字串(已去掉空白)；
+    沒有 OCR、讀不出來回傳空串列。呼叫端用關鍵字比對，只要有一次讀到就算"""
+    if not AVAILABLE or region is None or region.size == 0:
+        return []
+    engine = _getEngine()
+    if engine is None:
+        return []
+    gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+    results = []
+    for scale in scales:
+        big = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        big = cv2.copyMakeBorder(big, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
+        try:
+            text = asyncio.run(_recognize(engine, big)).replace(" ", "")
+        except Exception:
+            continue
+        if text:
+            results.append(text)
+    return results
+
+
+async def _recognizeLines(engine, gray):
+    result = await engine.recognize_async(_toBitmap(gray))
+    lines = []
+    for line in result.lines:
+        words = list(line.words)
+        if words:
+            top = min(w.bounding_rect.y for w in words)
+            bottom = max(w.bounding_rect.y + w.bounding_rect.height for w in words)
+            lines.append((line.text.replace(" ", ""), (top + bottom) / 2))
+    return lines
+
+
+def readLines(region, scales=(1, 2)):
+    """讀一整塊區域裡的每一行中文字(深色字、淺色底)。回傳 [(字串, 該行中心在區域裡的 y)]，y 換算回原圖像素，各倍率的結果都放進去。
+    兩個字的短字串單獨一張圖讀常讀不出來(Windows OCR 要有一整行的脈絡)，整塊一起讀才認得"""
+    if not AVAILABLE or region is None or region.size == 0:
+        return []
+    engine = _getEngine()
+    if engine is None:
+        return []
+    gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+    results = []
+    for scale in scales:
+        big = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        big = cv2.copyMakeBorder(big, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
+        try:
+            lines = asyncio.run(_recognizeLines(engine, big))
+        except Exception:
+            continue
+        results += [(text, (cy - 20) / scale) for text, cy in lines if text]
+    return results
+
+
 def readFraction(region):
     """讀出區域裡白色文字的「N/M」。回傳 (N, M)；只有 N 讀得穩(M 常被讀成「h8」之類)時回傳 (N, None)，由呼叫端用別的線索決定 M；
     讀不出來或沒有 OCR 回傳 None"""
