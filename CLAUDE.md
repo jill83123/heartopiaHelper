@@ -1,7 +1,7 @@
 # CLAUDE.md — agent 入口索引
 
 查找程式時先看這份，不要全專案 grep。每一行只寫「這個東西負責什麼」，細節進檔案看。
-行為取捨與「為什麼這樣做」不在這裡，見 [docs/decisions.md](docs/decisions.md)；使用者說明見 [README.md](README.md)。
+行為取捨與「為什麼這樣做」不在這裡，見 [docs/decisions.md](docs/decisions.md)；使用者說明見 [README.md](README.md)；從原始碼執行、打包、發佈流程見 [docs/development.md](docs/development.md)。
 
 ## 維護規則（必讀）
 
@@ -59,7 +59,8 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `requirements.txt` — 相依套件（keyboard、mss、numpy、opencv-python、pywebview、pywin32、pyinstaller、winrt-*）。
 - `pyproject.toml` — 只有 black `line-length = 140`。
 - `icon.ico` — 應用程式圖示，由 `design/make_icon.py` 產生。
-- `README.md` — 給使用者的說明與發佈流程。
+- `README.md` — 給使用者的說明（功能、下載、操作模式、設定），不放開發與發佈內容。
+- `docs/development.md` — 給開發者：從原始碼執行、`config.ini` 各設定項說明、打包、自動更新與發佈流程。
 - `docs/decisions.md` — 設計決策（釣魚、食物、採集、拼圖、其他的取捨）；改行為前先看對應段落。
 - `design/design-system.html` — 設計系統預覽頁（色彩、字體、間距、圓角、元件、料理頁組合預覽），僅供參考；實際以 `ui/style.css` 為準。兩邊淺色顏色 token 同名同值（`--font` 例外：設計稿多了沒打包的 Quicksand），設計稿多了 `--fs-xs`～`--fs-xl`、`--s1`～`--s6`、`--info`、`--salmon`、`--warn`（`style.css` 沒有），`style.css` 多了 `--field-gap`、`--brand-edge`、`--warn-text`。
 - `design/make_icon.py` — 只用 numpy + opencv 畫 `icon.ico`。
@@ -143,9 +144,9 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `scripts/fishing/__init__.py` — 只匯出 `Fishing`。
 - `scripts/Cooking.py` — `Cooking`：料理（主迴圈與點擊兩條執行緒，收料理、五星停止、萬能食材、神奇調料、菜品比對）。
 - `scripts/SnowCarving.py` — `SnowCarving`：雪雕（偵測雪花連點、逾時點返回）。
-- `scripts/Pumpkin.py` — `Pumpkin`：南瓜雕刻（開背包、沒停在南瓜搜尋結果就自動搜尋並鎖定、點南瓜、擺放時轉鏡頭對準雕刻檯、點雕刻圖示、雕刻小遊戲按住滑桿跟著灰線拉、收取）；只支援前景；座標常數多數是從錄影估的，標「待校準」。
+- `scripts/Pumpkin.py` — `Pumpkin`：南瓜雕刻（開背包、沒停在南瓜搜尋結果就自動搜尋並鎖定、點南瓜、擺放時轉鏡頭對準雕刻檯、點雕刻圖示、雕刻小遊戲按住滑桿跟著灰線拉、收取）；只支援前景。
 - `scripts/Puzzle.py` — `Puzzle`：拼圖流程（偵測片數、放碎片、垃圾桶重來、規律切割學習）；畫面分析在 `tools/puzzle.py`；`templateDir` 指向 `templates/puzzle` 但該資料夾不存在，拼圖不用模板圖。
-- `scripts/SandSculpture.py` — `SandSculpture`：沙雕（開背包、沒停在沙雕基座搜尋結果就自動搜尋並鎖定、點基座、擺放（先往下拖鏡頭讓預覽框靠近人物，紅框就取消）、已有基座就不再放置、點互動圖示、收起做好的沙雕、小遊戲用顏色找黃色區塊與橘色指針、之後只截指針那一小塊、算出指針走到正中間的時刻準時點、用 OCR 讀題目選項、選第一個認得的、點掉提示對話框）；擺放相關模板借用 `templates/pumpkin`；只支援前景；骨架，座標與顏色範圍標「待校準」；`SAND_TARGETS` 是認得的沙雕與選項關鍵字。
+- `scripts/SandSculpture.py` — `SandSculpture`：沙雕（開背包、沒停在沙雕基座搜尋結果就自動搜尋並鎖定、點基座、擺放（先往下拖鏡頭讓預覽框靠近人物，紅框就取消）、已有基座就不再放置、點互動圖示、收起做好的沙雕、小遊戲用顏色找黃色區塊與橘色指針、之後只截指針那一小塊、算出指針走到正中間的時刻準時點、用 OCR 讀題目選項、選第一個認得的、點掉提示對話框）；擺放相關模板借用 `templates/pumpkin`；只支援前景；`SAND_TARGETS` 是認得的沙雕與選項關鍵字。
 - `scripts/Gathering.py` — `GatherBase`：定時採集共同骨架（連按互動鍵、倒數圖示、獲得物品氣泡、工具耐久耗盡、吃食物、維修盒）；`findCountdownRing`。
 - `scripts/PlantGathering.py` — `PlantGathering`：採集（無工具），`prefix="plant"`。
 - `scripts/WoodCutting.py` — `WoodCutting`：採集（有工具），`prefix="wood"`。
@@ -223,7 +224,7 @@ HTML + class 的組合，要新增同類畫面時直接複製既有結構：
 - `templates/snowCarving/` — 雪雕（雪花、放置、開始、完成）。
 - `templates/fishing/` — 釣魚（咬鉤、拋竿鈕標記、新魚、篩選、香水、誘魚器、噴灑、使用）；`fishing/adb/` 為手機版（castBtn、perfumeBuff）。
 - `templates/food/` — 吃食物（體力圖示、體力不足提示、鎖頭、吃、使用次數標籤）；釣魚與採集共用。
-- `templates/pumpkin/` — 南瓜雕刻（背包搜尋標題、擺放鈕、擺放退出與確認鈕、雕刻與收取圖示、雕刻中標籤、記號、滑桿把手）；從錄影裁出，沒在實機驗證過分數。
+- `templates/pumpkin/` — 南瓜雕刻（背包搜尋標題、擺放鈕、擺放退出與確認鈕、雕刻與收取圖示、雕刻中標籤、記號、滑桿把手）；從錄影裁出。
 - `templates/sandSculpture/` — 沙雕，從錄影與截圖裁的（`sandBagTitle` 背包標題、`sandInteract` 互動圖示、`sandCollect` 收起沙雕圖示、`sandCombo` COMBO 條、`sandQuiz` 題目提示字；題目選項用 OCR 讀，不用模板）；缺圖時開始會報缺哪幾張。
 - `templates/gather/` — 採集（植物、木頭、蘑菇倒數圖示、工具耐久耗盡提示）。
 - `templates/digits/` — `0.png`～`9.png`，背包數量字形，給 `tools/digits.py`（目前沒有程式使用）。

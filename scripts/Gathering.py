@@ -194,7 +194,9 @@ class GatherBase(FoodMixin, TimedTasks, GameUI):
         if part.size == 0:
             return False
         high, low = part.max(axis=2).astype(np.int16), part.min(axis=2).astype(np.int16)
-        mask = ((low >= 205) & (high - low <= 14)).astype(np.uint8)  # 灰白色
+        # 灰白色。手機版的氣泡是半透明的，蓋在綠色草地、葉子上會偏綠偏暗，條件放寬一點
+        minLow, maxSpread = (185, 30) if self.isAdb else (205, 14)
+        mask = ((low >= minLow) & (high - low <= maxSpread)).astype(np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))  # 把裡面的圖示、字補起來
         count, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
         for i in range(1, count):

@@ -22,10 +22,22 @@ let isClosing = false;
 window.markClosing = () => {
   isClosing = true;
 };
-const poll = (fn, ms) =>
-  setInterval(() => {
-    if (!isClosing) fn();
+// 上一次還沒回來就不再發新的：視窗被縮小或遮住時計時器會被節流，呼叫堆積後一起回來，
+// 都拿同一個舊的 index 去取，同樣的日誌就會被重複寫入好幾次
+const poll = (fn, ms) => {
+  let busy = false;
+  return setInterval(async () => {
+    if (isClosing || busy) return;
+    busy = true;
+    try {
+      await fn();
+    } catch (e) {
+      // 單次失敗不影響下一次輪詢
+    } finally {
+      busy = false;
+    }
   }, ms);
+};
 
 // 取得 pywebview API
 const getApi = () => {
