@@ -741,6 +741,18 @@ def clickMouse(x, y):
     win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
 
 
+def quickTap(x, y, hold=0.03):
+    """立刻按下左鍵(不等放開)，回傳按下去的時間(time.perf_counter)；放開交給另一條計時器，呼叫端可以馬上繼續截圖。
+    需要抓準時間的點擊用(沙雕指針小遊戲)，一般點擊用 clickMouse"""
+    win32api.SetCursorPos((x, y))
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
+    pressed = time.perf_counter()
+    timer = threading.Timer(hold, lambda: win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0))
+    timer.daemon = True
+    timer.start()
+    return pressed
+
+
 def _moveMouseAbs(x, y):
     """用「絕對座標的滑鼠移動事件」移到 (x, y)。SetCursorPos 只是把游標瞬間放過去，遊戲(Unity)可能收不到滑鼠移動，
     拖曳時碎片就不會跟著游標；這個會產生真的滑鼠移動事件(座標換成 0~65535，涵蓋整個虛擬桌面)"""

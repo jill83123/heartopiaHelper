@@ -4,6 +4,7 @@ import re
 from collections import deque
 import time
 import cv2
+import mss
 import numpy as np
 from scripts.common.base import BaseTask
 from tools.debug import DebugMixin
@@ -65,14 +66,13 @@ BAND_GAP_FILL = 21  # 指針的寬度(像素，1600 基準)再多一點；黃色
 NEEDLE_HSV = {"hMin": 4, "hMax": 17, "sMin": 170, "vMin": 190}  # 橘色指針；錄影量到 H8 S194 V234
 NEEDLE_HALF_SPAN = 140  # 以黃色區塊中心往左右找指針多遠(待校準，要涵蓋整個弧形)
 NEEDLE_ABOVE, NEEDLE_BELOW = 90, 110  # 往黃色區塊上、下找指針多遠(待校準)
-PIVOT_BELOW = 95  # 指針轉軸在黃色區塊下緣下面多遠(錄影量到約 95)，指針尖端取離轉軸最遠的橘色點
 BAND_MARGIN = 3  # 預測的指針位置要進到黃色區塊內縮這麼多才點
 METER_LEAD_MIN, METER_LEAD_MAX = 0.02, 0.3  # 提前量會依實際落點自己修正，範圍在這之間
-VEL_SAMPLES = 5  # 用最近幾張畫面的速度取中位數，量夠了才開始點(單張的速度被像素取整影響，會抖)
-METER_LEAD = 0.06  # 提前這麼多秒預測指針位置，補截圖到點擊的延遲(待校準)
+VEL_SAMPLES = 6  # 用最近幾張畫面的位置擬合速度，量夠 3 張才開始點(單張的速度被像素取整影響，會抖)
+METER_LEAD = 0.12  # 點擊到遊戲反應的延遲(秒)起始值，指針要提前這麼久按；每點一下依實際量到的修正(紀錄量到約 0.12~0.25)
 METER_MIN_SPEED = 60  # 指針速度(像素/秒)低於這個就不點(兩端折返的地方)
 METER_MIN_GAP = 0.25  # 兩次點擊最少間隔(秒)
-METER_INTERVAL = 0.005  # 小遊戲每輪的間隔(截圖本身就要約 30ms)
+METER_INTERVAL = 0.005  # 完整模式(找黃色區塊)每輪的間隔；快速模式只截指針那一小塊，不等
 
 # --- 題目: 底座形狀的問句 + 右邊 3 個選項，選對才做得出來，不然就是失誤沙雕 ---
 OPTION_SLOTS = ((1202, 455), (1202, 539), (1202, 623))  # 3 個選項泡泡的中心(從繁中錄影量的，泡泡約寬 270、高 76)；認不得任何選項時隨機點一個
@@ -575,12 +575,11 @@ class SandSculpture(DebugMixin, BaseTask):
         return True
 
     # ---------- 小遊戲 ----------
-    def _readMeter(self, img):
-        """讀弧形與指針: 回傳 (黃色區塊左緣, 右緣, 指針尖端 x)，都是截圖座標；看不到黃色區塊或指針回傳 None"""
+    def _findBand(self, img):
+        """找弧形中間的黃色區塊: 回傳 (左, 上, 寬, 高)，截圖座標；找不到或形狀不對回傳 None"""
         s = self._geom[0]
         yMin = max(0, int(self._pt(0, METER_Y_MIN)[1]))
-        sub = img[yMin:]
-        hsv = cv2.cvtColor(sub, cv2.COLOR_BGR2HSV)
+        hsv = cv2.cvtColor(img[yMin:], cv2.COLOR_BGR2HSV)
         c = BAND_HSV
         mask = ((hsv[..., 0] >= c["hMin"]) & (hsv[..., 0] <= c["hMax"]) & (hsv[..., 1] >= c["sMin"]) & (hsv[..., 2] >= c["vMin"])).astype(np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
@@ -594,12 +593,21 @@ class SandSculpture(DebugMixin, BaseTask):
         # 弧形上的黃色區塊是一條實心的短帶(錄影量到約 92x28、填滿 6~7 成)；右上角的圖示、黃花、擺放框周圍的雜色不是這個形狀，不能算小遊戲
         if bh > BAND_MAX_H * s or ba < BAND_MIN_FILL * bw * bh:
             return None
-        by += yMin
-        cx = bx + bw / 2
+        return float(bx), float(by + yMin), float(bw), float(bh)
 
-        x0, x1 = max(0, int(cx - NEEDLE_HALF_SPAN * s)), int(cx + NEEDLE_HALF_SPAN * s)
-        y0, y1 = max(0, int(by - NEEDLE_ABOVE * s)), int(by + bh + NEEDLE_BELOW * s)
-        roi = img[y0:y1, x0:x1]
+    def _needleBox(self, img, band):
+        """找指針的範圍 (x0, y0, x1, y1)，截圖座標，已限制在畫面內；黃色區塊固定在弧形正中間，位置不會變，所以抓到一次就能一直只截這一小塊"""
+        s = self._geom[0]
+        bx, by, bw, bh = band
+        cx = bx + bw / 2
+        x0, x1 = max(0, int(cx - NEEDLE_HALF_SPAN * s)), min(img.shape[1], int(cx + NEEDLE_HALF_SPAN * s))
+        y0, y1 = max(0, int(by - NEEDLE_ABOVE * s)), min(img.shape[0], int(by + bh + NEEDLE_BELOW * s))
+        return x0, y0, x1, y1
+
+    def _needleX(self, roi, band, x0, y0):
+        """在 roi(左上角在截圖的 (x0, y0))裡找橘色指針，回傳指針延伸線穿過黃色區塊中間那條水平線的 x(截圖座標)；找不到或形狀不對回傳 None。
+        用整根指針擬合直線再延伸，比只取尖端準: 指針斜的時候，尖端和區塊中心不在同一條水平線上，差幾十像素"""
+        s = self._geom[0]
         if roi.size == 0:
             return None
         rhsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
@@ -615,9 +623,22 @@ class SandSculpture(DebugMixin, BaseTask):
         ys, xs = np.nonzero(labels == needle)
         if xs.size < 8:
             return None
-        pivotX, pivotY = cx - x0, (by + bh + PIVOT_BELOW * s) - y0
-        far = np.argmax((xs - pivotX) ** 2 + (ys - pivotY) ** 2)
-        return float(bx), float(bx + bw), float(xs[far] + x0)
+        yc = band[1] + band[3] / 2 - y0
+        vx, vy, px, py = cv2.fitLine(np.column_stack([xs, ys]).astype(np.float32), cv2.DIST_L2, 0, 0.01, 0.01).ravel()
+        if abs(vy) < 0.3:  # 幾乎是橫的，延伸不準，直接用中心
+            return float(xs.mean() + x0)
+        return float(px + vx * (yc - py) / vy + x0)
+
+    def _readMeter(self, img):
+        """讀弧形與指針: 回傳 (黃色區塊左緣, 右緣, 指針 x, 黃色區塊)，都是截圖座標；看不到黃色區塊或指針回傳 None"""
+        band = self._findBand(img)
+        if band is None:
+            return None
+        x0, y0, x1, y1 = self._needleBox(img, band)
+        x = self._needleX(img[y0:y1, x0:x1], band, x0, y0)
+        if x is None:
+            return None
+        return band[0], band[0] + band[2], x, band
 
     def _stepMeter(self, img, origin, stopEvent):
         # 看到 COMBO 條，或直接看到弧形的黃色區塊加橘色指針，都算小遊戲開始(COMBO 條沒認出來時不能整段不動)
@@ -627,60 +648,88 @@ class SandSculpture(DebugMixin, BaseTask):
         return True
 
     def _meterLoop(self, stopEvent):
-        """小遊戲主迴圈。先量指針跑多快(最近幾張畫面速度的中位數，量夠了才點)，預測它越過黃色區塊正中間的那一刻就點一下；
-        點完之後看弧形消失前最後一張的指針位置，反推「從截圖到遊戲收到點擊」實際花多久，修正提前量(指針越快、差一點點時間落點就差越多)"""
+        """小遊戲主迴圈。找到黃色區塊之後只截指針那一小塊(畫面小、處理快，一秒能看上百張)，每張量指針位置，
+        用最近幾張的位置擬合出速度，算出「指針什麼時候走到區塊正中間」，扣掉點擊到遊戲反應的延遲，到那個時間點才按下去(不是等下一張畫面)。
+        延遲每點一下就用「點下去到弧形消失」的時間修正一次"""
         s = self._geom[0]
-        armed, prev, prevPred = True, None, None
-        speeds = deque(maxlen=VEL_SAMPLES)
+        samples = deque(maxlen=VEL_SAMPLES)  # (時間, 指針 x)
+        armed = True
         clicks = loop = 0
-        lastClick = 0.0
-        pending = None  # 剛點下去的 (當時指針位置, 速度, 時間)，等弧形消失來量落點
-        lastTip = None
-        lastCombo = lastMeter = time.time()
-        while not stopEvent.wait(METER_INTERVAL):
-            img, origin = self._gameShot()
-            now = time.time()
-            loop += 1
-            if loop % COMBO_EVERY == 1:
-                if self._find(img, "sandCombo", roi=COMBO_ROI):
-                    lastCombo = now
-                elif now - max(lastCombo, lastMeter) > METER_GONE_SECONDS:  # COMBO 條和弧形都看不到這麼久，才算結束
-                    self._trace("小遊戲結束")
-                    return
-            read = self._readMeter(img)
-            if not read:  # 每點一下弧形會消失一下再換新的，新的一輪要重新量速度
-                if pending and lastTip is not None and abs(pending[1]) >= 100 * s:
-                    latency = (lastTip - pending[0]) / pending[1]  # 點下去到弧形消失，指針又走了多遠，除以當時的速度
-                    if 0.0 < latency < 0.4:
-                        self._lead = max(METER_LEAD_MIN, min(METER_LEAD_MAX, 0.6 * self._lead + 0.4 * latency))
-                        self._trace(f"落點: 點下去後指針又走 {lastTip - pending[0]:.0f}px，延遲 {latency * 1000:.0f}ms，提前量改為 {self._lead * 1000:.0f}ms")
-                pending = None
-                prev, armed, prevPred = None, True, None
-                speeds.clear()
-                continue
-            left, right, tip = read
-            lastMeter, lastTip = now, tip
-            if pending and now - pending[2] > 1.0:  # 點了很久弧形都沒消失，沒點中，不拿來修正
-                pending = None
-            if prev and now > prev[0]:
-                speeds.append((tip - prev[1]) / (now - prev[0]))
-            prev = (now, tip)
-            if len(speeds) < 3:
-                continue
-            vel = sorted(speeds)[len(speeds) // 2]
-            predicted = tip + vel * self._lead
-            margin = BAND_MARGIN * s
-            # 瞄準黃色區塊正中間而不是一進區塊就點，只在預測位置剛好越過中間的那一刻點(前一張在中間一側、這一張到另一側)，而且速度要夠：
-            # 指針常常一出現就在中間偏一邊，或在兩端折返、速度接近 0，只看「在中間的哪一邊」會亂點
-            center = (left + right) / 2
-            crossed = prevPred is not None and (prevPred - center) * (predicted - center) <= 0 and abs(vel) >= METER_MIN_SPEED * s
-            prevPred = predicted
-            if armed and now - lastClick >= METER_MIN_GAP and crossed and left + margin <= predicted <= right - margin:
-                x, y = self._getRelCords(origin, self._pt(*METER_TAP))
-                self.backend.click(round(x), round(y))
-                clicks += 1
-                armed, lastClick = False, now
-                pending = (tip, vel, now)
-                self._trace(f"點擊 第 {clicks} 下 指針 {tip:.0f} 速度 {vel:.0f} 區塊 {left:.0f}~{right:.0f} 提前 {self._lead * 1000:.0f}ms")
-            elif not left <= tip <= right:
-                armed = True
+        lastClick = -1e9
+        pending = None  # 剛點下去的時間，等弧形消失來量延遲
+        lastSeen = None  # 最後一次看到指針的時間
+        framePeriod = 0.02
+        prevT = None
+        band = box = monitor = tapPt = None
+        left = right = 0.0
+        lastCombo = lastMeter = time.perf_counter()
+        with mss.mss() as sct:
+            while not stopEvent.is_set():
+                x = None
+                if band is not None:  # 快速模式: 只截指針那一小塊
+                    shot = sct.grab(monitor)
+                    t = time.perf_counter()
+                    x = self._needleX(cv2.cvtColor(np.asarray(shot), cv2.COLOR_BGRA2BGR), band, box[0], box[1])
+                    if x is None and t - lastMeter > 0.6:  # 弧形消失後換新的一輪，位置不變，繼續只截這一小塊等指針；太久沒看到才回完整模式
+                        band = None
+                if band is None:  # 完整模式: 截整個遊戲畫面找黃色區塊
+                    if stopEvent.wait(METER_INTERVAL):
+                        return
+                    img, origin = self._gameShot()
+                    t = time.perf_counter()
+                    loop += 1
+                    if loop % COMBO_EVERY == 1:
+                        if self._find(img, "sandCombo", roi=COMBO_ROI):
+                            lastCombo = t
+                        elif t - max(lastCombo, lastMeter) > METER_GONE_SECONDS:  # COMBO 條和弧形都看不到這麼久，才算結束
+                            self._trace("小遊戲結束")
+                            return
+                    read = self._readMeter(img)
+                    if read:
+                        left, right, x, band = read
+                        box = self._needleBox(img, band)
+                        monitor = {"left": origin[0] + box[0], "top": origin[1] + box[1], "width": box[2] - box[0], "height": box[3] - box[1]}
+                        tx, ty = self._getRelCords(origin, self._pt(*METER_TAP))
+                        tapPt = (round(tx), round(ty))
+                        self.backend.prepareTap(*tapPt)
+                        samples.clear()
+                        prevT = None
+                    else:
+                        band = None
+                if x is None:  # 每點一下弧形會消失一下再換新的，新的一輪要重新量速度
+                    if pending is not None and lastSeen is not None:
+                        # 弧形消失的時間落在「最後看到指針」和「第一次看不到」之間，取中間；從點下去算起就是點擊到畫面反應的延遲
+                        latency = (max(lastSeen, pending) + t) / 2 - pending
+                        if 0.0 < latency < 0.4:
+                            self._lead = max(METER_LEAD_MIN, min(METER_LEAD_MAX, 0.6 * self._lead + 0.4 * latency))
+                            self._trace(f"落點: 點下去到弧形消失 {latency * 1000:.0f}ms，提前量改為 {self._lead * 1000:.0f}ms")
+                    pending = None
+                    armed = True
+                    samples.clear()
+                    prevT = None
+                    continue
+                lastMeter = lastSeen = t
+                framePeriod = 0.8 * framePeriod + 0.2 * (t - prevT) if prevT is not None else framePeriod
+                prevT = t
+                if pending is not None and t - pending > 1.0:  # 點了很久弧形都沒消失，沒點中，不拿來修正
+                    pending = None
+                samples.append((t, x))
+                if len(samples) < 3:
+                    continue
+                ts = np.array([a for a, _ in samples])
+                vel = float(np.polyfit(ts - ts[-1], [b for _, b in samples], 1)[0])  # 最近幾張的位置擬合出的速度(像素/秒)
+                center = (left + right) / 2
+                # 到正中間還要多久；只在「往中間走」而且速度夠的時候算(兩端折返的地方速度接近 0，算出來的時間不準)
+                if abs(vel) >= METER_MIN_SPEED * s and (center - x) * vel > 0:
+                    clickAt = t + (center - x) / vel - self._lead
+                    wait = clickAt - time.perf_counter()
+                    if armed and t - lastClick >= METER_MIN_GAP and -0.02 <= wait <= max(framePeriod, 0.01) * 1.2:
+                        while time.perf_counter() < clickAt and not stopEvent.is_set():
+                            time.sleep(0)
+                        pending = lastClick = self.backend.tap(*tapPt)
+                        clicks += 1
+                        armed = False
+                        self._trace(f"點擊 第 {clicks} 下 指針 {x:.0f} 速度 {vel:.0f} 區塊 {left:.0f}~{right:.0f} 提前 {self._lead * 1000:.0f}ms 每張 {framePeriod * 1000:.0f}ms")
+                        continue
+                if not left <= x <= right:
+                    armed = True

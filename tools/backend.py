@@ -18,6 +18,7 @@ from tools.tools import (
     captureScreen,
     clickMouse,
     clickRightMouse,
+    quickTap,
     dragMouse,
     pressMouse,
     moveMouseHeld,
@@ -110,6 +111,15 @@ class ScreenBackend:
             clickMouse(x, y)
         finally:
             self._restoreFloatLog()
+
+    def prepareTap(self, x, y):
+        """要抓準時間點擊前先做完檢查(遊戲視窗還在、懸浮日誌穿透)，之後的 tap 就只剩按下去"""
+        self._requireGame()
+        self._passThroughFloatLog(x, y)
+
+    def tap(self, x, y):
+        """立刻按下去(放開稍後自動)，回傳按下的時間(time.perf_counter)"""
+        return quickTap(int(x), int(y))
 
     def drag(self, x1, y1, x2, y2, slow=False):
         """按住左鍵從 (x1, y1) 拖到 (x2, y2) 再放開。slow=True 是慢慢拖、到了停一下才放開(捲動托盤用，放開時不能還在動，不然會滑過頭)"""

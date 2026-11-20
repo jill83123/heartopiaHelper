@@ -114,8 +114,8 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 
 ## 後端：tools/
 
-- `tools/tools.py` — 設定讀寫與驗證（見資料層）＋螢幕截取 `captureScreen` `captureFullScreen`、模板比對 `matchTemplate` `matchBest` `bestMatchScore` `loadTemplate` `readImage`、`ScaleResolver`、視窗 `findWindow` `focusWindow`、滑鼠 `clickMouse` `clickRightMouse` `dragMouse` `pressMouse` `moveMouseHeld` `releaseMouse`、框選 `selectRegion`、`APP_TITLE`、`getResourcePath`、`LOG_DIVIDER`、`RegionTooSmallError`。
-- `tools/backend.py` — 操作後端兩種實作、介面相同：`ScreenBackend`（前景：截圖、點擊、拖曳、按住移動放開 `touchDown`/`touchMove`/`touchUp`、按鍵、貼文字，找遊戲視窗，會讓懸浮日誌穿透）、`AdbBackend`（模擬器：`adb exec-out screencap`、`input tap/swipe`）；`createBackend(config)`、`GameWindowLostError`、`SUPPORTED_RESOLUTIONS`、`resolutionWarningText`。
+- `tools/tools.py` — 設定讀寫與驗證（見資料層）＋螢幕截取 `captureScreen` `captureFullScreen`、模板比對 `matchTemplate` `matchBest` `bestMatchScore` `loadTemplate` `readImage`、`ScaleResolver`、視窗 `findWindow` `focusWindow`、滑鼠 `clickMouse` `quickTap`（立刻按下、回傳時間，抓準時間用）`clickRightMouse` `dragMouse` `pressMouse` `moveMouseHeld` `releaseMouse`、框選 `selectRegion`、`APP_TITLE`、`getResourcePath`、`LOG_DIVIDER`、`RegionTooSmallError`。
+- `tools/backend.py` — 操作後端兩種實作、介面相同：`ScreenBackend`（前景：截圖、點擊、拖曳、按住移動放開 `touchDown`/`touchMove`/`touchUp`、準時點擊 `prepareTap`/`tap`（只有前景）、按鍵、貼文字，找遊戲視窗，會讓懸浮日誌穿透）、`AdbBackend`（模擬器：`adb exec-out screencap`、`input tap/swipe`）；`createBackend(config)`、`GameWindowLostError`、`SUPPORTED_RESOLUTIONS`、`resolutionWarningText`。
 - `tools/finder.py` — 自動縮放比對：`matchAuto`、`matchBestAuto`、`resolveScale`、`getBaseScale`、`clickBackButton`、`findStartCookBtn`、`findSeasoningToggle`、`countStarRow`。
 - `tools/puzzle.py` — 拼圖畫面分析：找木框 `findFrame`、棋盤空格 `emptyMap`、托盤碎片 `trayPieces`、比對 `cellScores`/`matchPiece`、片數 `detectGrid`、分配 `assignCells`（匈牙利演算法）、凸凹形狀 `applyShape`；版面常數以 1600x900 為基準。
 - `tools/guards.py` — `runDialogGuard`：任務運行中若跳出確認視窗（誤點丟棄等）自動按取消；設定 `autoCancelDialog`；拼圖關閉它（`BaseTask.dialogGuard = False`）。
@@ -145,7 +145,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `scripts/SnowCarving.py` — `SnowCarving`：雪雕（偵測雪花連點、逾時點返回）。
 - `scripts/Pumpkin.py` — `Pumpkin`：南瓜雕刻（開背包、沒停在南瓜搜尋結果就自動搜尋並鎖定、點南瓜、擺放時轉鏡頭對準雕刻檯、點雕刻圖示、雕刻小遊戲按住滑桿跟著灰線拉、收取）；只支援前景；座標常數多數是從錄影估的，標「待校準」。
 - `scripts/Puzzle.py` — `Puzzle`：拼圖流程（偵測片數、放碎片、垃圾桶重來、規律切割學習）；畫面分析在 `tools/puzzle.py`；`templateDir` 指向 `templates/puzzle` 但該資料夾不存在，拼圖不用模板圖。
-- `scripts/SandSculpture.py` — `SandSculpture`：沙雕（開背包、沒停在沙雕基座搜尋結果就自動搜尋並鎖定、點基座、擺放（先往下拖鏡頭讓預覽框靠近人物，紅框就取消）、已有基座就不再放置、點互動圖示、收起做好的沙雕、小遊戲用顏色找黃色區塊與橘色指針、指針進區塊就點、用 OCR 讀題目選項、選第一個認得的、點掉提示對話框）；擺放相關模板借用 `templates/pumpkin`；只支援前景；骨架，座標與顏色範圍標「待校準」；`SAND_TARGETS` 是認得的沙雕與選項關鍵字。
+- `scripts/SandSculpture.py` — `SandSculpture`：沙雕（開背包、沒停在沙雕基座搜尋結果就自動搜尋並鎖定、點基座、擺放（先往下拖鏡頭讓預覽框靠近人物，紅框就取消）、已有基座就不再放置、點互動圖示、收起做好的沙雕、小遊戲用顏色找黃色區塊與橘色指針、之後只截指針那一小塊、算出指針走到正中間的時刻準時點、用 OCR 讀題目選項、選第一個認得的、點掉提示對話框）；擺放相關模板借用 `templates/pumpkin`；只支援前景；骨架，座標與顏色範圍標「待校準」；`SAND_TARGETS` 是認得的沙雕與選項關鍵字。
 - `scripts/Gathering.py` — `GatherBase`：定時採集共同骨架（連按互動鍵、倒數圖示、獲得物品氣泡、工具耐久耗盡、吃食物、維修盒）；`findCountdownRing`。
 - `scripts/PlantGathering.py` — `PlantGathering`：採集（無工具），`prefix="plant"`。
 - `scripts/WoodCutting.py` — `WoodCutting`：採集（有工具），`prefix="wood"`。
