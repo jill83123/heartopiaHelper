@@ -364,6 +364,11 @@ DEFAULT_THRESHOLDS = {
     "carveBadge": 0.8,
     "carveMarker": 0.7,
     "carveHandle": 0.7,
+    "sandBagTitle": 0.8,  # 沙雕: templates/sandSculpture 的圖還沒做，數值先抓大約
+    "sandInteract": 0.75,
+    "sandCollect": 0.75,
+    "sandCombo": 0.75,
+    "sandQuiz": 0.75,
     "bagBtn": 0.62,  # 沙灘背景上主畫面約 0.76、拋竿中(沒有背包鈕)最高 0.49，取中間
     "castBtn": 0.7,
     "biteMark": 0.75,
@@ -547,7 +552,7 @@ GATHER_LABELS = {"plant": "採集（無工具）", "wood": "採集（有工具�
 
 
 def validateConfig(config, task):
-    """啟動前檢查設定值，回傳錯誤訊息；沒問題回傳 None。task 為 "cooking"、"snowCarving"、"fishing"、"fishingAlt"、"plant"、"wood"、"puzzle" 或 "pumpkin" """
+    """啟動前檢查設定值，回傳錯誤訊息；沒問題回傳 None。task 為 "cooking"、"snowCarving"、"fishing"、"fishingAlt"、"plant"、"wood"、"puzzle"、"pumpkin" 或 "sandSculpture" """
 
     def number(key, label, minimum, isInt=False):
         try:
@@ -593,8 +598,8 @@ def validateConfig(config, task):
     elif task == "fishing":
         checks.append(number("fishingDetectFrequency", "偵測頻率", 0.1))
         checks += fishingItemChecks(config, "fishing", "")
-    elif task in ("puzzle", "pumpkin"):
-        pass  # 拼圖、南瓜雕刻沒有可調的設定
+    elif task in ("puzzle", "pumpkin", "sandSculpture"):
+        pass  # 拼圖、南瓜雕刻、沙雕沒有需要檢查的設定
     else:
         checks.append(number("snowDetectFrequency", "偵測頻率", 0.05))
 
@@ -734,6 +739,18 @@ def clickMouse(x, y):
     win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
     time.sleep(0.1)
     win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
+
+
+def quickTap(x, y, hold=0.03):
+    """立刻按下左鍵(不等放開)，回傳按下去的時間(time.perf_counter)；放開交給另一條計時器，呼叫端可以馬上繼續截圖。
+    需要抓準時間的點擊用(沙雕指針小遊戲)，一般點擊用 clickMouse"""
+    win32api.SetCursorPos((x, y))
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
+    pressed = time.perf_counter()
+    timer = threading.Timer(hold, lambda: win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0))
+    timer.daemon = True
+    timer.start()
+    return pressed
 
 
 def _moveMouseAbs(x, y):
