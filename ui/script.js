@@ -260,6 +260,52 @@ const capitalize = (text) => text[0].toUpperCase() + text.slice(1);
 const resetIcon = (key) =>
   `<button type="button" class="reset-default" data-reset="${key}" aria-label="還原預設值"><svg class="icon" aria-hidden="true"><use href="#i-rotate-ccw"/></svg></button>`;
 
+// 「吃食物」設定區(勾選、吃到的飽食度、食物名稱、星級、保留最後一次)，採集與雪雕、南瓜雕刻、沙雕共用；p 是設定名稱的開頭
+const foodBlockHtml = (p) => `
+    <div class="check no-icon mb-8">
+      <input type="checkbox" class="setting-check" id="${p}UseFood" data-key="${p}UseFood" />
+      <label for="${p}UseFood">吃食物</label>
+      <span class="muted fs-12">體力不足時吃，吃到飽食度</span>
+      <input type="number" min="1" max="100" step="1" class="setting input qty" id="${p}FoodUntil" data-key="${p}FoodUntil" />
+      <span class="muted fs-12">%</span>
+      ${resetIcon(`${p}FoodUntil`)}
+    </div>
+    <div class="food-group">
+    <div class="row mb-8">
+      <div class="col">
+        <label for="${p}FoodName" class="label">食物名稱（背包搜尋用）</label>
+        <input type="text" class="setting input" id="${p}FoodName" placeholder="例如：沙拉" data-key="${p}FoodName" />
+        <span class="fs-12 text-danger food-warning" hidden>請輸入要吃的食物名稱</span>
+      </div>
+      <div class="col">
+        <label for="${p}FoodStars" class="label" title="同名食物有不同星級，搜尋結果會分成多格">食物星級</label>
+        <select id="${p}FoodStars" class="setting input" data-key="${p}FoodStars">
+          <option value="1">1 星</option>
+          <option value="2">2 星</option>
+          <option value="3">3 星</option>
+          <option value="4">4 星</option>
+          <option value="5">5 星</option>
+          <option value="14">0-4 星</option>
+          <option value="0">不限（0-5 星）</option>
+        </select>
+      </div>
+    </div>
+    <div class="check no-icon">
+      <input type="checkbox" class="setting-check" id="${p}FoodKeepLast" data-key="${p}FoodKeepLast" />
+      <label for="${p}FoodKeepLast">保留最後一次不吃</label>
+    </div>
+    </div>`;
+
+// 雪雕、南瓜雕刻、沙雕: 在各自分頁的 data-food-block 佔位元素裡放一份吃食物設定(設定名稱以 snow / pumpkin / sand 開頭)
+const CARVE_FOOD_KINDS = [
+  { prefix: 'snow', label: '雪雕' },
+  { prefix: 'pumpkin', label: '南瓜雕刻' },
+  { prefix: 'sand', label: '沙雕' },
+];
+CARVE_FOOD_KINDS.forEach(({ prefix }) => {
+  document.querySelector(`[data-food-block="${prefix}"]`).innerHTML = foodBlockHtml(prefix);
+});
+
 const buildGatherBlock = ({ prefix: p, name, countLabel, tool }) => {
   const P = capitalize(p);
   // 次數欄位放在上方「功能」同一行(共用列)，隨功能切換顯示
@@ -327,46 +373,7 @@ const buildGatherBlock = ({ prefix: p, name, countLabel, tool }) => {
     </div>`
         : ''
     }
-    ${
-      tool
-        ? `<hr />
-    <div class="check no-icon mb-8">
-      <input type="checkbox" class="setting-check" id="${p}UseFood" data-key="${p}UseFood" />
-      <label for="${p}UseFood">吃食物</label>
-      <span class="muted fs-12">體力不足時吃，吃到飽食度</span>
-      <input type="number" min="1" max="100" step="1" class="setting input qty" id="${p}FoodUntil" data-key="${p}FoodUntil" />
-      <span class="muted fs-12">%</span>
-      ${resetIcon(`${p}FoodUntil`)}
-    </div>
-    <div class="food-group">
-    <div class="row mb-8">
-      <div class="col">
-        <label for="${p}FoodName" class="label">食物名稱（背包搜尋用）</label>
-        <input type="text" class="setting input" id="${p}FoodName" placeholder="例如：沙拉" data-key="${p}FoodName" />
-        <span class="fs-12 text-danger food-warning" hidden>請輸入要吃的食物名稱</span>
-      </div>
-      <div class="col">
-        <label for="${p}FoodStars" class="label" title="同名食物有不同星級，搜尋結果會分成多格">食物星級</label>
-        <select id="${p}FoodStars" class="setting input" data-key="${p}FoodStars">
-          <option value="1">1 星</option>
-          <option value="2">2 星</option>
-          <option value="3">3 星</option>
-          <option value="4">4 星</option>
-          <option value="5">5 星</option>
-          <option value="14">0-4 星</option>
-          <option value="0">不限（0-5 星）</option>
-        </select>
-      </div>
-    </div>
-    <div class="check no-icon">
-      <input type="checkbox" class="setting-check" id="${p}FoodKeepLast" data-key="${p}FoodKeepLast" />
-      <label for="${p}FoodKeepLast">保留最後一次不吃</label>
-    </div>
-    </div>
-
-    <hr />`
-        : ''
-    }
+    ${tool ? `<hr />${foodBlockHtml(p)}<hr />` : ''}
 
     <div class="run-head">
       <div class="run-title">
@@ -562,6 +569,7 @@ const FOOD_GROUPS = [
   { prefix: 'fishing', label: '前景定時', isActive: () => isChecked('fishingEnabled') },
   { prefix: 'fishingAlt', label: '背景定時', isActive: () => isChecked('fishingAltEnabled') },
   ...GATHER_KINDS.filter(({ tool }) => tool).map(({ prefix, name }) => ({ prefix, label: name, isActive: () => document.querySelector('#gatherKind').value === prefix })),
+  ...CARVE_FOOD_KINDS.map(({ prefix, label }) => ({ prefix, label, isActive: () => true })),
 ];
 // 回傳缺少食物名稱的組別（{ prefix, label }），同時更新所有輸入框的紅框與警告
 const getMissingFoodGroups = () =>
@@ -600,7 +608,10 @@ const getCookBlockers = () => {
   return [...reasons, ...getAdbBlockers('cookingControlMode')];
 };
 
-const getSnowBlockers = () => getAdbBlockers('snowControlMode');
+// 雪雕、南瓜雕刻、沙雕: 勾了吃食物卻沒填食物名稱就不能開始
+const getCarveFoodBlockers = (prefix) => (getMissingFoodGroups().some((g) => g.prefix === prefix) ? ['未設定食物名稱'] : []);
+
+const getSnowBlockers = () => [...getCarveFoodBlockers('snow'), ...getAdbBlockers('snowControlMode')];
 
 const getGatherBlockers = (prefix) => {
   const kind = GATHER_KINDS.find((k) => k.prefix === prefix);
@@ -1536,6 +1547,7 @@ document.querySelector('#stopPuzzleBtn').addEventListener('click', async () => {
 });
 
 document.querySelector('#startPumpkinBtn').addEventListener('click', async () => {
+  if (alertBlockers(getCarveFoodBlockers('pumpkin'))) return;
   await startTask((confirmed) => getApi().startPumpkin(confirmed));
 });
 document.querySelector('#stopPumpkinBtn').addEventListener('click', async () => {
@@ -1543,6 +1555,7 @@ document.querySelector('#stopPumpkinBtn').addEventListener('click', async () => 
 });
 
 document.querySelector('#startSandBtn').addEventListener('click', async () => {
+  if (alertBlockers(getCarveFoodBlockers('sand'))) return;
   await startTask((confirmed) => getApi().startSandSculpture(confirmed));
 });
 document.querySelector('#stopSandBtn').addEventListener('click', async () => {

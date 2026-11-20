@@ -41,7 +41,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - 前端每次動作都呼叫 `Api` 方法；狀態與日誌靠前端定時輪詢（`apiGetStatus`、`apiGetNextLogs`），後端不主動推送（唯一例外是 `evaluate_js`：關閉時呼叫兩個視窗的 `markClosing()`，見 `main.shutdown`、`Api._closeFloatLog`；以及 `Api.apiFloatStart` 替主視窗按開始鈕）。
 - 同時只能跑一個任務（`Api.isRunning`）；農作物提醒 `CropReminder` 例外，可與其他任務同時跑，不走 backend。
 - 兩個 pywebview 視窗共用同一個 `Api`：主視窗 `ui/index.html`、置頂懸浮日誌 `ui/log.html`（`Api._floatHwnd` 建立，啟動後由 `main.prepareFloatLogOnce` 預先建好並隱藏）。
-- 任務繼承：`Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI)`；`GatherBase(FoodMixin, TimedTasks, GameUI)`；`GameUI(DebugMixin, BaseTask)`；`Cooking`、`Puzzle`、`Pumpkin`、`SandSculpture` 是 `(DebugMixin, BaseTask)`；`SnowCarving` 是 `BaseTask`；`CropReminder` 不繼承任何類別。
+- 任務繼承：`Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI)`；`GatherBase(FoodMixin, TimedTasks, GameUI)`；`GameUI(DebugMixin, BaseTask)`；`Cooking`、`Puzzle`、`Pumpkin`、`SandSculpture` 是 `(DebugMixin, BaseTask)`；`SnowCarving` 是 `BaseTask`；`CropReminder` 不繼承任何類別。`SnowCarving`、`Pumpkin`、`SandSculpture` 各持有一個 `self.food = AutoFood(...)`（組合而非繼承）。
 - 比對基準是 1600x900 遊戲畫面；其他解析度由 `ScaleResolver` / `tools/finder.py` 縮放模板。座標常數一律以 1600 寬為基準寫。
 - 模板找法：`GameUI._templatePath` 依 `templateDirs` 順序找，模擬器模式每個資料夾先找 `adb/<name>.png`；`BaseTask._getMatchCords` 只用單一 `templateDir`（料理、雪雕走這條）。
 
@@ -80,9 +80,10 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `tools/tools.py` `validateConfig(config, task)` — 啟動前檢查設定，回傳錯誤字串或 `None`（task：cooking、snowCarving、fishing、fishingAlt、plant、wood、puzzle、pumpkin、sandSculpture）；`fishingItemChecks` 檢查釣魚與採集共用的定時項目。
 - `userdata/dish.png`、`userdata/startup.log`、`userdata/config.ini.bak` — 菜品記錄截圖、啟動診斷、設定備份（`getUserDataPath` 取得）。
 - `debug/flow.log`、`debug/*.png` — 除錯模式（`debugMode`）才產生，`tools/debug.py` 寫入，上限 `DebugMixin.DEBUG_MAX_FILES`。
+- `debug/carve_*.csv` — 除錯模式下南瓜雕刻每輪的灰線、目標、把手、記號位置（`Pumpkin._dumpCarveRec` 結束時寫入），用來事後算追線準度與抖動；不受上述上限管。
 
 設定 key 命名規則（新增時照著取名）：
-- `fishing*` 前景定時、`fishingAlt*` 背景定時（模擬器）、`plant*` 採集無工具、`wood*` 採集有工具、`crop*` 拔草提醒、`floatLog*` 懸浮日誌、`cook*` / `snow*` 料理、雪雕。
+- `fishing*` 前景定時、`fishingAlt*` 背景定時（模擬器）、`plant*` 採集無工具、`wood*` 採集有工具、`crop*` 拔草提醒、`floatLog*` 懸浮日誌、`cook*` / `snow*` 料理、雪雕；`snow*`/`pumpkin*`/`sand*` 另有 `UseFood`、`FoodName`、`FoodStars`、`FoodKeepLast`、`FoodUntil` 吃食物設定（`AutoFood` 的 `foodConfig` 換成 `fishing*`；`validateConfig` 靠 `FOOD_TASKS` 檢查）。
 - `lastRun<任務名首字大寫>`（如 `lastRunCooking`）由 `Api._runSnapshot` 寫入；`floatLogX`、`floatLogY` 由 `apiSaveFloatLogPos` 寫入；`configVersion` 由 `migrateConfig` 寫入；這幾類不在 `CONFIG_DEFAULTS` 內。
 - 吃食物、丟維修盒的邏輯只認 `fishing*` 欄位：採集與背景定時的對應欄位由 `Api._gatherConfig`、`Api._altConfig` 換成 `fishing*` 再交給任務（對照表 `GATHER_FOOD_KEYS`、`ALT_KEYS`）。新增這類子選項要同步改這兩張表。
 
@@ -138,12 +139,13 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `scripts/common/gameui.py` — `GameUI`：遊戲畫面共用操作：狀態判斷 `_state`（idle/bag/unknown）、`_find`、`_click`、背包 `_openBagView` `_openBagFilter` `_closeBag`、走路 `_stepBack`/`_stepForward`、`_alert`（日誌＋通知）、`templateDirs` 與 `_templatePath`。
 - `scripts/common/tasks.py` — `TimedTasks`：定時項目（香水、誘魚器、維修盒、吃食物）排程、隨機延後 `INTERVAL_JITTER`、失敗上限 `MAX_TASK_FAILURES`、`_doRepair` / `_throwRepairBox`、`OutOfStock`。
 - `scripts/common/food.py` — `FoodMixin`：吃食物（偵測體力不足提示、搜尋食物、依星級挑格、保留最後一次、OCR 讀飽食度）；設定名稱沿用 `fishing*`。
+- `scripts/common/autofood.py` — `AutoFood`：讓雪雕、南瓜雕刻、沙雕吃食物的獨立小幫手（`GameUI + FoodMixin + TimedTasks`），任務主迴圈呼叫 `poll(stopEvent)`；`foodConfig(config, prefix)` 把 `snow`/`pumpkin`/`sand` 開頭的吃食物設定換成 `fishing*`。
 - `scripts/fishing/fishing.py` — `Fishing`：釣魚主迴圈（拋竿、收線、咬鉤、回主畫面）；前景、背景定時各開一個實例，`roleName` 區分。
 - `scripts/fishing/consumables.py` — `ConsumablesMixin`：香水、誘魚器的判斷（圖示、魚尾光柱）與使用。
 - `scripts/fishing/newfish.py` — `NewFishMixin`：新魚提示卡偵測與關閉。
 - `scripts/fishing/__init__.py` — 只匯出 `Fishing`。
 - `scripts/Cooking.py` — `Cooking`：料理（主迴圈與點擊兩條執行緒，收料理、五星停止、萬能食材、神奇調料、菜品比對）。
-- `scripts/SnowCarving.py` — `SnowCarving`：雪雕（偵測雪花連點、逾時點返回）。
+- `scripts/SnowCarving.py` — `SnowCarving`：雪雕（偵測雪花連點、逾時點返回；沒雪花時呼叫 `AutoFood.poll` 吃食物）。
 - `scripts/Pumpkin.py` — `Pumpkin`：南瓜雕刻（開背包、沒停在南瓜搜尋結果就自動搜尋並鎖定、點南瓜、擺放時轉鏡頭對準雕刻檯、點雕刻圖示、雕刻小遊戲按住滑桿跟著灰線拉、收取）；只支援前景。
 - `scripts/Puzzle.py` — `Puzzle`：拼圖流程（偵測片數、放碎片、垃圾桶重來、規律切割學習）；畫面分析在 `tools/puzzle.py`；`templateDir` 指向 `templates/puzzle` 但該資料夾不存在，拼圖不用模板圖。
 - `scripts/SandSculpture.py` — `SandSculpture`：沙雕（開背包、沒停在沙雕基座搜尋結果就自動搜尋並鎖定、點基座、擺放（先往下拖鏡頭讓預覽框靠近人物，紅框就取消）、已有基座就不再放置、點互動圖示、收起做好的沙雕、小遊戲用顏色找黃色區塊與橘色指針、之後只截指針那一小塊、算出指針走到正中間的時刻準時點、用 OCR 讀題目選項、選第一個認得的、點掉提示對話框）；擺放相關模板借用 `templates/pumpkin`；只支援前景；`SAND_TARGETS` 是認得的沙雕與選項關鍵字。
@@ -167,6 +169,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - 前端全域狀態：`hasBubbleRegion`、`isSelectingRegion`、`isAnyRunning`、`dishRecorded`、`isClosing`、`pendingUpdate`、`current*LogIndex`（各來源日誌讀到哪）、`gatherLogIndex`、`resetDefaults`、`cropRunning`。
 - 通用：`showDialog(title, message, {confirm, image, danger, okText, choices})`、`startTask`、`selectRegionHandler`、`alertBlockers` + `get*Blockers`（開始前的前端檢查）、`poll`、`getApi`。
 - 採集：`GATHER_KINDS` + `buildGatherBlock`（plant、wood 共用一份模板）、`syncGatherKind`。
+- 吃食物設定區：`foodBlockHtml(prefix)`（採集、雪雕、南瓜雕刻、沙雕共用），雪雕等分頁用 `data-food-block` 佔位元素 + `CARVE_FOOD_KINDS` 填入；`getCarveFoodBlockers` 檢查食物名稱。
 - 釣魚前景/背景：`buildAltOptions`、`syncAltVisibility`、`syncFgVisibility`。
 - 說明文字：`HELP_TEXTS`、`NOTICE_TEXTS`、`FOOD_GROUPS`。
 - 設定旁輔助：`fillTemplateImages`（`img[data-tpl]`）、`addMissingResetButtons` / `bindResetButtons` / `updateResetButtons`（還原預設值鈕）、`syncAdbPresets`、`fillAdbDetails`。

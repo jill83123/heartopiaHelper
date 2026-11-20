@@ -3,6 +3,7 @@ import random
 import time
 import cv2
 import numpy as np
+from scripts.common.autofood import AutoFood
 from scripts.common.base import BaseTask
 from tools.debug import DebugMixin
 from tools.finder import matchBestAuto
@@ -52,12 +53,12 @@ CARVE_GONE_SECONDS = 2.0  # 看不到雕刻中標籤超過這麼久，就當作�
 MARKER_X = 1073  # 記號(沙漏)的水平位置(待校準)
 BOX_Y0, BOX_Y1 = 556, 752  # 灰線出現的範圍(待校準)
 CURVE_LOOK = 100  # 看記號左邊多遠的灰線；灰線一進這個範圍就先按住滑桿、把記號移過去(記號有延遲，要提早)
-CURVE_LEAD = 40  # 把手要對準的是「記號左邊這麼遠」那一點的灰線高度，等灰線飄到記號時記號剛好到位。實機 log 看記號比把手慢約 0.4 秒，灰線約每秒飄 100px(待校準)
+CURVE_LEAD = 35  # 把手要對準的是「記號左邊這麼遠」那一點的灰線高度，等灰線飄到記號時記號剛好到位。灰線約每秒飄 100px。實測(debug/carve_*.csv)灰線每秒移動超過 30 格時，記號比灰線早到約 0.05 秒，所以從 40 降到 35
 CURVE_FIT = 12  # 取目標點左右各這麼寬的灰線擬合成直線，再讀目標點的高度(單點的高度有雜訊，實測會差到 ±8px)
 HANDLE_X = 1282  # 滑桿把手的水平位置(待校準)
 TRACK_TOP, TRACK_BOTTOM = 457, 763  # 把手中心能到的上下界(待校準)
 # 把手和記號是線性對應: 把手動 1 格記號動 K 格。從錄影量到的三組 (把手, 記號) = (527, 599)、(574, 630)、(517, 592)，斜率約 0.67~0.70
-MARKER_PER_HANDLE = 0.67
+MARKER_PER_HANDLE = 0.662  # 實測 6 輪記錄擬合(記號 = 0.662 × 把手 + 250，記號晚把手約 0.15 秒)
 MARKER_REF = (527, 599)  # 找不到記號時用來估算的一組 (把手, 記號)
 TARGET_SMOOTH = 0.4  # 灰線高度的平滑係數(越大越跟著最新值；小一點比較不會被雜訊帶著抖)
 MAX_STEP = 30  # 每輪把手最多移動幾格，避免灰線換段時突然大跳
@@ -90,6 +91,7 @@ class Pumpkin(DebugMixin, BaseTask):
         self._bagTries = 0
         self._geom = (1.0, 0, 0)  # (遊戲畫面縮放, 遊戲左上角在截圖裡的 x, y)；截圖是遊戲視窗被螢幕邊緣裁掉後的範圍，所以左上角不一定是 (0, 0)
         self._resetPlace()
+        self.food = AutoFood(setLog, backend, config, "pumpkin", "南瓜雕刻")
 
     def _resetPlace(self):
         self._placingSince = None
@@ -161,6 +163,7 @@ class Pumpkin(DebugMixin, BaseTask):
         self._wakeMouse(stopEvent)
         self._startWatchdog(stopEvent)
         self._trace("南瓜雕刻開始", reset=True)
+        self.food.start()
 
         steps = (
             ("雕刻", self._stepCarve),
@@ -173,6 +176,10 @@ class Pumpkin(DebugMixin, BaseTask):
             ("提示對話", self._stepDialog),
         )
         while not stopEvent.wait(SCAN_INTERVAL):
+            # 體力不足時畫面上的雕刻圖示還在，步驟會一直比對到，所以每一輪都先看體力(有間隔限制)；吃完食物後重新判斷畫面
+            if self.food.poll(stopEvent):
+                self._unknownSince = None
+                continue
             img, origin = self._gameShot()
             for name, step in steps:
                 if step(img, origin, stopEvent):
@@ -429,7 +436,7 @@ class Pumpkin(DebugMixin, BaseTask):
         self._stop(stopEvent, msg)
 
     # ---------- 雕刻小遊戲 ----------
-    def _curveY(self, img, markerX):
+    def _curveY(self, img, markerX, lead=None):
         """灰線在「記號左邊 CURVE_LEAD 那一點」的高度(截圖座標)。那一點沒有灰線就取最接近的有灰線的位置；完全沒有灰線回傳 None"""
         s = self._geom[0]
         x0, x1 = max(0, int(markerX - CURVE_LOOK * s)), max(1, int(markerX - 3 * s))
@@ -447,7 +454,7 @@ class Pumpkin(DebugMixin, BaseTask):
         if xs.size < 6:
             return None
         cols = np.unique(xs)
-        center = cols[np.argmin(np.abs(cols - (markerX - CURVE_LEAD * s - x0)))]
+        center = cols[np.argmin(np.abs(cols - (markerX - (CURVE_LEAD if lead is None else lead) * s - x0)))]
         near = np.abs(xs - center) <= CURVE_FIT * s
         if near.sum() >= 8 and np.ptp(xs[near]) >= 6:
             slope, offset = np.polyfit(xs[near], ys[near], 1)
@@ -460,11 +467,28 @@ class Pumpkin(DebugMixin, BaseTask):
         if not self._find(img, "carveBadge", roi=BADGE_ROI):
             return False
         self.setLog("雕刻中")
+        self._carveRec = [] if self._debugOn() else None
         try:
             self._carveLoop(stopEvent)
         finally:
             self.backend.touchUp()
+            self._dumpCarveRec()
         return True
+
+    def _dumpCarveRec(self):
+        """除錯模式下，把雕刻時每一輪的數字存成 debug/carve_時間.csv，事後算追線的準度與抖動。記憶體裡先存著、結束才寫檔，不影響追線速度"""
+        rec, self._carveRec = self._carveRec, None
+        if not rec:
+            return
+        try:
+            path = os.path.join(self._debugFolder(), time.strftime("carve_%Y%m%d_%H%M%S.csv"))
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("t,raw,target,want,handleY,markerY,markerLine\n")
+                for row in rec:
+                    f.write(",".join("" if v is None else (f"{v:.3f}" if isinstance(v, float) else str(v)) for v in row) + "\n")
+            self._trace(f"雕刻記錄存成 {os.path.basename(path)}，共 {len(rec)} 筆")
+        except Exception:
+            pass
 
     def _markerAt(self, img):
         return self._find(img, "carveMarker", roi=(MARKER_X - 50, BOX_Y0 - 30, MARKER_X + 50, BOX_Y1 + 30))
@@ -482,6 +506,7 @@ class Pumpkin(DebugMixin, BaseTask):
         loop = 0
         lastBadge = lastTarget = lastTrace = time.time()
         marker = None
+        t0 = time.time()
         while not stopEvent.wait(CARVE_INTERVAL):
             img, origin = self._gameShot()
             s, _, oy = self._geom
@@ -534,6 +559,10 @@ class Pumpkin(DebugMixin, BaseTask):
                 handleY += step
                 x, y = self._getRelCords(origin, (handleX, handleY))
                 self.backend.touchMove(x, y)
+            if self._carveRec is not None:  # 只在除錯模式。記號處灰線只在剛量到記號的那一輪算(每 MARKER_EVERY 輪一次)，避免多花時間
+                fresh = marker is not None and loop % MARKER_EVERY == 1
+                line = self._curveY(img, markerX, lead=3) if fresh else None
+                self._carveRec.append((round(now - t0, 3), raw, target, want, handleY, marker[1] if fresh else None, line))
             if now - lastTrace >= TRACE_EVERY:
                 lastTrace = now
                 self._trace(f"灰線 {target:.0f} 記號 {marker[1] if marker else None} 把手 {handleY:.0f} 想要 {want:.0f}")

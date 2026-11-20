@@ -6,6 +6,7 @@ import time
 import cv2
 import mss
 import numpy as np
+from scripts.common.autofood import AutoFood
 from scripts.common.base import BaseTask
 from tools.debug import DebugMixin
 from tools.finder import matchBestAuto
@@ -143,6 +144,7 @@ class SandSculpture(DebugMixin, BaseTask):
         self._redCancelAt = 0.0
         self._lastBaseLog = 0.0
         self._geom = (1.0, 0, 0)  # (遊戲畫面縮放, 遊戲左上角在截圖裡的 x, y)
+        self.food = AutoFood(setLog, backend, config, "sand", "沙雕")
 
     def _threadTargets(self):
         return [self._loop]
@@ -208,6 +210,7 @@ class SandSculpture(DebugMixin, BaseTask):
         self._wakeMouse(stopEvent)
         self._startWatchdog(stopEvent)
         self._trace("沙雕開始", reset=True)
+        self.food.start()
 
         steps = (
             ("小遊戲", self._stepMeter),
@@ -221,6 +224,10 @@ class SandSculpture(DebugMixin, BaseTask):
             ("提示對話", self._stepDialog),
         )
         while not stopEvent.wait(SCAN_INTERVAL):
+            # 體力不足時畫面上的互動圖示還在，步驟會一直比對到，所以每一輪都先看體力(有間隔限制)；吃完食物後重新判斷畫面
+            if self.food.poll(stopEvent):
+                self._unknownSince = None
+                continue
             img, origin = self._gameShot()
             for name, step in steps:
                 if step(img, origin, stopEvent):

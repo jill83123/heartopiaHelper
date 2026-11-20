@@ -1,5 +1,6 @@
 import random
 import time
+from scripts.common.autofood import AutoFood
 from scripts.common.base import BaseTask
 from tools.finder import clickBackButton
 
@@ -13,6 +14,7 @@ class SnowCarving(BaseTask):
     def __init__(self, setLog, backend, config):
         super().__init__(setLog, backend, config)
         self.waitingSince = None
+        self.food = AutoFood(setLog, backend, config, "snow", "雪雕")
 
     def _threadTargets(self):
         return [self._detectLoop]
@@ -21,6 +23,7 @@ class SnowCarving(BaseTask):
         self.backend.focusGame()  # 前景模式: 先把遊戲拉到最上層，再解除卡滑鼠(模擬器模式不做事)
         self._wakeMouse(stopEvent)
         frequency = float(self.config.get("snowDetectFrequency"))
+        self.food.start()
 
         while not stopEvent.wait(frequency):
             img, (bx, by) = self._gameShot()
@@ -29,6 +32,11 @@ class SnowCarving(BaseTask):
             if snowflakeCords:
                 self.setLog("雪花數量：" + str(len(snowflakeCords)))
                 self._clickFirst((bx, by), snowflakeCords, stopEvent)
+                continue
+
+            # 沒有雪花時才看體力(雪花連點中不打斷)；體力不足就先吃食物，吃完重新判斷畫面
+            if self.food.poll(stopEvent):
+                self.waitingSince = None
                 continue
 
             # 優先順序: 雪花 > 放置 > 開始按鈕 > 完成
