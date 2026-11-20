@@ -275,13 +275,17 @@
         closing = true;
       };
 
+      let polling = false; // 上一次沒回來就不再發新的，否則計時器被節流後呼叫堆積，同樣的日誌會被重複加入
       const poll = async () => {
-        if (closing) return;
+        if (closing || polling) return;
+        polling = true;
         let res;
         try {
           res = await window.pywebview.api.apiFloatPoll(index, run);
         } catch (e) {
           return;
+        } finally {
+          polling = false;
         }
         if (res.run !== run) {
           // 新的一次運行: 清掉上一次的內容
