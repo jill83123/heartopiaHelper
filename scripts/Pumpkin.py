@@ -176,6 +176,10 @@ class Pumpkin(DebugMixin, BaseTask):
             ("提示對話", self._stepDialog),
         )
         while not stopEvent.wait(SCAN_INTERVAL):
+            # 體力不足時畫面上的雕刻圖示還在，步驟會一直比對到，所以每一輪都先看體力(有間隔限制)；吃完食物後重新判斷畫面
+            if self.food.poll(stopEvent):
+                self._unknownSince = None
+                continue
             img, origin = self._gameShot()
             for name, step in steps:
                 if step(img, origin, stopEvent):
@@ -184,9 +188,6 @@ class Pumpkin(DebugMixin, BaseTask):
                     break
             else:
                 self._traceChange("未知", "畫面")
-                if self.food.poll(stopEvent):  # 體力不足，吃完食物後重新判斷畫面
-                    self._unknownSince = None
-                    continue
                 self._stepIdle(img, origin, stopEvent)
 
     def _stepIdle(self, img, origin, stopEvent):
