@@ -1,7 +1,7 @@
 # CLAUDE.md — agent 入口索引
 
 查找程式時先看這份，不要全專案 grep。每一行只寫「這個東西負責什麼」，細節進檔案看。
-行為取捨與「為什麼這樣做」不在這裡，見 [docs/decisions.md](docs/decisions.md)；使用者說明見 [README.md](README.md)。
+行為取捨與「為什麼這樣做」不在這裡，見 [docs/decisions.md](docs/decisions.md)；使用者說明見 [README.md](README.md)；從原始碼執行、打包、發佈流程見 [docs/development.md](docs/development.md)。
 
 ## 維護規則（必讀）
 
@@ -59,7 +59,8 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `requirements.txt` — 相依套件（keyboard、mss、numpy、opencv-python、pywebview、pywin32、pyinstaller、winrt-*）。
 - `pyproject.toml` — 只有 black `line-length = 140`。
 - `icon.ico` — 應用程式圖示，由 `design/make_icon.py` 產生。
-- `README.md` — 給使用者的說明與發佈流程。
+- `README.md` — 給使用者的說明（功能、下載、操作模式、設定），不放開發與發佈內容。
+- `docs/development.md` — 給開發者：從原始碼執行、`config.ini` 各設定項說明、打包、自動更新與發佈流程。
 - `docs/decisions.md` — 設計決策（釣魚、食物、採集、拼圖、其他的取捨）；改行為前先看對應段落。
 - `design/design-system.html` — 設計系統預覽頁（色彩、字體、間距、圓角、元件、料理頁組合預覽），僅供參考；實際以 `ui/style.css` 為準。兩邊淺色顏色 token 同名同值（`--font` 例外：設計稿多了沒打包的 Quicksand），設計稿多了 `--fs-xs`～`--fs-xl`、`--s1`～`--s6`、`--info`、`--salmon`、`--warn`（`style.css` 沒有），`style.css` 多了 `--field-gap`、`--brand-edge`、`--warn-text`。
 - `design/make_icon.py` — 只用 numpy + opencv 畫 `icon.ico`。
