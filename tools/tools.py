@@ -493,6 +493,22 @@ CONFIG_DEFAULTS = {
     "woodUseRepair": "False",
     "woodRepairLeave": "True",
     "woodRepairMinutes": "15",
+    # 雪雕、南瓜雕刻、沙雕的吃食物(體力不足時吃)，欄位與釣魚的吃食物相同
+    "snowUseFood": "False",
+    "snowFoodKeepLast": "True",
+    "snowFoodName": "",
+    "snowFoodStars": "14",
+    "snowFoodUntil": "99",
+    "pumpkinUseFood": "False",
+    "pumpkinFoodKeepLast": "True",
+    "pumpkinFoodName": "",
+    "pumpkinFoodStars": "14",
+    "pumpkinFoodUntil": "99",
+    "sandUseFood": "False",
+    "sandFoodKeepLast": "True",
+    "sandFoodName": "",
+    "sandFoodStars": "14",
+    "sandFoodUntil": "99",
 }
 
 # 「還原設定值」不會動的項目: 跟使用者的環境有關(操作模式、ADB、解析度、停止鍵)，還原後還要重填很麻煩
@@ -549,6 +565,9 @@ def fishingItemChecks(config, prefix, who):
 
 # 採集功能的設定名稱開頭 -> 訊息裡的稱呼
 GATHER_LABELS = {"plant": "採集（無工具）", "wood": "採集（有工具）"}
+# 有吃食物設定的雕刻任務: 任務名稱 -> 設定名稱的開頭、訊息裡的稱呼
+FOOD_TASKS = {"snowCarving": "snow", "pumpkin": "pumpkin", "sandSculpture": "sand"}
+FOOD_LABELS = {"snowCarving": "雪雕", "pumpkin": "南瓜雕刻", "sandSculpture": "沙雕"}
 
 
 def validateConfig(config, task):
@@ -598,8 +617,12 @@ def validateConfig(config, task):
     elif task == "fishing":
         checks.append(number("fishingDetectFrequency", "偵測頻率", 0.1))
         checks += fishingItemChecks(config, "fishing", "")
-    elif task in ("puzzle", "pumpkin", "sandSculpture"):
-        pass  # 拼圖、南瓜雕刻、沙雕沒有需要檢查的設定
+    elif task == "puzzle":
+        pass  # 拼圖沒有需要檢查的設定
+    elif task in FOOD_TASKS:
+        checks += fishingItemChecks(config, FOOD_TASKS[task], FOOD_LABELS[task])  # 南瓜雕刻、沙雕只有吃食物的設定要檢查
+        if task == "snowCarving":
+            checks.append(number("snowDetectFrequency", "偵測頻率", 0.05))
     else:
         checks.append(number("snowDetectFrequency", "偵測頻率", 0.05))
 

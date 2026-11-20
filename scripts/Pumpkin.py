@@ -3,6 +3,7 @@ import random
 import time
 import cv2
 import numpy as np
+from scripts.common.autofood import AutoFood
 from scripts.common.base import BaseTask
 from tools.debug import DebugMixin
 from tools.finder import matchBestAuto
@@ -90,6 +91,7 @@ class Pumpkin(DebugMixin, BaseTask):
         self._bagTries = 0
         self._geom = (1.0, 0, 0)  # (遊戲畫面縮放, 遊戲左上角在截圖裡的 x, y)；截圖是遊戲視窗被螢幕邊緣裁掉後的範圍，所以左上角不一定是 (0, 0)
         self._resetPlace()
+        self.food = AutoFood(setLog, backend, config, "pumpkin", "南瓜雕刻")
 
     def _resetPlace(self):
         self._placingSince = None
@@ -161,6 +163,7 @@ class Pumpkin(DebugMixin, BaseTask):
         self._wakeMouse(stopEvent)
         self._startWatchdog(stopEvent)
         self._trace("南瓜雕刻開始", reset=True)
+        self.food.start()
 
         steps = (
             ("雕刻", self._stepCarve),
@@ -181,6 +184,9 @@ class Pumpkin(DebugMixin, BaseTask):
                     break
             else:
                 self._traceChange("未知", "畫面")
+                if self.food.poll(stopEvent):  # 體力不足，吃完食物後重新判斷畫面
+                    self._unknownSince = None
+                    continue
                 self._stepIdle(img, origin, stopEvent)
 
     def _stepIdle(self, img, origin, stopEvent):
