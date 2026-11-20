@@ -80,6 +80,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `tools/tools.py` `validateConfig(config, task)` — 啟動前檢查設定，回傳錯誤字串或 `None`（task：cooking、snowCarving、fishing、fishingAlt、plant、wood、puzzle、pumpkin、sandSculpture）；`fishingItemChecks` 檢查釣魚與採集共用的定時項目。
 - `userdata/dish.png`、`userdata/startup.log`、`userdata/config.ini.bak` — 菜品記錄截圖、啟動診斷、設定備份（`getUserDataPath` 取得）。
 - `debug/flow.log`、`debug/*.png` — 除錯模式（`debugMode`）才產生，`tools/debug.py` 寫入，上限 `DebugMixin.DEBUG_MAX_FILES`。
+- `debug/carve_*.csv` — 除錯模式下南瓜雕刻每輪的灰線、目標、把手、記號位置（`Pumpkin._dumpCarveRec` 結束時寫入），用來事後算追線準度與抖動；不受上述上限管。
 
 設定 key 命名規則（新增時照著取名）：
 - `fishing*` 前景定時、`fishingAlt*` 背景定時（模擬器）、`plant*` 採集無工具、`wood*` 採集有工具、`crop*` 拔草提醒、`floatLog*` 懸浮日誌、`cook*` / `snow*` 料理、雪雕；`snow*`/`pumpkin*`/`sand*` 另有 `UseFood`、`FoodName`、`FoodStars`、`FoodKeepLast`、`FoodUntil` 吃食物設定（`AutoFood` 的 `foodConfig` 換成 `fishing*`；`validateConfig` 靠 `FOOD_TASKS` 檢查）。
