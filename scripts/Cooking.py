@@ -22,7 +22,9 @@ WILDCARD_SLOT_DX = -45  # 食材格的 + 號到格子中心的位移(以 1600 �
 WILDCARD_SLOT_DY = 41
 WILDCARD_PANEL_X = 0.55  # 食材選擇面板在畫面右側，從這個寬度比例以右才找萬能食材(左邊的格子裡填上後也會出現同樣的圖)
 WILDCARD_MAX_SLOTS = 6  # 一次最多補幾格，避免卡住一直點
-WILDCARD_PANEL_WAIT = 2.5  # 點了格子後，等食材選擇面板出現(找得到萬能食材)的秒數
+WILDCARD_PANEL_WAIT = 4.0  # 點了格子後，等食材選擇面板出現(找得到萬能食材)的秒數；遊戲卡頓時面板會晚出現
+WILDCARD_AFTER_DELAY = 0.3  # 補完食材、面板關閉後，再等這麼久才點開始烹飪
+WILDCARD_OPEN_TRIES = 2  # 等不到面板時，重新點一次格子的次數上限(含第一次)
 SEASONING_WAIT = 0.8  # 看到開始烹飪按鈕後，神奇調料那一列通常已經在了，找不到時最多再等這麼久
 SEASONING_CLICK_WAIT = 0.3  # 點了圈圈後等打勾動畫的秒數
 SEASONING_TRIES = 3  # 圈圈點了之後還是沒打勾時，最多再點幾次
@@ -156,20 +158,24 @@ class Cooking(DebugMixin, BaseTask):
                 break
             # 同時有好幾格時從左邊開始補
             px, py = min(plusCoords)
-            self.backend.click(round(px + WILDCARD_SLOT_DX * scale), round(py + WILDCARD_SLOT_DY * scale))
-            wildcard = self._waitWildcardItem(stopEvent)
+            wildcard = None
+            for _try in range(WILDCARD_OPEN_TRIES):
+                self.backend.click(round(px + WILDCARD_SLOT_DX * scale), round(py + WILDCARD_SLOT_DY * scale))
+                wildcard = self._waitWildcardItem(stopEvent)
+                if wildcard or stopEvent.is_set():
+                    break
             if not wildcard:
                 if not stopEvent.is_set():
                     self.setLog("找不到萬能食材（可能沒有了）")
                 return False
             self.backend.click(*wildcard)
             filled += 1
-            if stopEvent.wait(0.6):
+            if stopEvent.wait(0.4):
                 return False
         if not filled:
             return False
         self.setLog(f"食材不足，已用萬能食材補上 {filled} 格")
-        return not stopEvent.wait(0.8)
+        return not stopEvent.wait(0.4)
 
     def _waitWildcardItem(self, stopEvent):
         """等食材選擇面板出現，回傳萬能食材的座標，等不到回傳 None"""
@@ -274,8 +280,9 @@ class Cooking(DebugMixin, BaseTask):
             if not isEnabled:
                 if self.useWildcard and not self.wildcardTried:
                     self.wildcardTried = True
-                    self._fillWithWildcard(stopEvent)
-                    self.startBtnSeenAt = None
+                    filled = self._fillWithWildcard(stopEvent)
+                    # 選單動畫在補食材前就跑完了，補完只剩面板關閉的一點點動畫，不用再等完整的 START_BTN_DELAY
+                    self.startBtnSeenAt = time.time() - START_BTN_DELAY + WILDCARD_AFTER_DELAY if filled else None
                     self.startBtnWaitingSince = None  # 補食材花的時間不算在等按鈕的逾時裡
                     return  # 補完回到偵測，重新確認按鈕可不可以按
                 if not self.currentCookQty:  # 一份都還沒開始煮，沒有東西要等
