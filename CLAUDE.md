@@ -93,8 +93,8 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 
 `class Api` 的 `__init__` 欄位（即「store」）：
 - `config` — 目前設定快取（`apiReadSettings` 重讀）。
-- `cookingTask` `snowCarvingTask` `puzzleTask` `pumpkinTask` `sandTask` `fishingTask` `fishingAltTask` `plantTask` `woodTask` `cropTask` — 各任務實例或 `None`；`bubbleRegionCoord` — 使用者框選的料理泡泡區域 `(x,y,w,h)`。
-- `logs` / `logCounts` — 每個來源一個 `deque(maxlen=LOG_LIMIT)`，來源：cooking、snowCarving、puzzle、pumpkin、sandSculpture、crop、fishing、fishingAlt、plant、wood、float；`index` 持續遞增供前端判斷讀到哪。
+- `cookingTask` `snowCarvingTask` `puzzleTask` `pumpkinTask` `sandTask` `catTask` `fishingTask` `fishingAltTask` `plantTask` `woodTask` `cropTask` — 各任務實例或 `None`；`bubbleRegionCoord` — 使用者框選的料理泡泡區域 `(x,y,w,h)`。
+- `logs` / `logCounts` — 每個來源一個 `deque(maxlen=LOG_LIMIT)`，來源：cooking、snowCarving、puzzle、pumpkin、sandSculpture、cat、crop、fishing、fishingAlt、plant、wood、float；`index` 持續遞增供前端判斷讀到哪。
 - `floatSources` `floatRun` `_floatKey` `_logWindow` `_logHwnd` `_logShown` `_logCollapsed` `_floatPlaced` `_floatDestroying` — 懸浮日誌狀態。
 - `runInfo` — 每個 `RUN_KEYS` 的開始、結束時間。
 - `updater` — `tools.updater.Updater`。`selectLock` — 框選時擋住開始任務。`backendError` `backendIsAdb` — `getBackend` 失敗資訊。`logLock`。
@@ -102,7 +102,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 模組常數：`LOG_LIMIT`、`ALT_KEYS`、`GATHER_FOOD_KEYS`、`GATHER_TASKS`、`FLOAT_START_BUTTONS`（懸浮日誌「開始」要按主視窗哪顆按鈕的 id）、`FLOAT_TASK_NAMES`、`RUN_KEYS`、`REGION_HINTS`。
 
 公開方法（路由；前端以 `getApi().<name>(...)` 呼叫）：
-- 啟動任務（回傳 `{ok, error?, code?, warning?}`；`code` 為 `adbFailed` 或 `resolutionWarning`，後者要前端確認後以 `confirmed=True` 重呼）：`startCooking`、`startSnowCarving`、`startPuzzle`、`startPumpkin`、`startSandSculpture`、`startFishing`、`startGathering(kind)`（kind=`plant`/`wood`）。
+- 啟動任務（回傳 `{ok, error?, code?, warning?}`；`code` 為 `adbFailed` 或 `resolutionWarning`，後者要前端確認後以 `confirmed=True` 重呼）：`startCooking`、`startSnowCarving`、`startPuzzle`、`startPumpkin`、`startSandSculpture`、`startCat`、`startFishing`、`startGathering(kind)`（kind=`plant`/`wood`）。
 - 停止與狀態：`stop`（全部任務；停止鍵也呼叫它）、`apiGetStatus`（各任務是否運行 + `runs` + `floatLogPosition`）、`isRunning`、`apiFrontReady`。
 - 日誌：`apiGetNextLogs(currentIndex, source)`、`setLog(msg, source)`（任務傳進去的 log 函式）。
 - 設定：`apiReadSettings`、`apiWriteSetting(key, value)`、`apiResetSettings`、`apiGetDefaults`。
@@ -112,7 +112,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - 農作物提醒：`apiCropStart(remainingSeconds)`、`apiCropStop`、`apiCropStatus`。
 - 更新：`apiGetVersion`、`apiCheckUpdate`、`apiInstallUpdate`、`apiUpdateState`、`apiApplyUpdate`、`apiOpenReleasePage`、`apiOpenLink`。
 - 懸浮日誌：`apiFloatPoll`、`apiFloatStart`、`apiHideFloatLog`、`apiSetFloatCollapsed`、`apiResizeFloat`、`apiSaveFloatHeight`、`apiSaveFloatLogPos`；內部 `_prepareFloatLog`、`_closeFloatLog`、`_beginRun`。
-- 內部共用：`taskConfig(task)`（決定各任務實際操作模式：背景定時固定 adb、釣魚前景、拼圖、南瓜雕刻、沙雕固定 screen）、`getBackend`（失敗時 `backendFailure` 附 `adbFailed` 標記、`backendErrorText` 給使用者看的說明）、`_resolutionBlock`、`_gatherConfig`、`_altConfig`、`_runSnapshot`。
+- 內部共用：`taskConfig(task)`（決定各任務實際操作模式：背景定時固定 adb、釣魚前景、拼圖、南瓜雕刻、沙雕、逗貓固定 screen）、`getBackend`（失敗時 `backendFailure` 附 `adbFailed` 標記、`backendErrorText` 給使用者看的說明）、`_resolutionBlock`、`_gatherConfig`、`_altConfig`、`_runSnapshot`。
 
 ## 後端：tools/
 
@@ -149,6 +149,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `scripts/Pumpkin.py` — `Pumpkin`：南瓜雕刻（開背包、沒停在南瓜搜尋結果就自動搜尋並鎖定、點南瓜、擺放時轉鏡頭對準雕刻檯、點雕刻圖示、雕刻小遊戲按住滑桿跟著灰線拉、收取）；只支援前景。
 - `scripts/Puzzle.py` — `Puzzle`：拼圖流程（偵測片數、放碎片、垃圾桶重來、規律切割學習）；畫面分析在 `tools/puzzle.py`；`templateDir` 指向 `templates/puzzle` 但該資料夾不存在，拼圖不用模板圖。
 - `scripts/SandSculpture.py` — `SandSculpture`：沙雕（開背包、沒停在沙雕基座搜尋結果就自動搜尋並鎖定、點基座、擺放（先往下拖鏡頭讓預覽框靠近人物，紅框就取消）、已有基座就不再放置、點互動圖示、收起做好的沙雕、小遊戲用顏色找黃色區塊與橘色指針、之後只截指針那一小塊、算出指針走到正中間的時刻準時點、用 OCR 讀題目選項、選第一個認得的、點掉提示對話框）；擺放相關模板借用 `templates/pumpkin`；只支援前景；`SAND_TARGETS` 是認得的沙雕與選項關鍵字。
+- `scripts/Cat.py` — `Cat`：逗貓（點爪印、選單點逗貓、小遊戲認貓耳泡泡裡的按鈕圖示並點同樣的按鈕、結果視窗按確定）；只支援前景；畫面一律縮成 1600x900 基準後用 `cv2.matchTemplate` 比對，不走 `matchBestAuto`；`iconFeature`/`iconScore` 是圖示形狀比對。
 - `scripts/Gathering.py` — `GatherBase`：定時採集共同骨架（連按互動鍵、倒數圖示、獲得物品氣泡、工具耐久耗盡、吃食物、維修盒）；`findCountdownRing`。
 - `scripts/PlantGathering.py` — `PlantGathering`：採集（無工具），`prefix="plant"`。
 - `scripts/WoodCutting.py` — `WoodCutting`：採集（有工具），`prefix="wood"`。
@@ -157,7 +158,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 
 ## 畫面：ui/
 
-- `ui/index.html` — 主視窗，單頁、分頁用 `.pane`：`#cook-tab-pane` 料理、`#snow-tab-pane` 雪雕、`#puzzle-tab-pane` 拼圖、`#pumpkin-tab-pane` 南瓜雕刻、`#sand-tab-pane` 沙雕、`#fish-tab-pane` 釣魚、`#gather-tab-pane` 採集（內容由 `buildGatherBlock` 動態產生）、`#crop-tab-pane` 拔草提醒、`#settings-tab-pane` 設定；另有 `#updateDialog`、`#dialog`（通用提示窗，由 `showDialog` 填）、`#loading`。內嵌 Lucide SVG sprite（`#i-*`）。
+- `ui/index.html` — 主視窗，單頁、分頁用 `.pane`：`#cook-tab-pane` 料理、`#snow-tab-pane` 雪雕、`#puzzle-tab-pane` 拼圖、`#cat-tab-pane` 逗貓（「更多」選單第二個）、`#pumpkin-tab-pane` 南瓜雕刻、`#sand-tab-pane` 沙雕、`#fish-tab-pane` 釣魚、`#gather-tab-pane` 採集（內容由 `buildGatherBlock` 動態產生）、`#crop-tab-pane` 拔草提醒、`#settings-tab-pane` 設定；另有 `#updateDialog`、`#dialog`（通用提示窗，由 `showDialog` 填）、`#loading`。內嵌 Lucide SVG sprite（`#i-*`）。
 - `ui/script.js` — 唯一的前端邏輯（全域函式，無打包）。入口 `init` → `setup`（`setup` 內含輪詢 `apiGetStatus` 與各分頁事件綁定）。
 - `ui/log.html` — 懸浮日誌視窗，自帶樣式與腳本（輪詢 `apiFloatPoll`，`markClosing` 停輪詢）；有 `data-theme="light"` 淺色版。
 - `ui/style.css` — 主視窗唯一樣式表（見「樣式規則」）。
@@ -229,6 +230,7 @@ HTML + class 的組合，要新增同類畫面時直接複製既有結構：
 - `templates/food/` — 吃食物（體力圖示、體力不足提示、鎖頭、吃、使用次數標籤）；釣魚與採集共用。
 - `templates/pumpkin/` — 南瓜雕刻（背包搜尋標題、擺放鈕、擺放退出與確認鈕、雕刻與收取圖示、雕刻中標籤、記號、滑桿把手）；從錄影裁出。
 - `templates/sandSculpture/` — 沙雕，從錄影與截圖裁的（`sandBagTitle` 背包標題、`sandInteract` 互動圖示、`sandCollect` 收起沙雕圖示、`sandCombo` COMBO 條、`sandQuiz` 題目提示字；題目選項用 OCR 讀，不用模板）；缺圖時開始會報缺哪幾張。
+- `templates/cat/` — 逗貓（`catBubble` 貓耳泡泡、`catIconUp/Down/A` 三顆按鈕的圖示、`catPaw` 貓咪頭上的爪印、`catMenu` 選單的逗貓鈕、`catEnd` 結果視窗標題、`catOk` 確定鈕），從錄影裁的。
 - `templates/gather/` — 採集（植物、木頭、蘑菇倒數圖示、工具耐久耗盡提示）。
 - `templates/digits/` — `0.png`～`9.png`，背包數量字形，給 `tools/digits.py`（目前沒有程式使用）。
 - `templates/icons/` — 設定旁顯示用的道具小圖（不拿來比對）。
