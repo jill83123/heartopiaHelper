@@ -12,6 +12,7 @@ let currentSnowLogIndex = 0;
 let currentPuzzleLogIndex = 0;
 let currentPumpkinLogIndex = 0;
 let currentSandLogIndex = 0;
+let currentCatLogIndex = 0;
 let currentCropLogIndex = 0;
 let currentFishLogIndex = 0;
 let currentFishAltLogIndex = 0;
@@ -504,6 +505,14 @@ const NOTICE_TEXTS = {
       '．執行中請不要移動滑鼠。',
     ].join('\n'),
   },
+  cat: {
+    title: '逗貓注意事項',
+    message: [
+      '．遊戲須在最上層（只支援前景模式）。',
+      '．角色請先站在貓咪旁邊，讓牠頭上的爪印、逗貓選單或小遊戲出現在畫面上。',
+      '．執行中請不要移動滑鼠。',
+    ].join('\n'),
+  },
   fishing: {
     title: '釣魚注意事項',
     message: '．請確保**遊戲視角**（非人物視角）**正對魚尾**且**可見**（如下圖）。',
@@ -899,6 +908,13 @@ const handlePumpkinLogMessage = (log) => {
 const handleSandLogMessage = (log) => {
   currentSandLogIndex = log.index;
   const logContainer = document.querySelector('#logContainerSand');
+  logContainer.value += log.msg + '\n';
+  logContainer.scrollTop = logContainer.scrollHeight;
+};
+
+const handleCatLogMessage = (log) => {
+  currentCatLogIndex = log.index;
+  const logContainer = document.querySelector('#logContainerCat');
   logContainer.value += log.msg + '\n';
   logContainer.scrollTop = logContainer.scrollHeight;
 };
@@ -1363,7 +1379,7 @@ const setup = async () => {
   poll(async () => {
     const status = await getApi().apiGetStatus();
     // 任一任務運行中，所有頁面的開始鈕都不能按
-    const anyRunning = !!(status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.sandSculpture || status.fishing || status.plant || status.wood);
+    const anyRunning = !!(status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.sandSculpture || status.cat || status.fishing || status.plant || status.wood);
 
     // 料理
     const startCookBtn = document.querySelector('#startCookBtn');
@@ -1390,6 +1406,10 @@ const setup = async () => {
     const stopSandBtn = document.querySelector('#stopSandBtn');
     if (startSandBtn) startSandBtn.disabled = anyRunning || isSelectingRegion;
     if (stopSandBtn) stopSandBtn.disabled = !status.sandSculpture;
+    const startCatBtn = document.querySelector('#startCatBtn');
+    const stopCatBtn = document.querySelector('#stopCatBtn');
+    if (startCatBtn) startCatBtn.disabled = anyRunning || isSelectingRegion;
+    if (stopCatBtn) stopCatBtn.disabled = !status.cat;
 
     // 釣魚
     const startFishBtn = document.querySelector('#startFishBtn');
@@ -1406,6 +1426,7 @@ const setup = async () => {
       ['拼圖', 'i-puzzle', status.puzzle],
       ['南瓜雕刻', 'i-pumpkin', status.pumpkin],
       ['沙雕', 'i-mountain', status.sandSculpture],
+      ['逗貓', 'i-paw-print', status.cat],
       ['釣魚', 'i-fish', status.fishing],
       ['採集', 'i-sprout', status.plant || status.wood],
       ['拔草提醒', 'i-alarm-clock', cropRunning]
@@ -1423,7 +1444,7 @@ const setup = async () => {
     });
 
     // 只要有任務在執行，設定欄位、泡泡範圍選取按鈕都設為 disabled
-    const isAnyTaskRunning = status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.sandSculpture || status.fishing || status.plant || status.wood;
+    const isAnyTaskRunning = status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.sandSculpture || status.cat || status.fishing || status.plant || status.wood;
     document.querySelectorAll('.setting, .setting-check').forEach((input) => {
       input.disabled = (isAnyTaskRunning && !input.dataset.always) || input.dataset.locked === '1' || (input.dataset.always && cropRunning);
     });
@@ -1504,6 +1525,12 @@ const setup = async () => {
     const logs = await getApi().apiGetNextLogs(currentSandLogIndex, 'sandSculpture');
     logs.forEach(handleSandLogMessage);
   }, 100);
+
+  // 定時拉取逗貓日誌
+  poll(async () => {
+    const logs = await getApi().apiGetNextLogs(currentCatLogIndex, 'cat');
+    logs.forEach(handleCatLogMessage);
+  }, 100);
 };
 
 window.addEventListener('pywebviewready', init);
@@ -1559,6 +1586,13 @@ document.querySelector('#startSandBtn').addEventListener('click', async () => {
   await startTask((confirmed) => getApi().startSandSculpture(confirmed));
 });
 document.querySelector('#stopSandBtn').addEventListener('click', async () => {
+  await getApi().stop();
+});
+
+document.querySelector('#startCatBtn').addEventListener('click', async () => {
+  await startTask((confirmed) => getApi().startCat(confirmed));
+});
+document.querySelector('#stopCatBtn').addEventListener('click', async () => {
   await getApi().stop();
 });
 

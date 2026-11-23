@@ -369,6 +369,14 @@ DEFAULT_THRESHOLDS = {
     "sandCollect": 0.75,
     "sandCombo": 0.75,
     "sandQuiz": 0.75,
+    "catBubble": 0.75,  # 逗貓: templates/cat 的圖都是從錄影裁的，還沒在實機驗證過分數
+    "catIconUp": 0.75,  # 圖示由 Cat 另外用純白像素的形狀比，這三筆只是讓 getThreshold 不報錯
+    "catIconDown": 0.75,
+    "catIconA": 0.75,
+    "catPaw": 0.7,
+    "catMenu": 0.8,
+    "catEnd": 0.8,
+    "catOk": 0.8,
     "bagBtn": 0.62,  # 沙灘背景上主畫面約 0.76、拋竿中(沒有背包鈕)最高 0.49，取中間
     "castBtn": 0.7,
     "biteMark": 0.75,
