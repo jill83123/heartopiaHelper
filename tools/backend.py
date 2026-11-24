@@ -1,4 +1,5 @@
 import base64
+import ctypes
 import random
 import cv2
 import keyboard
@@ -63,6 +64,7 @@ class ScreenBackend:
         self.gameWindowTitle = gameWindowTitle
         self._floatPassing = False  # 懸浮日誌目前是不是處於「點擊穿透」
         self._floatTimer = None
+        self._scanCodes = {}  # 按鍵名稱 -> 掃描碼的快取
 
     def _findGame(self):
         """遊戲視窗的 hwnd；沒設定標題或找不到回傳 None"""
@@ -238,6 +240,52 @@ class ScreenBackend:
         keyboard.press(key)
         time.sleep(hold if hold is not None else random.uniform(0.05, 0.14))
         keyboard.release(key)
+
+    def ensureGame(self):
+        """確認遊戲視窗還在(不在就丟 GameWindowLostError)；演奏樂器時每個音都檢查太慢，由呼叫端隔一段時間檢查一次"""
+        self._requireGame()
+
+    def _scanCode(self, key):
+        """按鍵對應的掃描碼。同一個字元可能有主鍵盤與數字鍵盤兩個，取最小的(主鍵盤)，否則 0、-、. 會按成數字鍵盤的鍵"""
+        codes = self._scanCodes.get(key)
+        if codes is None:
+            try:
+                codes = min(keyboard.key_to_scan_codes(key))
+            except Exception:
+                codes = key  # 認不得就交給 keyboard 用名稱處理
+            self._scanCodes[key] = codes
+        return codes
+
+    def keyDown(self, key):
+        """只按下不放開，直到 keyUp(彈奏時同時按住多個鍵)；不檢查遊戲視窗，要快"""
+        keyboard.press(self._scanCode(key))
+
+    def keyUp(self, key):
+        keyboard.release(self._scanCode(key))
+
+    def _sendKeys(self, keys, up):
+        """一次把多個鍵的按下(或放開)用同一個系統呼叫送出，和弦的每個音才會在同一瞬間到遊戲。
+        送出的內容和 keyboard 套件一樣(虛擬鍵碼加掃描碼)，只是不分次"""
+        from keyboard import _winkeyboard as wk
+
+        inputs = []
+        for key in keys:
+            code = self._scanCode(key)
+            vk = wk.scan_code_to_vk.get(code, 0) if isinstance(code, int) else 0
+            if not vk:  # 查不到虛擬鍵碼就退回一個一個送
+                (keyboard.release if up else keyboard.press)(code)
+                continue
+            info = wk.KEYBDINPUT(vk, code, wk.KEYEVENTF_KEYUP if up else 0, 0, None)
+            inputs.append(wk.INPUT(wk.INPUT_KEYBOARD, wk._INPUTunion(ki=info)))
+        if inputs:
+            array = (wk.INPUT * len(inputs))(*inputs)
+            wk.SendInput(len(inputs), array, ctypes.sizeof(wk.INPUT))
+
+    def keysDown(self, keys):
+        self._sendKeys(keys, False)
+
+    def keysUp(self, keys):
+        self._sendKeys(keys, True)
 
     def holdDown(self, x, y):
         """按住拋竿鍵(F)不放，直到 holdUp"""

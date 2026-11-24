@@ -13,6 +13,7 @@ let currentPuzzleLogIndex = 0;
 let currentPumpkinLogIndex = 0;
 let currentSandLogIndex = 0;
 let currentCatLogIndex = 0;
+let currentInstrumentLogIndex = 0;
 let currentCropLogIndex = 0;
 let currentFishLogIndex = 0;
 let currentFishAltLogIndex = 0;
@@ -513,6 +514,15 @@ const NOTICE_TEXTS = {
       '．執行中請不要移動滑鼠。',
     ].join('\n'),
   },
+  instrument: {
+    title: '彈奏注意事項',
+    message: [
+      '．遊戲須在最上層（只支援前景模式）。',
+      '．請先讓角色坐上樂器，畫面上要看得到琴鍵。',
+      '．開始後會倒數幾秒，再依 MIDI 檔自動按鍵；彈的時候請不要按鍵盤。',
+      '．想中途停止，按停止鍵（預設 F8）。',
+    ].join('\n'),
+  },
   fishing: {
     title: '釣魚注意事項',
     message: '．請確保**遊戲視角**（非人物視角）**正對魚尾**且**可見**（如下圖）。',
@@ -919,6 +929,13 @@ const handleCatLogMessage = (log) => {
   logContainer.scrollTop = logContainer.scrollHeight;
 };
 
+const handleInstrumentLogMessage = (log) => {
+  currentInstrumentLogIndex = log.index;
+  const logContainer = document.querySelector('#logContainerInstrument');
+  logContainer.value += log.msg + '\n';
+  logContainer.scrollTop = logContainer.scrollHeight;
+};
+
 const handleFishAltLogMessage = (log) => {
   currentFishAltLogIndex = log.index;
   const logContainer = document.querySelector('#logContainerFishAlt');
@@ -1031,6 +1048,7 @@ const fillSettings = (settings) => {
   syncFgVisibility();
   syncGatherKind();
   syncFloatLogRow();
+  renderInstrument(settings);
   renderCrop(null);
   safeModeToggle.checked = String(settings.isSafeMode).toLowerCase() === 'true';
   fiveStarToggle.checked = String(settings.stopAtFiveStar).toLowerCase() === 'true';
@@ -1379,7 +1397,7 @@ const setup = async () => {
   poll(async () => {
     const status = await getApi().apiGetStatus();
     // 任一任務運行中，所有頁面的開始鈕都不能按
-    const anyRunning = !!(status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.sandSculpture || status.cat || status.fishing || status.plant || status.wood);
+    const anyRunning = !!(status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.sandSculpture || status.cat || status.instrument || status.fishing || status.plant || status.wood);
 
     // 料理
     const startCookBtn = document.querySelector('#startCookBtn');
@@ -1410,6 +1428,11 @@ const setup = async () => {
     const stopCatBtn = document.querySelector('#stopCatBtn');
     if (startCatBtn) startCatBtn.disabled = anyRunning || isSelectingRegion;
     if (stopCatBtn) stopCatBtn.disabled = !status.cat;
+    const startInstrumentBtn = document.querySelector('#startInstrumentBtn');
+    const stopInstrumentBtn = document.querySelector('#stopInstrumentBtn');
+    if (startInstrumentBtn) startInstrumentBtn.disabled = anyRunning || isSelectingRegion;
+    if (stopInstrumentBtn) stopInstrumentBtn.disabled = !status.instrument;
+    document.querySelectorAll('.inst-edit').forEach((el) => (el.disabled = anyRunning)); // 自訂按鈕、選檔、聲部勾選: 運行中不能改
 
     // 釣魚
     const startFishBtn = document.querySelector('#startFishBtn');
@@ -1427,6 +1450,7 @@ const setup = async () => {
       ['南瓜雕刻', 'i-pumpkin', status.pumpkin],
       ['沙雕', 'i-mountain', status.sandSculpture],
       ['逗貓', 'i-paw-print', status.cat],
+      ['彈奏', 'i-music', status.instrument],
       ['釣魚', 'i-fish', status.fishing],
       ['採集', 'i-sprout', status.plant || status.wood],
       ['拔草提醒', 'i-alarm-clock', cropRunning]
@@ -1444,7 +1468,7 @@ const setup = async () => {
     });
 
     // 只要有任務在執行，設定欄位、泡泡範圍選取按鈕都設為 disabled
-    const isAnyTaskRunning = status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.sandSculpture || status.cat || status.fishing || status.plant || status.wood;
+    const isAnyTaskRunning = status.cooking || status.snowCarving || status.puzzle || status.pumpkin || status.sandSculpture || status.cat || status.instrument || status.fishing || status.plant || status.wood;
     document.querySelectorAll('.setting, .setting-check').forEach((input) => {
       input.disabled = (isAnyTaskRunning && !input.dataset.always) || input.dataset.locked === '1' || (input.dataset.always && cropRunning);
     });
@@ -1531,6 +1555,12 @@ const setup = async () => {
     const logs = await getApi().apiGetNextLogs(currentCatLogIndex, 'cat');
     logs.forEach(handleCatLogMessage);
   }, 100);
+
+  // 定時拉取彈奏日誌
+  poll(async () => {
+    const logs = await getApi().apiGetNextLogs(currentInstrumentLogIndex, 'instrument');
+    logs.forEach(handleInstrumentLogMessage);
+  }, 100);
 };
 
 window.addEventListener('pywebviewready', init);
@@ -1593,6 +1623,13 @@ document.querySelector('#startCatBtn').addEventListener('click', async () => {
   await startTask((confirmed) => getApi().startCat(confirmed));
 });
 document.querySelector('#stopCatBtn').addEventListener('click', async () => {
+  await getApi().stop();
+});
+
+document.querySelector('#startInstrumentBtn').addEventListener('click', async () => {
+  await startTask((confirmed) => getApi().startInstrument(confirmed));
+});
+document.querySelector('#stopInstrumentBtn').addEventListener('click', async () => {
   await getApi().stop();
 });
 
@@ -1763,3 +1800,286 @@ document.addEventListener(
   },
   true
 );
+
+// ============ 彈奏 ============
+const PITCH_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const pitchName = (pitch) => `${PITCH_NAMES[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
+const SOLFEGE = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
+const CODE_KEYS = { Comma: ',', Period: '.', Slash: '/', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']', Backslash: '\\', Minus: '-', Equal: '=', Backquote: '`' };
+const keyFromCode = (code) => {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  return CODE_KEYS[code] || null;
+};
+
+let instrumentCustom = []; // [{ key, pitch }]
+let instrumentPartList = []; // 目前這個 MIDI 檔的聲部資訊
+
+const saveInstrumentCustom = () => getApi().apiWriteSetting('instrumentCustom', JSON.stringify(instrumentCustom));
+
+const renderCustomRows = () => {
+  const box = document.querySelector('#instrumentCustomRows');
+  box.innerHTML = '';
+  document.querySelector('#instrumentCustomSummary').textContent = `自訂按鈕（${instrumentCustom.length} 個）`;
+  instrumentCustom.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'instrument-key-row';
+    const keyBtn = document.createElement('button');
+    keyBtn.type = 'button';
+    keyBtn.className = 'key-btn inst-edit';
+    keyBtn.textContent = item.key ? item.key.toUpperCase() : '按鍵';
+    keyBtn.addEventListener('click', () => captureKey(keyBtn, i));
+    // 音高拆成兩個選單: 音名(含半音)與八度，合起來是 MIDI 音高
+    const noteSelect = document.createElement('select');
+    noteSelect.className = 'input inst-edit';
+    SOLFEGE.forEach((solfege, n) => noteSelect.add(new Option(`${PITCH_NAMES[n]}（${solfege}）`, n)));
+    noteSelect.value = item.pitch % 12;
+    const octaveSelect = document.createElement('select');
+    octaveSelect.className = 'input inst-edit';
+    for (let o = 1; o <= 7; o++) octaveSelect.add(new Option(`八度 ${o}`, o));
+    octaveSelect.value = Math.floor(item.pitch / 12) - 1;
+    const onPitchChange = () => {
+      item.pitch = (Number(octaveSelect.value) + 1) * 12 + Number(noteSelect.value);
+      saveInstrumentCustom();
+    };
+    noteSelect.addEventListener('change', onPitchChange);
+    octaveSelect.addEventListener('change', onPitchChange);
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'text-btn inst-edit';
+    del.textContent = '刪除';
+    del.addEventListener('click', () => {
+      instrumentCustom.splice(i, 1);
+      renderCustomRows();
+      saveInstrumentCustom();
+    });
+    row.append(keyBtn, noteSelect, octaveSelect, del);
+    box.append(row);
+  });
+};
+
+// 點按鍵鈕後，按下鍵盤上要用的那個鍵(Esc 取消)
+const captureKey = (button, index) => {
+  button.textContent = '請按鍵…';
+  button.classList.add('capturing');
+  const finish = () => {
+    document.removeEventListener('keydown', onKey, true);
+    renderCustomRows();
+  };
+  const onKey = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.code === 'Escape') return finish();
+    const key = keyFromCode(e.code);
+    if (!key) return void (button.textContent = '不支援，請重按');
+    if (instrumentCustom.some((item, i) => i !== index && item.key === key)) return void (button.textContent = '已使用，請重按');
+    instrumentCustom[index].key = key;
+    finish();
+    saveInstrumentCustom();
+  };
+  document.addEventListener('keydown', onKey, true);
+};
+
+// 移調: 隱藏的文字欄存實際設定值(auto 或半音數)，兩個選單(方向、幅度)是它的操作介面
+const syncTransposeSelects = (value) => {
+  const mode = document.querySelector('#instrumentTransposeMode');
+  const amount = document.querySelector('#instrumentTransposeAmount');
+  const n = Number(value);
+  if (value === 'auto' || Number.isNaN(n)) mode.value = 'auto';
+  else if (n === 0) mode.value = '0';
+  else {
+    mode.value = n > 0 ? 'up' : 'down';
+    amount.value = String(Math.min(12, Math.abs(Math.round(n))));
+  }
+  amount.hidden = mode.value !== 'up' && mode.value !== 'down';
+};
+const applyTranspose = () => {
+  const mode = document.querySelector('#instrumentTransposeMode').value;
+  const amount = Number(document.querySelector('#instrumentTransposeAmount').value);
+  const value = mode === 'up' ? String(amount) : mode === 'down' ? String(-amount) : mode;
+  const store = document.querySelector('#instrumentTranspose');
+  store.value = value;
+  syncTransposeSelects(value);
+  store.dispatchEvent(new Event('change', { bubbles: true }));
+};
+document.querySelector('#instrumentTransposeMode').addEventListener('change', applyTranspose);
+document.querySelector('#instrumentTransposeAmount').addEventListener('change', applyTranspose);
+
+const syncInstrumentBox = () => {
+  const type = document.querySelector('#instrumentType').value;
+  document.querySelector('#instrumentCustomBox').hidden = type !== 'custom';
+  document.querySelector('#instrumentSavedBar').hidden = !type.startsWith('saved:');
+};
+
+// 存下來的樂器 {名稱: [{key, pitch}]}，出現在樂器下拉選單裡
+let instrumentSaved = {};
+const saveInstrumentSaved = () => getApi().apiWriteSetting('instrumentSaved', JSON.stringify(instrumentSaved));
+const renderSavedOptions = (selected) => {
+  const select = document.querySelector('#instrumentType');
+  select.querySelectorAll('option[data-saved]').forEach((opt) => opt.remove());
+  const customOpt = select.querySelector('option[value="custom"]');
+  Object.keys(instrumentSaved).forEach((name) => {
+    const opt = new Option(name, `saved:${name}`);
+    opt.dataset.saved = '1';
+    select.insertBefore(opt, customOpt);
+  });
+  select.value = selected;
+  if (select.value !== selected) select.value = 'piano'; // 選的樂器已被刪掉
+};
+
+// 聲部清單: 預設勾選全部(打擊樂除外)；使用者改了就把勾選的編號存起來
+const renderInstrumentParts = (parts, selectedText) => {
+  instrumentPartList = parts;
+  const box = document.querySelector('#instrumentParts');
+  document.querySelector('#instrumentPartsBox').hidden = !parts.length;
+  box.innerHTML = '';
+  const chosen = String(selectedText || '')
+    .split(',')
+    .filter((x) => x.trim() !== '')
+    .map(Number);
+  parts.forEach((part) => {
+    const id = `instrumentPart${part.index}`;
+    const wrap = document.createElement('div');
+    wrap.className = 'check';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.id = id;
+    input.dataset.part = part.index;
+    input.className = 'inst-edit';
+    input.checked = chosen.length ? chosen.includes(part.index) : !part.percussion;
+    const label = document.createElement('label');
+    label.htmlFor = id;
+    const range = part.noteCount ? `${pitchName(part.minPitch)}–${pitchName(part.maxPitch)}` : '';
+    label.textContent = `${part.name}（${part.noteCount} 個音${range ? '，' + range : ''}${part.percussion ? '，打擊樂' : ''}）`;
+    input.addEventListener('change', saveInstrumentParts);
+    wrap.append(input, label);
+    box.append(wrap);
+  });
+  updatePartsSummary();
+};
+
+const updatePartsSummary = () => {
+  const boxes = [...document.querySelectorAll('#instrumentParts input')];
+  document.querySelector('#instrumentPartsSummary').textContent = `要彈的聲部（${boxes.filter((el) => el.checked).length} / ${boxes.length}）`;
+};
+
+const saveInstrumentParts = () => {
+  updatePartsSummary();
+  const checked = [...document.querySelectorAll('#instrumentParts input:checked')].map((el) => Number(el.dataset.part));
+  const defaults = instrumentPartList.filter((part) => !part.percussion).map((part) => part.index);
+  const isDefault = checked.length === defaults.length && checked.every((id) => defaults.includes(id));
+  getApi().apiWriteSetting('instrumentTracks', isDefault ? '' : checked.join(','));
+};
+
+const showMidiName = (path) => {
+  const el = document.querySelector('#instrumentMidiName');
+  el.textContent = path ? path.split(/[\\/]/).pop() : '尚未選擇';
+  el.classList.toggle('text-danger', !path);
+};
+
+const renderInstrument = async (settings) => {
+  try {
+    instrumentCustom = JSON.parse(settings.instrumentCustom || '[]');
+  } catch (e) {
+    instrumentCustom = [];
+  }
+  try {
+    instrumentSaved = JSON.parse(settings.instrumentSaved || '{}');
+  } catch (e) {
+    instrumentSaved = {};
+  }
+  let type = settings.instrumentType || 'piano';
+  if (['harp', 'accordion', 'kalimba', 'lyre', 'cello'].includes(type)) {
+    type = 'violin'; // 這幾種樂器鍵位相同，下拉選單合併成同一項
+    getApi().apiWriteSetting('instrumentType', type);
+  }
+  renderSavedOptions(type);
+  syncTransposeSelects(settings.instrumentTranspose || 'auto');
+  syncInstrumentBox();
+  renderCustomRows();
+  const path = settings.instrumentMidiPath || '';
+  showMidiName(path);
+  if (!path) return renderInstrumentParts([], '');
+  const info = await getApi().apiLoadMidi(path);
+  if (info.error) {
+    showMidiName('');
+    return renderInstrumentParts([], '');
+  }
+  renderInstrumentParts(info.parts, settings.instrumentTracks);
+};
+
+document.querySelector('#instrumentType').addEventListener('change', syncInstrumentBox);
+
+document.querySelector('#instrumentPickMidi').addEventListener('click', async () => {
+  const res = await getApi().apiPickMidi();
+  if (!res) return;
+  if (res.error) return void showDialog('無法讀取 MIDI 檔', res.error);
+  showMidiName(res.path);
+  renderInstrumentParts(res.parts, '');
+});
+
+document.querySelector('#instrumentAddKey').addEventListener('click', () => {
+  instrumentCustom.push({ key: '', pitch: 60 });  renderCustomRows();
+  saveInstrumentCustom();
+});
+document.querySelector('#instrumentClearKeys').addEventListener('click', () => {
+  instrumentCustom = [];
+  renderCustomRows();
+  saveInstrumentCustom();
+});
+const copyBuiltin = async (name, label) => {
+  if (instrumentCustom.length) {
+    const ok = await showDialog('複製樂器', `目前的自訂按鈕會被${label}取代，確定嗎？`, { confirm: true, okText: '取代' });
+    if (!ok) return;
+  }
+  const layouts = await getApi().apiGetInstruments();
+  instrumentCustom = layouts[name];
+  renderCustomRows();
+  saveInstrumentCustom();
+};
+document.querySelector('#instrumentSave').addEventListener('click', async () => {
+  const nameInput = document.querySelector('#instrumentSaveName');
+  const name = nameInput.value.trim();
+  if (!name) return void showDialog('儲存成樂器', '請先填樂器名稱。');
+  if (!instrumentCustom.length) return void showDialog('儲存成樂器', '還沒有任何按鈕可以存。');
+  if (instrumentCustom.some((item) => !item.key)) return void showDialog('儲存成樂器', '有按鈕還沒設定按鍵。');
+  if (['鋼琴', '小提琴', '大提琴', '豎琴', '手風琴', '拇指琴', '里拉琴', '魯特琴', '自訂按鈕'].includes(name)) return void showDialog('儲存成樂器', '這個名稱和內建樂器重複了，請換一個。');
+  if (instrumentSaved[name]) {
+    const ok = await showDialog('儲存成樂器', `已經有「${name}」了，要覆蓋嗎？`, { confirm: true, okText: '覆蓋' });
+    if (!ok) return;
+  }
+  instrumentSaved[name] = instrumentCustom.map((item) => ({ ...item }));
+  await saveInstrumentSaved();
+  nameInput.value = '';
+  renderSavedOptions(`saved:${name}`);
+  await getApi().apiWriteSetting('instrumentType', `saved:${name}`);
+  syncInstrumentBox();
+});
+document.querySelector('#instrumentSavedEdit').addEventListener('click', async () => {
+  const select = document.querySelector('#instrumentType');
+  const name = select.value.slice(6);
+  if (instrumentCustom.length) {
+    const ok = await showDialog('編輯樂器', '目前的自訂按鈕會被「' + name + '」取代，確定嗎？', { confirm: true, okText: '取代' });
+    if (!ok) return;
+  }
+  instrumentCustom = (instrumentSaved[name] || []).map((item) => ({ ...item }));
+  saveInstrumentCustom();
+  select.value = 'custom';
+  await getApi().apiWriteSetting('instrumentType', 'custom');
+  document.querySelector('#instrumentSaveName').value = name;
+  syncInstrumentBox();
+  renderCustomRows();
+  document.querySelector('#instrumentCustomBox').open = true;
+});
+document.querySelector('#instrumentSavedDelete').addEventListener('click', async () => {
+  const select = document.querySelector('#instrumentType');
+  const name = select.value.slice(6);
+  const ok = await showDialog('刪除樂器', `確定刪除「${name}」？`, { confirm: true, danger: true, okText: '刪除' });
+  if (!ok) return;
+  delete instrumentSaved[name];
+  await saveInstrumentSaved();
+  renderSavedOptions('piano');
+  await getApi().apiWriteSetting('instrumentType', 'piano');
+  syncInstrumentBox();
+});
+document.querySelector('#instrumentCopyPiano').addEventListener('click', () => copyBuiltin('piano', '鋼琴'));
