@@ -517,10 +517,20 @@ CONFIG_DEFAULTS = {
     "sandFoodName": "",
     "sandFoodStars": "14",
     "sandFoodUntil": "99",
+    "instrumentType": "piano",  # piano、violin(小提琴等兩排白鍵的樂器，鍵位相同)、custom(自訂按鈕)、saved:名稱(存下來的樂器)
+    "instrumentCustom": "[]",  # 自訂按鈕: JSON，[{"key": "q", "pitch": 60}, ...]，pitch 是 MIDI 音高
+    "instrumentSaved": "{}",  # 存下來的自訂樂器: JSON，{"大提琴": [{"key": "q", "pitch": 60}, ...]}
+    "instrumentMidiPath": "",
+    "instrumentTracks": "",  # 要彈的聲部編號(逗號分隔)，空白 = 全部(不含打擊樂)
+    "instrumentOutOfRange": "fold",  # 超出樂器音域的音: fold 搬八度、skip 不彈
+    "instrumentTranspose": "auto",  # auto 或要升降的半音數
+    "instrumentSpeed": "1.0",
+    "instrumentLoop": "False",
+    "instrumentStartDelay": "3",
 }
 
 # 「還原設定值」不會動的項目: 跟使用者的環境有關(操作模式、ADB、解析度、停止鍵)，還原後還要重填很麻煩
-RESET_EXCLUDED_KEYS = {"floatLogEnabled", "floatLogForeground", "floatLogBackground", "floatLogAutoClose", "floatLogPosition", "floatLogTheme", "floatLogHeight", "controlMode", "gatherKind", "adbPath", "adbDevice", "screenResolution", "uiScale", "gameWindowTitle", "stopKey", "cookDishRecordedAt"}
+RESET_EXCLUDED_KEYS = {"floatLogEnabled", "floatLogForeground", "floatLogBackground", "floatLogAutoClose", "floatLogPosition", "floatLogTheme", "floatLogHeight", "controlMode", "gatherKind", "adbPath", "adbDevice", "screenResolution", "uiScale", "gameWindowTitle", "stopKey", "cookDishRecordedAt", "instrumentSaved"}
 
 
 def getThreshold(config, name):
@@ -579,7 +589,7 @@ FOOD_LABELS = {"snowCarving": "雪雕", "pumpkin": "南瓜雕刻", "sandSculptur
 
 
 def validateConfig(config, task):
-    """啟動前檢查設定值，回傳錯誤訊息；沒問題回傳 None。task 為 "cooking"、"snowCarving"、"fishing"、"fishingAlt"、"plant"、"wood"、"puzzle"、"pumpkin" 或 "sandSculpture" """
+    """啟動前檢查設定值，回傳錯誤訊息；沒問題回傳 None。task 為 "cooking"、"snowCarving"、"fishing"、"fishingAlt"、"plant"、"wood"、"puzzle"、"pumpkin"、"sandSculpture" 或 "instrument" """
 
     def number(key, label, minimum, isInt=False):
         try:
@@ -627,6 +637,31 @@ def validateConfig(config, task):
         checks += fishingItemChecks(config, "fishing", "")
     elif task == "puzzle":
         pass  # 拼圖沒有需要檢查的設定
+    elif task == "instrument":
+        path = config.get("instrumentMidiPath", "").strip()
+        if not path:
+            checks.append("請先選擇 MIDI 檔")
+        elif not os.path.isfile(path):
+            checks.append(f"找不到 MIDI 檔：{path}")
+        checks.append(number("instrumentSpeed", "演奏速度", 0.1))
+        checks.append(number("instrumentStartDelay", "開始前倒數秒數", 0))
+        transpose = str(config.get("instrumentTranspose", "auto")).strip().lower()
+        if transpose != "auto":
+            try:
+                int(float(transpose))
+            except ValueError:
+                checks.append("「移調」要填自動或整數的半音數")
+        try:
+            from tools.instruments import getLayout
+
+            layout = getLayout(config)
+            if not layout:
+                checks.append("自訂按鈕還沒有設定任何按鈕")
+            stopKey = str(config.get("stopKey", "")).strip().lower()
+            if any(key == stopKey for key, _ in layout):
+                checks.append(f"停止鍵「{stopKey}」和樂器的按鈕重複了，請到「設定」改停止鍵")
+        except ValueError as e:
+            checks.append(str(e))
     elif task in FOOD_TASKS:
         checks += fishingItemChecks(config, FOOD_TASKS[task], FOOD_LABELS[task])  # 南瓜雕刻、沙雕只有吃食物的設定要檢查
         if task == "snowCarving":

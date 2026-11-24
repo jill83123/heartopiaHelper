@@ -2069,3 +2069,72 @@ details.section > summary::before {
   font-size: 1.3em;
   font-weight: 700;
 }
+
+/* ============ 彈樂器 ============ */
+.setting-line + .group.instrument-custom {
+  margin-top: 0; /* 蓋過 .setting-line + .group 的 20px，跟上面的樂器選單靠近 */
+}
+.instrument-custom {
+  margin-bottom: 16px;
+}
+.instrument-save-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.instrument-save-row .input {
+  flex: 1;
+  min-width: 0;
+}
+.instrument-saved-bar {
+  margin: -8px 0 16px;
+}
+.instrument-key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.instrument-key-row .key-btn {
+  width: 64px;
+  height: 32px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.instrument-key-row .key-btn.capturing {
+  color: var(--sky-deep);
+  background: var(--sky-soft);
+  border-color: var(--sky);
+}
+.instrument-key-row select.input {
+  width: 104px;
+}
+.instrument-custom-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.instrument-custom-actions .text-btn + .text-btn::before {
+  content: '｜';
+  margin-right: 10px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+#instrumentPartsBox {
+  margin-bottom: 16px;
+}
+.instrument-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.instrument-parts .check {
+  margin: 0;
+}

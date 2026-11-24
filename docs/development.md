@@ -46,6 +46,11 @@ python -m tools.adb_check adb 127.0.0.1:5555
 | `fishingUseRepair` / `fishingRepairMinutes` | 是否定時丟維修盒與間隔（分鐘） |
 | `fishingRepairLeave` | 丟維修盒前先往後退一步（採集預設開、釣魚預設關） |
 | `fishingUseFood` / `fishingFoodUntil` / `fishingFoodName` / `fishingFoodStars` | 是否吃食物、吃到飽食度幾 %（預設 99）、食物名稱、星級（1~5 = 指定、14 = 0-4 星、0 = 不限（0-5 星）） |
+| `instrumentType` / `instrumentCustom` | 彈奏的樂器（`piano`、`violin`（小提琴、大提琴、豎琴、手風琴、拇指琴、里拉琴、魯特琴共用）、`custom`、`saved:名稱`）與自訂按鈕（JSON：`[{"key": "q", "pitch": 60}]`，pitch 是 MIDI 音高，C4=60） |
+| `instrumentSaved` | 存下來的自訂樂器（JSON：`{"大提琴": [{"key": "q", "pitch": 60}]}`） |
+| `instrumentOutOfRange` | 超出樂器音域的音：`fold`（搬八度，預設）或 `skip`（不彈） |
+| `instrumentMidiPath` / `instrumentTracks` | 彈奏的 MIDI 檔路徑與要彈的聲部編號（逗號分隔，空白 = 全部、不含打擊樂） |
+| `instrumentTranspose` / `instrumentSpeed` / `instrumentStartDelay` / `instrumentLoop` | 移調（`auto` 或半音數）、演奏速度倍數、開始前倒數秒數、是否重複播放 |
 | `matchStrictness` | 整體比對嚴格度：`loose` / `normal` / `strict`。抓不到圖示選寬鬆，誤判太多選嚴格 |
 
 所有設定項與預設值以 `tools/tools.py` 的 `CONFIG_DEFAULTS` 為準。

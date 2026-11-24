@@ -41,7 +41,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - 前端每次動作都呼叫 `Api` 方法；狀態與日誌靠前端定時輪詢（`apiGetStatus`、`apiGetNextLogs`），後端不主動推送（唯一例外是 `evaluate_js`：關閉時呼叫兩個視窗的 `markClosing()`，見 `main.shutdown`、`Api._closeFloatLog`；以及 `Api.apiFloatStart` 替主視窗按開始鈕）。
 - 同時只能跑一個任務（`Api.isRunning`）；農作物提醒 `CropReminder` 例外，可與其他任務同時跑，不走 backend。
 - 兩個 pywebview 視窗共用同一個 `Api`：主視窗 `ui/index.html`、置頂懸浮日誌 `ui/log.html`（`Api._floatHwnd` 建立，啟動後由 `main.prepareFloatLogOnce` 預先建好並隱藏）。
-- 任務繼承：`Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI)`；`GatherBase(FoodMixin, TimedTasks, GameUI)`；`GameUI(DebugMixin, BaseTask)`；`Cooking`、`Puzzle`、`Pumpkin`、`SandSculpture` 是 `(DebugMixin, BaseTask)`；`SnowCarving` 是 `BaseTask`；`CropReminder` 不繼承任何類別。`SnowCarving`、`Pumpkin`、`SandSculpture` 各持有一個 `self.food = AutoFood(...)`（組合而非繼承）。
+- 任務繼承：`Fishing(ConsumablesMixin, NewFishMixin, FoodMixin, TimedTasks, GameUI)`；`GatherBase(FoodMixin, TimedTasks, GameUI)`；`GameUI(DebugMixin, BaseTask)`；`Cooking`、`Puzzle`、`Pumpkin`、`SandSculpture` 是 `(DebugMixin, BaseTask)`；`SnowCarving`、`Instrument` 是 `BaseTask`；`CropReminder` 不繼承任何類別。`SnowCarving`、`Pumpkin`、`SandSculpture` 各持有一個 `self.food = AutoFood(...)`（組合而非繼承）。
 - 比對基準是 1600x900 遊戲畫面；其他解析度由 `ScaleResolver` / `tools/finder.py` 縮放模板。座標常數一律以 1600 寬為基準寫。
 - 模板找法：`GameUI._templatePath` 依 `templateDirs` 順序找，模擬器模式每個資料夾先找 `adb/<name>.png`；`BaseTask._getMatchCords` 只用單一 `templateDir`（料理、雪雕走這條）。
 
@@ -77,13 +77,13 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `tools/tools.py` `_migrateFoodBan5` — 舊 `*FoodBan5` 設定換算成 `*FoodStars` 後移除。
 - `tools/tools.py` `getConfigPath` / `getUserDataPath(name)` — 設定檔與 `userdata/` 的位置（打包後在 exe 旁，原始碼執行在專案根）。
 - `tools/tools.py` `DEFAULT_THRESHOLDS` + `STRICTNESS_OFFSETS` + `getThreshold(config, name)` — 各模板比對閥值（不開放使用者逐項調，只能用 `matchStrictness` loose/normal/strict 整體加減）；**新模板一定要在這裡加一筆，否則 `getThreshold` 會 KeyError**。
-- `tools/tools.py` `validateConfig(config, task)` — 啟動前檢查設定，回傳錯誤字串或 `None`（task：cooking、snowCarving、fishing、fishingAlt、plant、wood、puzzle、pumpkin、sandSculpture）；`fishingItemChecks` 檢查釣魚與採集共用的定時項目。
+- `tools/tools.py` `validateConfig(config, task)` — 啟動前檢查設定，回傳錯誤字串或 `None`（task：cooking、snowCarving、fishing、fishingAlt、plant、wood、puzzle、pumpkin、sandSculpture、instrument）；`fishingItemChecks` 檢查釣魚與採集共用的定時項目。
 - `userdata/dish.png`、`userdata/startup.log`、`userdata/config.ini.bak` — 菜品記錄截圖、啟動診斷、設定備份（`getUserDataPath` 取得）。
 - `debug/flow.log`、`debug/*.png` — 除錯模式（`debugMode`）才產生，`tools/debug.py` 寫入，上限 `DebugMixin.DEBUG_MAX_FILES`。
 - `debug/carve_*.csv` — 除錯模式下南瓜雕刻每輪的灰線、目標、把手、記號位置（`Pumpkin._dumpCarveRec` 結束時寫入），用來事後算追線準度與抖動；不受上述上限管。
 
 設定 key 命名規則（新增時照著取名）：
-- `fishing*` 前景定時、`fishingAlt*` 背景定時（模擬器）、`plant*` 採集無工具、`wood*` 採集有工具、`crop*` 拔草提醒、`floatLog*` 懸浮日誌、`cook*` / `snow*` 料理、雪雕；`snow*`/`pumpkin*`/`sand*` 另有 `UseFood`、`FoodName`、`FoodStars`、`FoodKeepLast`、`FoodUntil` 吃食物設定（`AutoFood` 的 `foodConfig` 換成 `fishing*`；`validateConfig` 靠 `FOOD_TASKS` 檢查）。
+- `fishing*` 前景定時、`fishingAlt*` 背景定時（模擬器）、`plant*` 採集無工具、`wood*` 採集有工具、`crop*` 拔草提醒、`floatLog*` 懸浮日誌、`cook*` / `snow*` 料理、雪雕、`instrument*` 彈奏（`instrumentCustom` 是自訂按鈕的 JSON 字串、`instrumentSaved` 是存下來的自訂樂器）；`snow*`/`pumpkin*`/`sand*` 另有 `UseFood`、`FoodName`、`FoodStars`、`FoodKeepLast`、`FoodUntil` 吃食物設定（`AutoFood` 的 `foodConfig` 換成 `fishing*`；`validateConfig` 靠 `FOOD_TASKS` 檢查）。
 - `lastRun<任務名首字大寫>`（如 `lastRunCooking`）由 `Api._runSnapshot` 寫入；`floatLogX`、`floatLogY` 由 `apiSaveFloatLogPos` 寫入；`configVersion` 由 `migrateConfig` 寫入；這幾類不在 `CONFIG_DEFAULTS` 內。
 - 吃食物、丟維修盒的邏輯只認 `fishing*` 欄位：採集與背景定時的對應欄位由 `Api._gatherConfig`、`Api._altConfig` 換成 `fishing*` 再交給任務（對照表 `GATHER_FOOD_KEYS`、`ALT_KEYS`）。新增這類子選項要同步改這兩張表。
 
@@ -93,8 +93,8 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 
 `class Api` 的 `__init__` 欄位（即「store」）：
 - `config` — 目前設定快取（`apiReadSettings` 重讀）。
-- `cookingTask` `snowCarvingTask` `puzzleTask` `pumpkinTask` `sandTask` `catTask` `fishingTask` `fishingAltTask` `plantTask` `woodTask` `cropTask` — 各任務實例或 `None`；`bubbleRegionCoord` — 使用者框選的料理泡泡區域 `(x,y,w,h)`。
-- `logs` / `logCounts` — 每個來源一個 `deque(maxlen=LOG_LIMIT)`，來源：cooking、snowCarving、puzzle、pumpkin、sandSculpture、cat、crop、fishing、fishingAlt、plant、wood、float；`index` 持續遞增供前端判斷讀到哪。
+- `cookingTask` `snowCarvingTask` `puzzleTask` `pumpkinTask` `sandTask` `catTask` `instrumentTask` `fishingTask` `fishingAltTask` `plantTask` `woodTask` `cropTask` — 各任務實例或 `None`；`bubbleRegionCoord` — 使用者框選的料理泡泡區域 `(x,y,w,h)`。
+- `logs` / `logCounts` — 每個來源一個 `deque(maxlen=LOG_LIMIT)`，來源：cooking、snowCarving、puzzle、pumpkin、sandSculpture、cat、instrument、crop、fishing、fishingAlt、plant、wood、float；`index` 持續遞增供前端判斷讀到哪。
 - `floatSources` `floatRun` `_floatKey` `_logWindow` `_logHwnd` `_logShown` `_logCollapsed` `_floatPlaced` `_floatDestroying` — 懸浮日誌狀態。
 - `runInfo` — 每個 `RUN_KEYS` 的開始、結束時間。
 - `updater` — `tools.updater.Updater`。`selectLock` — 框選時擋住開始任務。`backendError` `backendIsAdb` — `getBackend` 失敗資訊。`logLock`。
@@ -102,24 +102,27 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 模組常數：`LOG_LIMIT`、`ALT_KEYS`、`GATHER_FOOD_KEYS`、`GATHER_TASKS`、`FLOAT_START_BUTTONS`（懸浮日誌「開始」要按主視窗哪顆按鈕的 id）、`FLOAT_TASK_NAMES`、`RUN_KEYS`、`REGION_HINTS`。
 
 公開方法（路由；前端以 `getApi().<name>(...)` 呼叫）：
-- 啟動任務（回傳 `{ok, error?, code?, warning?}`；`code` 為 `adbFailed` 或 `resolutionWarning`，後者要前端確認後以 `confirmed=True` 重呼）：`startCooking`、`startSnowCarving`、`startPuzzle`、`startPumpkin`、`startSandSculpture`、`startCat`、`startFishing`、`startGathering(kind)`（kind=`plant`/`wood`）。
+- 啟動任務（回傳 `{ok, error?, code?, warning?}`；`code` 為 `adbFailed` 或 `resolutionWarning`，後者要前端確認後以 `confirmed=True` 重呼）：`startCooking`、`startSnowCarving`、`startPuzzle`、`startPumpkin`、`startSandSculpture`、`startCat`、`startInstrument`、`startFishing`、`startGathering(kind)`（kind=`plant`/`wood`）。
 - 停止與狀態：`stop`（全部任務；停止鍵也呼叫它）、`apiGetStatus`（各任務是否運行 + `runs` + `floatLogPosition`）、`isRunning`、`apiFrontReady`。
 - 日誌：`apiGetNextLogs(currentIndex, source)`、`setLog(msg, source)`（任務傳進去的 log 函式）。
 - 設定：`apiReadSettings`、`apiWriteSetting(key, value)`、`apiResetSettings`、`apiGetDefaults`。
+- 彈奏：`apiPickMidi`（跳出選檔視窗、讀檔、存路徑與重設聲部）、`apiLoadMidi(path)`（回傳聲部清單）、`apiGetInstruments`（內建樂器按鍵配置，給「複製成自訂」用）。
 - 模板圖片：`apiGetTemplateImages`（回傳 `{檔名無副檔名: data URL}`，同名以非 `adb/` 為準）。
 - 範圍與菜品：`apiSelectRegion(name)`、`apiRecordDish`、`apiGetDishImage`、`apiClearDish`。
 - 模擬器：`apiDetectAdb`（呼叫 `tools/adb_detect.py`）。
 - 農作物提醒：`apiCropStart(remainingSeconds)`、`apiCropStop`、`apiCropStatus`。
 - 更新：`apiGetVersion`、`apiCheckUpdate`、`apiInstallUpdate`、`apiUpdateState`、`apiApplyUpdate`、`apiOpenReleasePage`、`apiOpenLink`。
 - 懸浮日誌：`apiFloatPoll`、`apiFloatStart`、`apiHideFloatLog`、`apiSetFloatCollapsed`、`apiResizeFloat`、`apiSaveFloatHeight`、`apiSaveFloatLogPos`；內部 `_prepareFloatLog`、`_closeFloatLog`、`_beginRun`。
-- 內部共用：`taskConfig(task)`（決定各任務實際操作模式：背景定時固定 adb、釣魚前景、拼圖、南瓜雕刻、沙雕、逗貓固定 screen）、`getBackend`（失敗時 `backendFailure` 附 `adbFailed` 標記、`backendErrorText` 給使用者看的說明）、`_resolutionBlock`、`_gatherConfig`、`_altConfig`、`_runSnapshot`。
+- 內部共用：`taskConfig(task)`（決定各任務實際操作模式：背景定時固定 adb、釣魚前景、拼圖、南瓜雕刻、沙雕、逗貓、彈奏固定 screen）、`getBackend`（失敗時 `backendFailure` 附 `adbFailed` 標記、`backendErrorText` 給使用者看的說明）、`_resolutionBlock`、`_gatherConfig`、`_altConfig`、`_runSnapshot`。
 
 ## 後端：tools/
 
 - `tools/tools.py` — 設定讀寫與驗證（見資料層）＋螢幕截取 `captureScreen` `captureFullScreen`、模板比對 `matchTemplate` `matchBest` `bestMatchScore` `loadTemplate` `readImage`、`ScaleResolver`、視窗 `findWindow` `focusWindow`、滑鼠 `clickMouse` `quickTap`（立刻按下、回傳時間，抓準時間用）`clickRightMouse` `dragMouse` `pressMouse` `moveMouseHeld` `releaseMouse`、框選 `selectRegion`、`APP_TITLE`、`getResourcePath`、`LOG_DIVIDER`、`RegionTooSmallError`。
-- `tools/backend.py` — 操作後端兩種實作、介面相同：`ScreenBackend`（前景：截圖、點擊、拖曳、按住移動放開 `touchDown`/`touchMove`/`touchUp`、準時點擊 `prepareTap`/`tap`（只有前景）、按鍵、貼文字，找遊戲視窗，會讓懸浮日誌穿透）、`AdbBackend`（模擬器：`adb exec-out screencap`、`input tap/swipe`）；`createBackend(config)`、`GameWindowLostError`、`SUPPORTED_RESOLUTIONS`、`resolutionWarningText`。
+- `tools/backend.py` — 操作後端兩種實作、介面相同：`ScreenBackend`（前景：截圖、點擊、拖曳、按住移動放開 `touchDown`/`touchMove`/`touchUp`、準時點擊 `prepareTap`/`tap`（只有前景）、按鍵 `pressKey`、只按下/放開不檢查視窗 `keyDown`/`keyUp`、一次送多個鍵的 `keysDown`/`keysUp`（和弦用）與 `ensureGame`（彈奏用）、貼文字，找遊戲視窗，會讓懸浮日誌穿透）、`AdbBackend`（模擬器：`adb exec-out screencap`、`input tap/swipe`）；`createBackend(config)`、`GameWindowLostError`、`SUPPORTED_RESOLUTIONS`、`resolutionWarningText`。
 - `tools/finder.py` — 自動縮放比對：`matchAuto`、`matchBestAuto`、`resolveScale`、`getBaseScale`、`clickBackButton`、`findStartCookBtn`、`findSeasoningToggle`、`countStarRow`。
 - `tools/puzzle.py` — 拼圖畫面分析：找木框 `findFrame`、棋盤空格 `emptyMap`、托盤碎片 `trayPieces`、比對 `cellScores`/`matchPiece`、片數 `detectGrid`、分配 `assignCells`（匈牙利演算法）、凸凹形狀 `applyShape`；版面常數以 1600x900 為基準。
+- `tools/midi.py` — 不靠外部套件的 MIDI 解析：`parseMidi(path)` 回傳 `Song`（`parts` 聲部、音已換成秒；打擊樂頻道標 `percussion`）、`MidiError`。
+- `tools/instruments.py` — 樂器配置與音高換算：`PIANO`、`TWO_ROW`（小提琴、大提琴、豎琴、手風琴、拇指琴、里拉琴、魯特琴共用的兩排白鍵）（按鍵→MIDI 音高）、`parseCustom`、`getLayout(config)`、`loadPlan(config)`（讀 MIDI、選聲部、決定移調）、`fitPitch`（折八度、取最近音）、`autoTranspose`、`toKeyNotes`（MIDI 音→按鍵）、`eventsFromKeyNotes`（排出按下/放開事件）、`buildEvents`、`layoutForUi`。
 - `tools/guards.py` — `runDialogGuard`：任務運行中若跳出確認視窗（誤點丟棄等）自動按取消；設定 `autoCancelDialog`；拼圖關閉它（`BaseTask.dialogGuard = False`）。
 - `tools/ocr.py` — Windows 內建 OCR 讀「現在值/最大值」：`readFraction`、`readText`、`readLines`（讀對話泡泡的中文字，整塊讀並回傳每行的高度，沙雕題目用）、`isReady`；沒有 winrt 時回傳 `None`，呼叫端要有備案。
 - `tools/digits.py` — 背包格子右下角數量辨識：`readCount`、`digitSlots`、`loadDigitTemplates`（字形圖在 `templates/digits`）；目前沒有任何程式呼叫它（開始前的維修盒檢查已移除）。
@@ -150,6 +153,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - `scripts/Puzzle.py` — `Puzzle`：拼圖流程（偵測片數、放碎片、垃圾桶重來、規律切割學習）；畫面分析在 `tools/puzzle.py`；`templateDir` 指向 `templates/puzzle` 但該資料夾不存在，拼圖不用模板圖。
 - `scripts/SandSculpture.py` — `SandSculpture`：沙雕（開背包、沒停在沙雕基座搜尋結果就自動搜尋並鎖定、點基座、擺放（先往下拖鏡頭讓預覽框靠近人物，紅框就取消）、已有基座就不再放置、點互動圖示、收起做好的沙雕、小遊戲用顏色找黃色區塊與橘色指針、之後只截指針那一小塊、算出指針走到正中間的時刻準時點、用 OCR 讀題目選項、選第一個認得的、點掉提示對話框）；擺放相關模板借用 `templates/pumpkin`；只支援前景；`SAND_TARGETS` 是認得的沙雕與選項關鍵字。
 - `scripts/Cat.py` — `Cat`：逗貓（點爪印、選單點逗貓、小遊戲認貓耳泡泡裡的按鈕圖示並點同樣的按鈕、結果視窗按確定）；只支援前景；畫面一律縮成 1600x900 基準後用 `cv2.matchTemplate` 比對，不走 `matchBestAuto`；`iconFeature`/`iconScore` 是圖示形狀比對。
+- `scripts/Instrument.py` — `Instrument`：彈奏（讀 MIDI → 選聲部 → 移調 → 照時間 `keyDown`/`keyUp`；高精度計時、開始前倒數、可重複播放）；只支援前景，只送鍵盤、不看畫面也不用模板，`dialogGuard = False`。
 - `scripts/Gathering.py` — `GatherBase`：定時採集共同骨架（連按互動鍵、倒數圖示、獲得物品氣泡、工具耐久耗盡、吃食物、維修盒）；`findCountdownRing`。
 - `scripts/PlantGathering.py` — `PlantGathering`：採集（無工具），`prefix="plant"`。
 - `scripts/WoodCutting.py` — `WoodCutting`：採集（有工具），`prefix="wood"`。
@@ -158,7 +162,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 
 ## 畫面：ui/
 
-- `ui/index.html` — 主視窗，單頁、分頁用 `.pane`：`#cook-tab-pane` 料理、`#snow-tab-pane` 雪雕、`#puzzle-tab-pane` 拼圖、`#cat-tab-pane` 逗貓（「更多」選單第二個）、`#pumpkin-tab-pane` 南瓜雕刻、`#sand-tab-pane` 沙雕、`#fish-tab-pane` 釣魚、`#gather-tab-pane` 採集（內容由 `buildGatherBlock` 動態產生）、`#crop-tab-pane` 拔草提醒、`#settings-tab-pane` 設定；另有 `#updateDialog`、`#dialog`（通用提示窗，由 `showDialog` 填）、`#loading`。內嵌 Lucide SVG sprite（`#i-*`）。
+- `ui/index.html` — 主視窗，單頁、分頁用 `.pane`：`#cook-tab-pane` 料理、`#snow-tab-pane` 雪雕、`#puzzle-tab-pane` 拼圖、`#cat-tab-pane` 逗貓（「更多」選單第二個）、`#pumpkin-tab-pane` 南瓜雕刻、`#instrument-tab-pane` 彈奏（「更多」選單最後一個）、`#sand-tab-pane` 沙雕、`#fish-tab-pane` 釣魚、`#gather-tab-pane` 採集（內容由 `buildGatherBlock` 動態產生）、`#crop-tab-pane` 拔草提醒、`#settings-tab-pane` 設定；另有 `#updateDialog`、`#dialog`（通用提示窗，由 `showDialog` 填）、`#loading`。內嵌 Lucide SVG sprite（`#i-*`）。
 - `ui/script.js` — 唯一的前端邏輯（全域函式，無打包）。入口 `init` → `setup`（`setup` 內含輪詢 `apiGetStatus` 與各分頁事件綁定）。
 - `ui/log.html` — 懸浮日誌視窗，自帶樣式與腳本（輪詢 `apiFloatPoll`，`markClosing` 停輪詢）；有 `data-theme="light"` 淺色版。
 - `ui/style.css` — 主視窗唯一樣式表（見「樣式規則」）。
@@ -175,6 +179,7 @@ scripts/*  任務類別（BaseTask.start 開執行緒）──截圖/點擊─�
 - 說明文字：`HELP_TEXTS`、`NOTICE_TEXTS`、`FOOD_GROUPS`。
 - 設定旁輔助：`fillTemplateImages`（`img[data-tpl]`）、`addMissingResetButtons` / `bindResetButtons` / `updateResetButtons`（還原預設值鈕）、`syncAdbPresets`、`fillAdbDetails`。
 - 更新：`checkForUpdate`、`updateTick`、`showUpdate`、`renderMarkdown`（把 `RELEASE_NOTES.md` 渲染到提示窗）。
+- 彈奏（檔尾 `// ===== 彈奏 =====` 區塊）：`renderInstrument`（載入設定時重畫）、`renderCustomRows` / `captureKey`（自訂按鈕列、點按鍵鈕後按要用的鍵）、`renderInstrumentParts` / `saveInstrumentParts`（聲部勾選）、`copyBuiltin`（複製鋼琴成自訂）、`renderSavedOptions`（存下來的樂器放進下拉選單）；運行中要鎖住的控制項加 class `inst-edit`。
 - 其他：`renderRunTimes`、`renderHeroRunning`（頁首運行標籤）、`renderCrop`（拔草倒數）、`showPane` 與 `menuTabs`（分頁與下拉選單）。
 
 ## 元件（可重用的畫面零件）
